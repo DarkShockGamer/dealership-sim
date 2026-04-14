@@ -38,7 +38,7 @@ Then open [http://localhost:8080](http://localhost:8080).
 Central hub showing your cash, reputation, day counter, garage usage, pending deliveries, recent sales, and a full activity log. Also holds the **Save/Load** controls.
 
 ### Factory
-Browse the full catalog of 36 real make/model combinations across 6 categories (Economy, Sedan, SUV, Truck, Sports, Luxury). Factory cars have predictable condition and no hidden defects — but lower margins. After purchase, cars enter a **delivery queue** and arrive after N days.
+Browse the full catalog of 37 real make/model combinations across 6 categories (Economy, Sedan, SUV, Truck, Sports, Luxury). Factory cars have predictable condition and no hidden defects — but lower margins. After purchase, cars enter a **delivery queue** and arrive after N days.
 
 ### Trade-Ins
 Each day, 3–5 random trade-in offers appear. Trade-ins are riskier — their condition is unknown and they may have hidden mechanical issues. Use **Inspect** to reveal problems before deciding to Accept or Decline. Accepted trade-ins go directly into your garage.
