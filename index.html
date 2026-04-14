@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DealerSim — Car Dealership Simulator</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- ── Header ─────────────────────────────────────────── -->
+  <header class="app-header">
+    <div class="header-brand">🚗 DealerSim</div>
+
+    <div class="stats-bar">
+      <div class="stat-chip" id="stat-cash">💵 $25,000</div>
+      <div class="stat-chip" id="stat-day">📅 Day 1</div>
+      <div class="stat-chip" id="stat-rep">⭐ Rep 1.00</div>
+      <div class="stat-chip" id="stat-garage">🏠 0 / 5</div>
+    </div>
+
+    <button class="btn btn-next-day" id="btn-next-day">Next Day ▶</button>
+  </header>
+
+  <!-- ── Tab Navigation ─────────────────────────────────── -->
+  <nav class="tab-nav" role="tablist">
+    <button class="tab-btn active" data-tab="dashboard"  role="tab">📊 Dashboard</button>
+    <button class="tab-btn"        data-tab="factory"    role="tab">🏭 Factory</button>
+    <button class="tab-btn"        data-tab="tradeins"   role="tab">🤝 Trade-Ins</button>
+    <button class="tab-btn"        data-tab="garage"     role="tab">🔑 Garage</button>
+    <button class="tab-btn"        data-tab="forsale"    role="tab">🏷️ For Sale</button>
+    <button class="tab-btn"        data-tab="upgrades"   role="tab">⬆️ Upgrades</button>
+  </nav>
+
+  <!-- ── Tab Panels ─────────────────────────────────────── -->
+  <main class="app-main">
+    <div id="tab-dashboard" class="tab-panel active"  role="tabpanel"></div>
+    <div id="tab-factory"   class="tab-panel"         role="tabpanel"></div>
+    <div id="tab-tradeins"  class="tab-panel"         role="tabpanel"></div>
+    <div id="tab-garage"    class="tab-panel"         role="tabpanel"></div>
+    <div id="tab-forsale"   class="tab-panel"         role="tabpanel"></div>
+    <div id="tab-upgrades"  class="tab-panel"         role="tabpanel"></div>
+  </main>
+
+  <!-- ── Toast Container ────────────────────────────────── -->
+  <div id="toast-container" aria-live="polite"></div>
+
+  <!-- ── Confirmation Modal ─────────────────────────────── -->
+  <div id="modal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+    <div class="modal-box">
+      <h3 id="modal-title">Confirm</h3>
+      <p  id="modal-message"></p>
+      <div class="modal-actions">
+        <button class="btn btn-danger"     id="modal-confirm">Confirm</button>
+        <button class="btn btn-secondary"  id="modal-cancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden file input for save import -->
+  <input type="file" id="import-file" accept=".json" style="display:none" />
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
