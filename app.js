@@ -503,8 +503,13 @@ function resolveTradeInCounters() {
 
 /** Expire stale offers and requests. */
 function expireOffers() {
-  state.customerOffers = state.customerOffers.filter(o => o.expiresDay >= state.day && o.state === 'pending');
-  state.tradeInRequests = state.tradeInRequests.filter(r => r.expiresDay >= state.day && r.state === 'pending');
+  // Expire pending offers past their expiry day; keep countered items until they resolve next day
+  state.customerOffers  = state.customerOffers.filter(
+    o => o.state === 'countered' || o.expiresDay >= state.day
+  );
+  state.tradeInRequests = state.tradeInRequests.filter(
+    r => r.state === 'countered' || r.expiresDay >= state.day
+  );
 }
 
 function tickDaysInLot() {
@@ -845,10 +850,9 @@ function basicRepair(carId) {
   if (!state.upgrades.serviceBay) { showToast('You need the Service Bay upgrade first!', 'error'); return; }
   const car = state.garage.find(c => c.id === carId);
   if (!car) return;
-  if (car.condition === 'A' || car.condition === 'B' && car.hiddenIssues.length === 0) {
+  if (car.condition === 'A' || (car.condition === 'B' && car.hiddenIssues.length === 0)) {
     showToast('Car is in good condition — no major repairs needed!', 'error'); return;
   }
-  if (car.condition === 'A') { showToast('Car is already in excellent condition!', 'error'); return; }
   if (car.inServiceUntilDay) { showToast('Car is already in service.', 'error'); return; }
   const cost = 800;
   if (state.cash < cost) { showToast(`Basic Repair costs ${formatCurrency(cost)} — not enough cash!`, 'error'); return; }
