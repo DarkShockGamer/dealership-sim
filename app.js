@@ -122,7 +122,11 @@ const generateId  = () => Date.now().toString(36) + Math.random().toString(36).s
 // PERSISTENCE
 // ============================================================
 function saveState() {
-  try { localStorage.setItem('dealerSim_v1', JSON.stringify(state)); } catch (_) {}
+  try {
+    localStorage.setItem('dealerSim_v1', JSON.stringify(state));
+  } catch (err) {
+    showToast('⚠️ Save failed: ' + (err?.message || 'storage quota exceeded'), 'error');
+  }
 }
 
 function loadState() {
@@ -149,8 +153,11 @@ function pickCondition(weights) {
 
 /** Generate a random subset of hidden issues based on condition tier. */
 function genHiddenIssues(condition) {
-  const counts = { A: 0, B: () => (Math.random() < 0.2 ? 1 : 0), C: () => randomInt(0, 2), D: () => randomInt(1, 3) };
-  const count = typeof counts[condition] === 'function' ? counts[condition]() : counts[condition];
+  let count;
+  if (condition === 'A')      count = 0;
+  else if (condition === 'B') count = Math.random() < 0.2 ? 1 : 0;
+  else if (condition === 'C') count = randomInt(0, 2);
+  else                        count = randomInt(1, 3); // D
   const pool = [...HIDDEN_ISSUES];
   const issues = [];
   for (let i = 0; i < count && pool.length; i++) {
@@ -197,8 +204,8 @@ function generateTradeIns() {
     const condition = pickCondition([0.08, 0.28, 0.37, 0.27]); // skewed worse
     const car       = buildCar(entry, condition, 'tradein', false);
     // Owner may or may not factor in issues
-    const ownerAware  = Math.random() < 0.4;
-    const effectiveMV = ownerAware ? car.marketValue - car.repairCost * 0.5 : car.marketValue;
+    const ownerAwareOfIssues = Math.random() < 0.4;
+    const effectiveMV = ownerAwareOfIssues ? car.marketValue - car.repairCost * 0.5 : car.marketValue;
     const offerPrice  = Math.round(effectiveMV * randomFloat(0.62, 0.84));
     car.purchasePrice  = offerPrice;
     car.tradeInPrice   = offerPrice; // display alias
@@ -363,11 +370,9 @@ function inspectTradeIn(offerId) {
 
   state.cash   -= cost;
   offer.inspected = true;
-  // Reveal true hidden issues (generate them now with more accuracy)
-  if (!offer.hiddenIssues.length && offer.condition !== 'A') {
-    offer.hiddenIssues = genHiddenIssues(offer.condition);
-    offer.repairCost   = offer.hiddenIssues.reduce((s, i) => s + i.cost, 0);
-  }
+  // Issues were already generated at trade-in creation; inspection just reveals them.
+  // Recalculate repairCost in case it wasn't set (e.g. old save data).
+  offer.repairCost = offer.hiddenIssues.reduce((s, i) => s + i.cost, 0);
 
   addNote(
     `🔍 Inspected ${offer.year} ${offer.make} ${offer.model}: ` +

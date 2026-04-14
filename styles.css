@@ -280,7 +280,7 @@ body {
   letter-spacing: .5px;
 }
 
-.garage-card.for-sale { border-color: #fbbf24; }
+.garage-card.for-sale { border-color: var(--warning); }
 
 /* Issues section (trade-ins) */
 .issues-section { font-size: .8rem; display: flex; flex-direction: column; gap: 4px; }
