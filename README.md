@@ -1,6 +1,6 @@
 # 🚗 DealerSim — Car Dealership Simulator
 
-A fully client-side, single-page car dealership simulator. Buy cars, manage your inventory, sell for profit, and grow your empire — all in the browser, no backend required.
+A fully client-side, single-page car dealership simulator. Buy cars, manage your inventory, negotiate deals, and grow your empire — all in the browser, no backend required.
 
 ---
 
@@ -18,7 +18,7 @@ python3 -m http.server 8080
 ```
 Then open [http://localhost:8080](http://localhost:8080).
 
-> ⚠️ **Important:** The app uses ES modules (`import`/`export`). These require a web server (HTTP/HTTPS). Opening `index.html` directly via `file://` will not work in most browsers due to CORS restrictions. Use one of the methods above.
+> ⚠️ **Important:** The app uses ES modules (`import`/`export`). These require a web server (HTTP/HTTPS). Opening `index.html` directly via `file://` will not work in most browsers due to CORS restrictions.
 
 ---
 
@@ -34,23 +34,48 @@ Then open [http://localhost:8080](http://localhost:8080).
 
 ## 🎮 Gameplay Overview
 
+Time only advances when you press **Next Day ▶**. No timers, no pressure.
+
 ### Dashboard
-Central hub showing your cash, reputation, day counter, garage usage, pending deliveries, recent sales, and a full activity log. Also holds the **Save/Load** controls.
+Central hub: cash, reputation, day, garage usage, pending deliveries, customer offers count, trade-in request count, recent sales, activity log, and save/load controls.
 
-### Factory
-Browse the full catalog of 37 real make/model combinations across 6 categories (Economy, Sedan, SUV, Truck, Sports, Luxury). Factory cars have predictable condition and no hidden defects — but lower margins. After purchase, cars enter a **delivery queue** and arrive after N days.
+### 🏭 Factory
+Browse 37 real make/model combinations across 6 categories. Factory prices are **fixed — no negotiation**. Cars arrive after N delivery days with known condition and no hidden defects. Lower risk, lower margin.
 
-### Trade-Ins
-Each day, 3–5 random trade-in offers appear. Trade-ins are riskier — their condition is unknown and they may have hidden mechanical issues. Use **Inspect** to reveal problems before deciding to Accept or Decline. Accepted trade-ins go directly into your garage.
+### 🚗 Used Market *(formerly Trade-Ins)*
+4–7 used cars appear each day with unknown condition and potential hidden issues. These are sellers in the private market.
 
-### Garage
-All cars you own are shown as cards. Toggle **Mark for Sale** to list a car, and set your own list price. If you own the **Detailing Bay** upgrade, you can improve a car's condition (and market value) for $500.
+- **Inspect** ($150–$300) to reveal hidden issues before buying.
+- **Negotiate**: Enter your own offer price — the seller will accept, counter, or walk away based on their hidden floor price, your reputation, and whether you have Negotiation Training.
+- Seller counters are shown; you can accept the counter or re-counter (up to seller's patience limit).
 
-### For Sale
-Displays only listed cars with live sale-chance calculations. Use the quick-set buttons (Market / +10% / −10% / −20%) to adjust pricing. Press **Next Day** to simulate customer traffic and potential sales. A 2% transaction fee applies to each sale.
+### 🔄 Trade-Ins *(new)*
+Customers who want one of **your listed cars** may propose a trade: their car + optional cash difference for yours.
 
-### Upgrades
-Eight purchasable upgrades that affect game mechanics:
+- Review the customer's car details and the proposed cash delta.
+- **Accept** the deal as-is, **Reject** it, or **Counter** with your preferred cash amount.
+- Counters resolve automatically on the next day — the customer accepts or declines.
+- Accepted trade-in cars go into your garage at zero purchase cost; your listed car is removed.
+
+### 🔑 Garage
+All owned cars shown as cards. Features:
+
+- **Mark for Sale / Unlist** a car.
+- **Reconditioning actions** (see below).
+- Cars in service show an "IN SERVICE" banner and cannot be listed/sold.
+- Reconditioning applied is shown as badges on each card.
+
+### 🏷️ For Sale
+Lists your cars for sale plus a **Customer Offers inbox**:
+
+- Auto-sales happen at list price each Next Day (sale probability formula).
+- Customers may submit **below-list offers** instead of buying at full price. These appear at the top of For Sale.
+- Per offer: **Accept** (instant sale), **Reject**, or **Counter** a higher price. Counters resolve next day.
+- Quick-set price buttons: Market / +10% / −10% / −20%.
+- Cars with active offers or trade-in requests are highlighted.
+
+### ⬆️ Upgrades
+Eleven purchasable upgrades:
 
 | Upgrade | Cost | Effect |
 |---|---|---|
@@ -59,27 +84,27 @@ Eight purchasable upgrades that affect game mechanics:
 | Garage Tier 4 | $90,000 | 35 slots |
 | Marketing Campaign | $8,000 | +20% daily traffic (×3 stackable) |
 | Inspection Tool | $5,000 | Inspection cost $300 → $150 |
-| Detailing Bay | $12,000 | Detail cars to improve condition |
+| Negotiation Training | $8,000 | Better negotiation outcomes (buying & selling) |
+| Detailing Bay | $12,000 | Detail cars: +1 condition tier, +7% value ($500/car, instant) |
+| Service Bay | $18,000 | Basic Repair: +1 condition, fixes issues, +10% value ($800/car, 1 day) |
+| Performance Shop | $30,000 | Parts Upgrade on Sports/SUV/Truck: +15% value ($1,500/car, 1 day) |
 | Reputation Boost | $10,000 | +15% sale chance multiplier (×3 stackable) |
 | Delivery Express | $7,500 | −1 delivery day from factory |
 
 ---
 
-## 🕹️ Controls Reference
+## 🔧 Car Reconditioning
 
-| Control | Where | Action |
-|---|---|---|
-| **Next Day ▶** | Header | Advance simulation by one day |
-| **Buy** | Factory | Order a car (enters delivery queue) |
-| **Inspect** | Trade-Ins | Pay $150–$300 to reveal hidden issues |
-| **Accept / Decline** | Trade-Ins | Accept trade-in to garage, or decline |
-| **Mark for Sale** | Garage | Toggle listing on/off |
-| **Detail ($500)** | Garage | Improve condition one tier (requires upgrade) |
-| **Market / ±%** | For Sale | Quick-set list price relative to market value |
-| **Unlist** | For Sale | Remove car from listings |
-| **New Game / Reset** | Dashboard | Restart with confirmation |
-| **Export Save** | Dashboard | Download game state as JSON |
-| **Import Save** | Dashboard | Load a previously exported JSON |
+Available from the **Garage** tab on each car card:
+
+| Action | Cost | Time | Effect | Requires |
+|---|---|---|---|---|
+| 🚿 Car Wash | $150 | Instant | +3% market value, +8% sale chance for 3 days | Nothing |
+| ✨ Detail | $500 | Instant | +1 condition tier, +7% market value | Detailing Bay upgrade |
+| 🔩 Basic Repair | $800 | 1 day | +1 condition tier, clears issues, +10% market value | Service Bay upgrade |
+| 🏎️ Parts Upgrade | $1,500 | 1 day | +15% market value | Performance Shop upgrade; Sports/SUV/Truck only |
+
+Cars being repaired or upgraded are **taken off the market** until service completes the next day.
 
 ---
 
@@ -94,9 +119,37 @@ saleChance = baseProbability
            × reputationFactor      (current reputation score)
            × reputationBoostFactor (1 + 0.15 × boost upgrades)
            × demandFactor          (car-specific, 0.5–1.5)
+           × washBonus             (1.08 if recently washed)
 ```
 
 Capped at **85% per day**.
+
+---
+
+## 🕹️ How to Test New Features
+
+### Used Market (negotiation)
+1. Open **Used Market** tab.
+2. Click on a car's price input and type a low offer, then click **Negotiate**.
+3. Seller will counter — accept the counter or re-counter again.
+4. Try buying with Negotiation Training upgrade for better outcomes.
+
+### Trade-In Requests
+1. Mark at least one car for sale in **Garage**.
+2. Press **Next Day** a few times — trade-in requests appear in the **Trade-Ins** tab.
+3. Review customer's car details and proposed cash delta.
+4. Accept, reject, or counter. If countered, advance a day to see the outcome.
+
+### Customer Offers
+1. Mark cars for sale at market value or slightly above.
+2. Press **Next Day** — below-list offers appear at the top of **For Sale**.
+3. Accept, reject, or counter. Counter resolves next day.
+
+### Reconditioning
+1. Buy a used car from Used Market (condition B–D).
+2. In **Garage**, use **Car Wash** (instant), then **Detail** (after buying Detailing Bay), or **Basic Repair** (after Service Bay).
+3. Press **Next Day** — repair/parts upgrades complete, market value and condition update.
+4. Check the badge on the car card showing what was applied.
 
 ---
 
@@ -118,8 +171,6 @@ Open `data/cars.js` and add entries to the `CAR_CATALOG` array:
 },
 ```
 
-No other files need to be changed — the Factory tab renders directly from the catalog array.
-
 ---
 
 ## 📁 File Structure
@@ -132,3 +183,4 @@ dealership-sim/
 └── data/
     └── cars.js      # Car catalog (ES module export)
 ```
+
