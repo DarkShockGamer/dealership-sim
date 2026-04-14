@@ -196,8 +196,8 @@ function loadState() {
       if (!loaded.customerOffers)  loaded.customerOffers  = [];
       // Migrate upgrade keys
       if (!loaded.upgrades) loaded.upgrades = {};
-      if (loaded.upgrades.serviceBay          === undefined) loaded.upgrades.serviceBay          = false;
-      if (loaded.upgrades.performanceShop     === undefined) loaded.upgrades.performanceShop     = false;
+      if (loaded.upgrades.serviceBay          === undefined) loaded.upgrades.serviceBay = false;
+      if (loaded.upgrades.performanceShop     === undefined) loaded.upgrades.performanceShop = false;
       if (loaded.upgrades.negotiationTraining === undefined) loaded.upgrades.negotiationTraining = false;
       // v2 migration: add market indices + save version
       if (!loaded.saveVersion || loaded.saveVersion < 2) {
@@ -603,8 +603,8 @@ function resolveCustomerOfferCounters() {
       toRemove.add(offer.id);
     } else if ((offer.patience ?? 0) > 0 && ratio < 1.30) {
       // Buyer counters back — moves toward player's counter by 35–55%
-      const lerpFactor  = randomFloat(0.35, 0.55);
-      const newOffer    = Math.round(lerp(offer.offeredPrice, counter, lerpFactor));
+      const counterMovementRatio = randomFloat(0.35, 0.55);
+      const newOffer    = Math.round(lerp(offer.offeredPrice, counter, counterMovementRatio));
       // Never exceed their actual max; never go below their previous offer
       offer.offeredPrice = Math.min(buyerMax, Math.max(offer.offeredPrice, newOffer));
       offer.patience     = (offer.patience ?? 1) - 1;

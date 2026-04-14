@@ -1,6 +1,6 @@
 # 🚗 DealerSim — Car Dealership Simulator
 
-A fully client-side, single-page car dealership simulator. Buy cars, manage your inventory, negotiate deals, and grow your empire — all in the browser, no backend required.
+A fully client-side, single-page car dealership simulator. Buy cars, manage your inventory, negotiate deals, grow your empire — all in the browser with no backend required.
 
 ---
 
@@ -34,48 +34,56 @@ Then open [http://localhost:8080](http://localhost:8080).
 
 ## 🎮 Gameplay Overview
 
-Time only advances when you press **Next Day ▶**. No timers, no pressure.
+Time only advances when you press **Next Day ▶**. No real-time timers — think through every decision.
 
 ### Dashboard
-Central hub: cash, reputation, day, garage usage, pending deliveries, customer offers count, trade-in request count, recent sales, activity log, and save/load controls.
+Central hub showing: cash, day, reputation, garage usage, **daily overhead**, live **market conditions per segment**, pending deliveries, customer offers, trade-in requests, recent sales, activity log, and save/load controls.
 
 ### 🏭 Factory
-Browse 37 real make/model combinations across 6 categories. Factory prices are **fixed — no negotiation**. Cars arrive after N delivery days with known condition and no hidden defects. Lower risk, lower margin.
+Browse 2026 model-year cars across 6 categories, with **multiple trim levels** per model (e.g., Corolla LE / SE / XSE). Factory prices are **fixed — no negotiation**. Cars arrive with 5–50 miles and spotless condition. Lower risk, predictable margin.
 
-### 🚗 Used Market *(formerly Trade-Ins)*
-4–7 used cars appear each day with unknown condition and potential hidden issues. These are sellers in the private market.
+### 🚗 Used Market
+4–7 used cars appear each day (model years 2008–2024) with mileage, wear, and potential hidden issues.
 
 - **Inspect** ($150–$300) to reveal hidden issues before buying.
-- **Negotiate**: Enter your own offer price — the seller will accept, counter, or walk away based on their hidden floor price, your reputation, and whether you have Negotiation Training.
-- Seller counters are shown; you can accept the counter or re-counter (up to seller's patience limit).
+- **Live offer tone preview**: Type your offer and instantly see the seller's likely reaction (😊 Interested → 😠 Offended → 🤬 Insulted).
+- **Negotiate**: Seller counters at only **15–28% toward your offer** — they stay close to their asking price. A steep acceptance curve means you need to be near their hidden floor to get a deal.
+- **Walk-away triggers**: Offer below 55% of seller's floor = immediate walk. Patience exhausted = no more rounds.
+- **Rounds left** display so you know when to push harder or accept.
 
-### 🔄 Trade-Ins *(new)*
-Customers who want one of **your listed cars** may propose a trade: their car + optional cash difference for yours.
+### 🔄 Trade-Ins
+Customers who want one of **your listed cars** propose a swap: their car + optional cash delta for yours.
 
-- Review the customer's car details and the proposed cash delta.
-- **Accept** the deal as-is, **Reject** it, or **Counter** with your preferred cash amount.
-- Counters resolve automatically on the next day — the customer accepts or declines.
-- Accepted trade-in cars go into your garage at zero purchase cost; your listed car is removed.
+- Review the customer's car and proposed cash difference.
+- **Accept**, **Reject**, or **Counter** with your preferred cash amount.
+- Accepted trade-in cars go into your garage at zero purchase cost.
 
 ### 🔑 Garage
 All owned cars shown as cards. Features:
 
-- **Mark for Sale / Unlist** a car.
-- **Reconditioning actions** (see below).
+- **Mark for Sale / Unlist**, set list price with quick-set buttons.
+- **Reconditioning actions** (Car Wash, Detail, Repair, Parts Upgrade).
 - Cars in service show an "IN SERVICE" banner and cannot be listed/sold.
-- Reconditioning applied is shown as badges on each card.
+- **Trim** shown on all car cards (e.g., "2026 Honda Accord Sport").
 
 ### 🏷️ For Sale
 Lists your cars for sale plus a **Customer Offers inbox**:
 
-- Auto-sales happen at list price each Next Day (sale probability formula).
-- Customers may submit **below-list offers** instead of buying at full price. These appear at the top of For Sale.
-- Per offer: **Accept** (instant sale), **Reject**, or **Counter** a higher price. Counters resolve next day.
-- Quick-set price buttons: Market / +10% / −10% / −20%.
-- Cars with active offers or trade-in requests are highlighted.
+- Auto-sales happen at list price each Next Day (based on sale probability formula).
+- Customers may submit **below-list offers**. Each offer shows:
+  - **Buyer Mood** (😊 Fair offer → 😠 Lowball offer)
+  - **Rounds left** (buyer patience 1–3 rounds)
+  - **Buyer Max** is hidden — counter at/below it and they accept; counter above it and they walk.
+- When you counter, buyers move **35–55% toward your price** on their next reply (not just accepting/rejecting).
+- **Accept / Reject / Counter** each offer; counters resolve next day.
+- Auto-sells at list price if buyer offers full price.
+
+### ⚙️ Settings
+- **Dark Mode** toggle — persisted in localStorage. Works beautifully in either theme.
+- **Difficulty** — Normal vs Hard:
+  - Hard: 1.5× daily overhead, more frequent market events, larger market swings.
 
 ### ⬆️ Upgrades
-Eleven purchasable upgrades:
 
 | Upgrade | Cost | Effect |
 |---|---|---|
@@ -90,6 +98,35 @@ Eleven purchasable upgrades:
 | Performance Shop | $30,000 | Parts Upgrade on Sports/SUV/Truck: +15% value ($1,500/car, 1 day) |
 | Reputation Boost | $10,000 | +15% sale chance multiplier (×3 stackable) |
 | Delivery Express | $7,500 | −1 delivery day from factory |
+
+---
+
+## 📉 Economy & Risk
+
+### Daily Overhead
+Your lot isn't free. Every Next Day press deducts:
+
+| Garage Level | Overhead/Day |
+|---|---|
+| Tier 1 (5 slots) | $300 |
+| Tier 2 (10 slots) | $600 |
+| Tier 3 (20 slots) | $1,200 |
+| Tier 4 (35 slots) | $2,100 |
+
+Expanding your garage means bigger overhead — only upgrade when your sales can cover it.
+
+### Market Volatility
+Each segment (Economy, Sedan, SUV, Truck, Sports, Luxury) has a **Market Index** that drifts daily ±0–2.5%. The Dashboard shows current values with 📈📉 arrows.
+
+**Random market events** (~8% chance per day) cause larger shifts:
+- ⛽ Fuel prices spike → SUV & Truck demand falls
+- 💼 Corporate tax cut → Luxury heats up
+- 📉 Used car bubble bursts → Broad market cooling
+- 🏗️ Construction boom → Trucks selling fast
+- … and 9 more events
+
+### Depreciation
+Cars in your garage can **lose value** when their segment's market index drops below 1.0 — value erodes proportionally each day. Cars sitting listed for >7 days also depreciate slightly as buyers expect discounts on stale inventory.
 
 ---
 
@@ -128,28 +165,53 @@ Capped at **85% per day**.
 
 ## 🕹️ How to Test New Features
 
-### Used Market (negotiation)
-1. Open **Used Market** tab.
-2. Click on a car's price input and type a low offer, then click **Negotiate**.
-3. Seller will counter — accept the counter or re-counter again.
-4. Try buying with Negotiation Training upgrade for better outcomes.
+### Market Volatility
+1. Press **Next Day** several times on the Dashboard.
+2. Watch the **Market Conditions** panel update each day — segments drift up and down.
+3. Occasionally a toast + activity log entry announces a **market event** (e.g., fuel price spike, construction boom).
+4. After buying a car, if its market segment dips, you'll see market value decline in your Garage.
+
+### Overhead Pressure
+1. Start a new game. Each Next Day deducts $300 from cash.
+2. Upgrade to Garage Tier 2 → overhead jumps to $600/day.
+3. Try surviving without making any sales — you'll run out of cash in ~80 days on Normal, ~55 on Hard.
+
+### Used Market (improved negotiation)
+1. Open **Used Market** tab. Type a lowball offer ($5,000 on a $20,000 car).
+2. See the live tone preview: **🤬 Insulted — likely to walk**.
+3. Submit the offer — seller will walk immediately or after losing patience.
+4. Try an offer closer to asking — see **😊 Very interested** tone and much higher acceptance.
+5. When seller counters, note they stay **close to their asking price** (only 15–28% movement toward you).
+
+### Customer Offers (improved countering)
+1. Mark a car for sale and press **Next Day** a few times.
+2. Check **For Sale** tab — below-list customer offers appear with **Buyer Mood** and **Rounds Left**.
+3. Counter with a high price — buyer walks. Counter reasonably — buyer moves 35–55% toward your price.
+4. Multiple counter rounds are now possible (up to buyer's patience limit).
 
 ### Trade-In Requests
 1. Mark at least one car for sale in **Garage**.
 2. Press **Next Day** a few times — trade-in requests appear in the **Trade-Ins** tab.
-3. Review customer's car details and proposed cash delta.
-4. Accept, reject, or counter. If countered, advance a day to see the outcome.
-
-### Customer Offers
-1. Mark cars for sale at market value or slightly above.
-2. Press **Next Day** — below-list offers appear at the top of **For Sale**.
-3. Accept, reject, or counter. Counter resolves next day.
+3. Review customer's car details and proposed cash delta. Accept, reject, or counter.
 
 ### Reconditioning
 1. Buy a used car from Used Market (condition B–D).
 2. In **Garage**, use **Car Wash** (instant), then **Detail** (after buying Detailing Bay), or **Basic Repair** (after Service Bay).
 3. Press **Next Day** — repair/parts upgrades complete, market value and condition update.
-4. Check the badge on the car card showing what was applied.
+
+### Dark Mode & Settings
+1. Click **Settings** tab.
+2. Toggle **Dark Mode** — persists across page reloads.
+3. Switch **Difficulty** to Hard → overhead becomes $450/day at Tier 1.
+
+---
+
+## 💾 Save Data
+
+- Game state saved to `localStorage` under key `dealerSim_v1` (save version tracked internally).
+- Settings (dark mode, difficulty) saved separately under `dealerSim_settings`.
+- Existing saves are **automatically migrated** to v2 — market indices and new fields are added without losing your progress.
+- Use **Export Save** / **Import Save** on the Dashboard to back up or transfer saves.
 
 ---
 
@@ -161,15 +223,18 @@ Open `data/cars.js` and add entries to the `CAR_CATALOG` array:
 {
   make: 'Tesla',
   model: 'Model 3',
-  category: 'Sedan',          // Economy | Sedan | SUV | Truck | Sports | Luxury
-  basePrice: 28000,           // factory wholesale cost (what you pay)
-  marketValue: 37000,         // typical retail value
-  deliveryDays: 3,            // 1–5 days from factory to garage
-  yearRange: [2020, 2023],    // random year picked in this range
-  baseMileage: [5000, 40000], // random mileage picked in this range
-  demandFactor: 1.3,          // customer demand multiplier (0.5–1.5)
+  trim: 'Long Range',           // trim level shown on cards
+  category: 'Sedan',            // Economy | Sedan | SUV | Truck | Sports | Luxury
+  basePrice: 39000,             // factory invoice (what you pay to order)
+  marketValue: 46000,           // MSRP / retail value (2026 new)
+  deliveryDays: 3,              // days from factory to garage
+  yearRange: [2020, 2024],      // used market: random year in this range
+  baseMileage: [3000, 50000],   // used market: random mileage in this range
+  demandFactor: 1.3,            // customer demand multiplier (0.5–1.5)
 },
 ```
+
+Factory cars always use year **2026** with 5–50 miles regardless of `yearRange`/`baseMileage`.
 
 ---
 
@@ -178,9 +243,9 @@ Open `data/cars.js` and add entries to the `CAR_CATALOG` array:
 ```
 dealership-sim/
 ├── index.html       # SPA shell, tab structure, modal
-├── styles.css       # All styles, CSS custom properties
-├── app.js           # Game logic, state, render functions
+├── styles.css       # All styles, CSS custom properties, dark mode
+├── app.js           # Game logic, state management, render functions
 └── data/
-    └── cars.js      # Car catalog (ES module export)
+    └── cars.js      # Car catalog — 70+ entries, multiple trims per model
 ```
 

@@ -253,7 +253,7 @@ export const CAR_CATALOG = [
   { make: 'Mazda',     model: 'MX-5 Miata',   trim: 'Sport',        category: 'Sports',
     basePrice: 27000, marketValue: 30900, deliveryDays: 3,
     yearRange: [2016, 2024], baseMileage: [2000,   60000], demandFactor: 1.1 },
-  { make: 'Mazda',     model: 'MX-5 Miata',   trim: 'Grand Touring',category: 'Sports',
+  { make: 'Mazda',     model: 'MX-5 Miata',   trim: 'Grand Touring', category: 'Sports',
     basePrice: 31400, marketValue: 35900, deliveryDays: 3,
     yearRange: [2016, 2024], baseMileage: [1000,   40000], demandFactor: 1.1 },
 
