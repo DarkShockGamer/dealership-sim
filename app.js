@@ -12,6 +12,7 @@ import { CAR_CATALOG } from './data/cars.js';
 // DEFAULT STATE
 // ============================================================
 const DEFAULT_STATE = {
+  saveVersion: 2,
   cash: 25000,
   day: 1,
   reputation: 1.0,
@@ -34,6 +35,12 @@ const DEFAULT_STATE = {
   },
   salesHistory: [],
   notifications: [],
+  // Market volatility indices per segment (1.0 = normal)
+  marketIndices: {
+    Economy: 1.0, Sedan: 1.0, SUV: 1.0,
+    Truck: 1.0,   Sports: 1.0, Luxury: 1.0,
+  },
+  lastMarketEvent: null,
 };
 
 let state = JSON.parse(JSON.stringify(DEFAULT_STATE));
@@ -48,6 +55,26 @@ const CONDITION_VALUE  = { A: 1.05, B: 0.92, C: 0.75, D: 0.58 };
 const TRANSACTION_FEE  = 0.02;
 
 const PERF_ELIGIBLE = ['Sports', 'SUV', 'Truck']; // categories eligible for parts upgrade
+
+// Daily garage overhead costs by garage level
+const OVERHEAD_BY_LEVEL = { 1: 300, 2: 600, 3: 1200, 4: 2100 };
+
+// Random market event pool
+const MARKET_EVENTS = [
+  { msg: '⛽ Fuel prices spiked! SUV & Truck demand fell.',         effects: { SUV: -0.08, Truck: -0.12 } },
+  { msg: '📱 Tech boom! Luxury demand surged.',                     effects: { Luxury: 0.10 } },
+  { msg: '🏠 Economic anxiety. Economy cars in high demand.',       effects: { Economy: 0.09, Luxury: -0.06 } },
+  { msg: '🚫 Supply chains eased. Factory inventory flooding in.',  effects: { Economy: -0.05, Sedan: -0.04 } },
+  { msg: '🌧️ Bad weather season — AWD SUVs hot right now.',         effects: { SUV: 0.09, Sports: -0.04 } },
+  { msg: '🎉 Summer driving season! Sports cars flying off lots.',   effects: { Sports: 0.10, Truck: 0.05 } },
+  { msg: '📉 Used car bubble cooling. Values dropping across board.',effects: { Economy: -0.06, Sedan: -0.08, SUV: -0.05 } },
+  { msg: '🔋 EV push eroding gasoline sedan demand.',               effects: { Sedan: -0.07, Economy: -0.05 } },
+  { msg: '🏗️ Construction boom — trucks selling fast!',             effects: { Truck: 0.12 } },
+  { msg: '💼 Corporate tax relief — luxury segment heating up.',    effects: { Luxury: 0.08, Sports: 0.06 } },
+  { msg: '🌊 Hurricane season drives up truck demand.',             effects: { Truck: 0.07, SUV: 0.05 } },
+  { msg: '🎓 Back-to-school rush — economy compacts in demand.',    effects: { Economy: 0.08 } },
+  { msg: '💸 Interest rates rising — budget buyers rule the day.',  effects: { Economy: 0.10, Luxury: -0.09, Sports: -0.06 } },
+];
 
 const HIDDEN_ISSUES = [
   { name: 'Engine knock',              cost: 800  },
@@ -139,6 +166,7 @@ const UPGRADES_CONFIG = [
 const randomInt   = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 const randomFloat = (min, max) => Math.random() * (max - min) + min;
 const clamp       = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const lerp        = (a, b, t) => a + (b - a) * t;
 const randomFrom  = arr => arr[Math.floor(Math.random() * arr.length)];
 const formatCurrency = n => '$' + Math.round(n).toLocaleString();
 const generateId  = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -168,9 +196,22 @@ function loadState() {
       if (!loaded.customerOffers)  loaded.customerOffers  = [];
       // Migrate upgrade keys
       if (!loaded.upgrades) loaded.upgrades = {};
-      if (loaded.upgrades.serviceBay      === undefined) loaded.upgrades.serviceBay      = false;
-      if (loaded.upgrades.performanceShop === undefined) loaded.upgrades.performanceShop = false;
+      if (loaded.upgrades.serviceBay          === undefined) loaded.upgrades.serviceBay          = false;
+      if (loaded.upgrades.performanceShop     === undefined) loaded.upgrades.performanceShop     = false;
       if (loaded.upgrades.negotiationTraining === undefined) loaded.upgrades.negotiationTraining = false;
+      // v2 migration: add market indices + save version
+      if (!loaded.saveVersion || loaded.saveVersion < 2) {
+        loaded.saveVersion    = 2;
+        loaded.marketIndices  = { ...DEFAULT_STATE.marketIndices };
+        loaded.lastMarketEvent = null;
+        // Patch customer offers to have buyerMax & patience if missing
+        for (const o of loaded.customerOffers || []) {
+          if (o.buyerMax  === undefined) o.buyerMax  = Math.round((o.offeredPrice ?? 0) * 1.10);
+          if (o.patience  === undefined) o.patience  = 2;
+        }
+        if ((loaded.notifications || []).length === 0)
+          loaded.notifications = [{ message: '📋 Save upgraded to v2 — overhead, market volatility & new car data added!', type: 'info', day: loaded.day ?? 1 }];
+      }
       // Migrate car objects
       for (const car of loaded.garage || []) migrateCar(car);
       for (const d of loaded.deliveries || []) migrateCar(d.car);
@@ -188,6 +229,7 @@ function migrateCar(car) {
   if (car.pendingService    === undefined) car.pendingService    = null;
   if (car.reconditionLog    === undefined) car.reconditionLog    = [];
   if (car.washBoostDays     === undefined) car.washBoostDays     = 0;
+  if (car.trim              === undefined) car.trim              = '';
   // Old offers had 'tradein' source — normalise
   if (car.source === 'tradein') car.source = 'used';
 }
@@ -225,16 +267,19 @@ function genHiddenIssues(condition) {
 
 /** Build a full car object from a catalog entry. */
 function buildCar(entry, condition, source, inspected = false) {
-  const year      = randomInt(entry.yearRange[0], entry.yearRange[1]);
-  const mileage   = randomInt(entry.baseMileage[0], entry.baseMileage[1]);
-  const issues    = inspected || source === 'factory' ? [] : genHiddenIssues(condition);
+  // Factory cars are always 2026 with near-zero miles
+  const year    = source === 'factory' ? 2026 : randomInt(entry.yearRange[0], entry.yearRange[1]);
+  const mileage = source === 'factory' ? randomInt(5, 50) : randomInt(entry.baseMileage[0], entry.baseMileage[1]);
+  const issues  = inspected || source === 'factory' ? [] : genHiddenIssues(condition);
   const repairCost = issues.reduce((s, i) => s + i.cost, 0);
+  // Apply current market index to base market value
+  const marketIdx   = (state.marketIndices || {})[entry.category] ?? 1.0;
   const marketValue = Math.round(
-    entry.marketValue * CONDITION_VALUE[condition] * (1 - mileage / 600000)
+    entry.marketValue * CONDITION_VALUE[condition] * (1 - mileage / 700000) * marketIdx
   );
   return {
     id: generateId(),
-    make: entry.make, model: entry.model, year, category: entry.category,
+    make: entry.make, model: entry.model, trim: entry.trim || '', year, category: entry.category,
     mileage, condition,
     hiddenIssues: issues,
     inspected,
@@ -321,14 +366,19 @@ function generateCustomerOffers() {
     const chance = computeSaleChance(car);
     // Offer probability is 1.5× sale chance (buyer haggles rather than pays full)
     if (Math.random() < Math.min(chance * 1.5, 0.75)) {
-      const mult          = randomFloat(0.72, 0.97);
-      const offeredPrice  = Math.round(car.listPrice * mult);
+      // Buyer has a hidden maximum they're willing to stretch to
+      const buyerMax     = Math.round(car.listPrice * randomFloat(0.86, 0.99));
+      // Initial offer is below their max (they start low to leave room)
+      const mult         = randomFloat(0.72, 0.97);
+      const offeredPrice = Math.round(Math.min(buyerMax * 0.98, car.listPrice * mult));
       if (offeredPrice >= car.listPrice) continue; // would be auto-sold
       newOffers.push({
         id: generateId(),
         carId: car.id,
         offeredPrice,
-        state: 'pending',   // 'pending' | 'countered'
+        buyerMax,
+        patience: randomInt(1, 3),  // how many counter-rounds buyer will tolerate
+        state: 'pending',
         playerCounter: null,
         expiresDay: state.day + 1,
       });
@@ -357,6 +407,91 @@ function computeSaleChance(car) {
   chance = chance * priceAtt * condFactor * lotFactor * marketingFactor * repFactor
          * repBoostFactor * demandFactor * washBonus;
   return clamp(chance, 0.01, 0.85);
+}
+
+// ============================================================
+// NEGOTIATION TONE HELPERS
+// ============================================================
+/** Returns tone text & CSS class based on seller's perspective of player's offer ratio. */
+function getSellerTone(ratio, patience) {
+  if (patience === 0) return { text: '⚠️ Final offer', cls: 'text-red' };
+  if (ratio >= 0.96)  return { text: '😊 Very interested', cls: 'text-green' };
+  if (ratio >= 0.88)  return { text: '🤔 Interested', cls: 'text-yellow' };
+  if (ratio >= 0.76)  return { text: '😐 Hesitant', cls: 'text-yellow' };
+  if (ratio >= 0.65)  return { text: '😠 Offended', cls: 'text-red' };
+  return { text: '🤬 Insulted — likely to walk', cls: 'text-red' };
+}
+
+/** Returns tone text & CSS class based on buyer's offer relative to list price. */
+function getBuyerTone(offeredPrice, listPrice, patience) {
+  const ratio = offeredPrice / listPrice;
+  if (patience === 0) return { text: '⚠️ Final offer', cls: 'text-red' };
+  if (ratio >= 0.95)  return { text: '😊 Fair offer', cls: 'text-green' };
+  if (ratio >= 0.87)  return { text: '🤔 Reasonable', cls: 'text-yellow' };
+  if (ratio >= 0.78)  return { text: '😐 Low offer', cls: 'text-yellow' };
+  return { text: '😠 Lowball offer', cls: 'text-red' };
+}
+
+// ============================================================
+// ECONOMY — Overhead, Market Volatility, Depreciation
+// ============================================================
+
+/** Deduct daily garage/staff/utility overhead from cash. */
+function processOverhead() {
+  const baseOverhead    = OVERHEAD_BY_LEVEL[state.upgrades.garageLevel] ?? 300;
+  const diffMult        = (settings.difficulty === 'hard') ? 1.5 : 1.0;
+  const total           = Math.round(baseOverhead * diffMult);
+  state.cash           -= total;
+  if (state.cash < 0) state.cash = 0;
+  addNote(`🏢 Overhead: −${formatCurrency(total)} (lot rent, utilities, staff)`, 'warning');
+}
+
+/** Shift per-segment market indices and occasionally fire a market event. */
+function processMarketVolatility() {
+  const diffMultiplier = (settings.difficulty === 'hard') ? 1.4 : 1.0;
+  for (const seg of Object.keys(state.marketIndices)) {
+    // Daily drift ±0–2.5% (scaled by difficulty)
+    const drift = (Math.random() - 0.5) * 0.05 * diffMultiplier;
+    state.marketIndices[seg] = clamp(state.marketIndices[seg] * (1 + drift), 0.60, 1.50);
+  }
+  // Random market event (~8% chance per day, 12% on hard)
+  const eventChance = (settings.difficulty === 'hard') ? 0.12 : 0.08;
+  if (Math.random() < eventChance) {
+    const evt = randomFrom(MARKET_EVENTS);
+    for (const [seg, delta] of Object.entries(evt.effects)) {
+      if (state.marketIndices[seg] !== undefined) {
+        state.marketIndices[seg] = clamp(state.marketIndices[seg] + delta * diffMultiplier, 0.60, 1.50);
+      }
+    }
+    state.lastMarketEvent = evt.msg;
+    addNote(`📊 Market Event: ${evt.msg}`, 'warning');
+    showToast(`📊 ${evt.msg}`, 'warning');
+  } else {
+    state.lastMarketEvent = null;
+  }
+}
+
+/** Apply market-driven value changes and sitting depreciation to all cars. */
+function processMarketDepreciation() {
+  for (const car of state.garage) {
+    const idx = state.marketIndices[car.category] ?? 1.0;
+
+    // If the segment is below baseline, cars slowly lose value (partial daily adjustment)
+    if (idx < 0.95) {
+      const loss = car.marketValue * (0.95 - idx) * 0.18;
+      car.marketValue = Math.max(1000, Math.round(car.marketValue - loss));
+    } else if (idx > 1.05) {
+      // Market is hot — value gains slightly
+      const gain = car.marketValue * (idx - 1.05) * 0.08;
+      car.marketValue = Math.round(car.marketValue + gain);
+    }
+
+    // Sitting depreciation for listed cars (buyers expect discounts on older stock)
+    if (car.isForSale && !car.inServiceUntilDay && car.daysInLot > 7) {
+      const rate = car.daysInLot > 14 ? 0.003 : 0.002;
+      car.marketValue = Math.max(1000, Math.round(car.marketValue * (1 - rate)));
+    }
+  }
 }
 
 // ============================================================
@@ -447,34 +582,56 @@ function processForSale() {
 function resolveCustomerOfferCounters() {
   const toRemove = new Set();
   for (const offer of state.customerOffers) {
-    if (offer.state === 'countered' && offer.playerCounter) {
-      const car = state.garage.find(c => c.id === offer.carId);
-      if (!car) { toRemove.add(offer.id); continue; }
-      // Customer probability of accepting counter
-      const ratio = offer.playerCounter / car.listPrice;
-      const negBonus = state.upgrades.negotiationTraining ? 0.10 : 0;
-      const acceptProb = clamp(ratio * 0.85 + negBonus, 0.05, 0.92);
-      if (Math.random() < acceptProb) {
-        // Customer accepts counter
-        const salePrice = offer.playerCounter;
-        const fee       = Math.round(salePrice * TRANSACTION_FEE);
-        const profit    = salePrice - fee - car.purchasePrice;
-        state.cash     += salePrice - fee;
-        state.reputation = profit > 0
-          ? Math.min(state.reputation + 0.015, 2.0)
-          : Math.max(state.reputation - 0.01, 0.1);
-        state.salesHistory.unshift({ ...car, soldDay: state.day, salePrice, fee, profit });
-        state.garage = state.garage.filter(c => c.id !== car.id);
-        state.tradeInRequests = state.tradeInRequests.filter(r => r.targetCarId !== car.id);
-        addNote(`🤝 Counter accepted! ${car.year} ${car.make} ${car.model} sold for ${formatCurrency(salePrice)}.`, 'success');
-        toRemove.add(offer.id);
-      } else {
-        addNote(`❌ Customer declined your counter on ${car.year} ${car.make} ${car.model}.`, 'warning');
-        toRemove.add(offer.id);
-      }
+    if (offer.state !== 'countered' || offer.playerCounter === null) continue;
+    const car = state.garage.find(c => c.id === offer.carId);
+    if (!car) { toRemove.add(offer.id); continue; }
+
+    const counter  = offer.playerCounter;
+    const buyerMax = offer.buyerMax ?? Math.round(car.listPrice * 0.93);
+    const negBonus = state.upgrades.negotiationTraining ? 0.06 : 0;
+    const ratio    = counter / buyerMax;
+
+    if (ratio <= 1.0 + negBonus) {
+      // Buyer accepts counter
+      executeSale(offer, car, counter);
+      addNote(`🤝 Counter accepted! ${car.year} ${car.make} ${car.model} sold for ${formatCurrency(counter)}.`, 'success');
+      toRemove.add(offer.id);
+    } else if (ratio <= 1.07 && Math.random() < 0.20) {
+      // Rare: buyer stretches their budget
+      executeSale(offer, car, counter);
+      addNote(`🤝 Buyer stretched their budget! ${car.year} ${car.make} ${car.model} sold for ${formatCurrency(counter)}.`, 'success');
+      toRemove.add(offer.id);
+    } else if ((offer.patience ?? 0) > 0 && ratio < 1.30) {
+      // Buyer counters back — moves toward player's counter by 35–55%
+      const lerpFactor  = randomFloat(0.35, 0.55);
+      const newOffer    = Math.round(lerp(offer.offeredPrice, counter, lerpFactor));
+      // Never exceed their actual max; never go below their previous offer
+      offer.offeredPrice = Math.min(buyerMax, Math.max(offer.offeredPrice, newOffer));
+      offer.patience     = (offer.patience ?? 1) - 1;
+      offer.state        = 'pending';
+      offer.playerCounter = null;
+      addNote(`💬 Buyer countered on ${car.year} ${car.make} ${car.model}: ${formatCurrency(offer.offeredPrice)}.`, 'info');
+    } else {
+      // Buyer walks away
+      addNote(`❌ Buyer walked away from ${car.year} ${car.make} ${car.model} — counter was too high.`, 'warning');
+      toRemove.add(offer.id);
     }
   }
   state.customerOffers = state.customerOffers.filter(o => !toRemove.has(o.id));
+}
+
+/** Shared helper: execute a sale from an offer. */
+function executeSale(offer, car, salePrice) {
+  const fee    = Math.round(salePrice * TRANSACTION_FEE);
+  const profit = salePrice - fee - car.purchasePrice;
+  state.cash  += salePrice - fee;
+  state.reputation = profit > 0
+    ? Math.min(state.reputation + 0.015, 2.0)
+    : Math.max(state.reputation - 0.01, 0.1);
+  state.salesHistory.unshift({ ...car, soldDay: state.day, salePrice, fee, profit });
+  state.garage          = state.garage.filter(c => c.id !== car.id);
+  state.tradeInRequests = state.tradeInRequests.filter(r => r.targetCarId !== car.id);
+  state.customerOffers  = state.customerOffers.filter(o => o.carId !== car.id);
 }
 
 /** Resolve pending counters on trade-in requests. */
@@ -528,6 +685,9 @@ function nextDay() {
   state.day++;
   processDeliveries();
   processService();
+  processOverhead();          // daily lot/garage/staff costs
+  processMarketVolatility();  // segment index drift + random events
+  processMarketDepreciation();// value changes on inventory
   resolveCustomerOfferCounters();
   resolveTradeInCounters();
   expireOffers();
@@ -622,42 +782,46 @@ function submitUsedOffer(offerId, rawAmount) {
   const amount = Math.round(parseFloat(rawAmount));
   if (isNaN(amount) || amount <= 0) { showToast('Enter a valid offer amount.', 'error'); return; }
 
-  const asking = offer.sellerCounter ?? offer.askingPrice;
-  if (amount >= asking) {
+  const currentAsk = offer.sellerCounter ?? offer.askingPrice;
+  if (amount >= currentAsk) {
     // Player just accepted the price — buy it
     acceptUsedOffer(offerId);
     return;
   }
 
   offer.playerOffer = amount;
-  const negBonus    = state.upgrades.negotiationTraining ? 0.10 : 0;
-  const repBonus    = (state.reputation - 1) * 0.05;
-  const ratio       = amount / offer.minAcceptPrice;
-  const acceptProb  = clamp(ratio * 0.85 + negBonus + repBonus, 0.02, 0.88);
+  const ratio    = amount / offer.minAcceptPrice;
+  const negBonus = state.upgrades.negotiationTraining ? 0.08 : 0;
+  const repBonus = (state.reputation - 1) * 0.03;
+
+  // Steeper acceptance curve: only close offers get accepted quickly
+  // At 100% of minAccept → ~0.92; at 90% → ~0.56; at 80% → ~0.24; at 70% → ~0.07
+  const base       = Math.pow(Math.max(0, ratio - 0.58) / 0.42, 2.2) * 0.90;
+  const acceptProb = clamp(base + negBonus + repBonus, 0.01, 0.92);
 
   if (Math.random() < acceptProb) {
-    // Seller accepts
-    offer.sellerCounter  = amount;
+    // Seller accepts player's offer
+    offer.sellerCounter    = amount;
     offer.negotiationState = 'accepted';
     showToast('✅ Seller accepted your offer!', 'success');
     acceptUsedOffer(offerId);
-  } else if (offer.patience > 0 && amount > offer.minAcceptPrice * 0.60) {
-    // Seller counters
-    offer.patience--;
-    // Counter is between player's offer and asking
-    const midpoint     = (amount + asking) / 2;
-    offer.sellerCounter  = Math.round(clamp(midpoint, offer.minAcceptPrice, asking));
-    offer.negotiationState = 'countered';
-    saveState();
-    renderUsedMarket();
-    showToast(`Seller countered: ${formatCurrency(offer.sellerCounter)}`, 'warning');
-  } else {
-    // Seller walks away
+  } else if (ratio < 0.55 || offer.patience <= 0) {
+    // Seller walks — offer too low or patience exhausted
     offer.negotiationState = 'declined';
     state.usedMarketOffers = state.usedMarketOffers.filter(o => o.id !== offerId);
     saveState();
     renderUsedMarket();
-    showToast('Seller walked away from negotiations.', 'error');
+    showToast(offer.patience <= 0 ? 'Seller lost patience and walked away.' : 'Offer too low — seller walked away.', 'error');
+  } else {
+    // Seller counters: moves only 15–28% toward player's offer (stays close to asking)
+    offer.patience--;
+    const moveBias      = randomFloat(0.15, 0.28);
+    const newCounter    = Math.round(currentAsk - (currentAsk - amount) * moveBias);
+    offer.sellerCounter = Math.max(offer.minAcceptPrice, newCounter);
+    offer.negotiationState = 'countered';
+    saveState();
+    renderUsedMarket();
+    showToast(`Seller countered: ${formatCurrency(offer.sellerCounter)}`, 'warning');
   }
 }
 
@@ -741,16 +905,7 @@ function acceptCustomerOffer(offerId) {
   const car = state.garage.find(c => c.id === offer.carId);
   if (!car) return;
   const salePrice = offer.offeredPrice;
-  const fee       = Math.round(salePrice * TRANSACTION_FEE);
-  const profit    = salePrice - fee - car.purchasePrice;
-  state.cash     += salePrice - fee;
-  state.reputation = profit > 0
-    ? Math.min(state.reputation + 0.015, 2.0)
-    : Math.max(state.reputation - 0.01, 0.1);
-  state.salesHistory.unshift({ ...car, soldDay: state.day, salePrice, fee, profit });
-  state.garage          = state.garage.filter(c => c.id !== car.id);
-  state.customerOffers  = state.customerOffers.filter(o => o.id !== offerId);
-  state.tradeInRequests = state.tradeInRequests.filter(r => r.targetCarId !== car.id);
+  executeSale(offer, car, salePrice);
   addNote(`✅ Accepted offer on ${car.year} ${car.make} ${car.model} for ${formatCurrency(salePrice)}.`, 'success');
   saveState();
   renderAll();
@@ -975,11 +1130,13 @@ function renderDashboard() {
   const pendingOffers = state.customerOffers.filter(o => o.state === 'pending').length;
   const pendingTIR    = state.tradeInRequests.filter(r => r.state === 'pending').length;
   const inService     = state.garage.filter(c => c.inServiceUntilDay).length;
+  const overhead      = OVERHEAD_BY_LEVEL[state.upgrades.garageLevel] ?? 300;
+  const diffMult      = (settings.difficulty === 'hard') ? 1.5 : 1.0;
 
   const deliveryRows = state.deliveries.length
     ? state.deliveries.map(d => `
         <div class="delivery-item">
-          <span>${d.car.year} ${d.car.make} ${d.car.model}</span>
+          <span>${d.car.year} ${d.car.make} ${d.car.model}${d.car.trim ? ' ' + d.car.trim : ''}</span>
           <span class="badge badge-blue">Day ${d.arrivalDay}</span>
         </div>`).join('')
     : '<p class="empty-msg">No pending deliveries.</p>';
@@ -1003,6 +1160,15 @@ function renderDashboard() {
         </div>`).join('')
     : '<p class="empty-msg">No events yet — press Next Day to begin!</p>';
 
+  // Market indices display
+  const marketRows = Object.entries(state.marketIndices || {}).map(([seg, idx]) => {
+    const pct  = ((idx - 1) * 100).toFixed(1);
+    const cls  = idx >= 1.02 ? 'text-green' : idx <= 0.98 ? 'text-red' : 'text-muted';
+    const icon = idx >= 1.02 ? '📈' : idx <= 0.98 ? '📉' : '➡️';
+    return `<div class="stat-row"><span>${icon} ${seg}</span>
+      <strong class="${cls}">${(idx * 100).toFixed(1)}% (${pct >= 0 ? '+' : ''}${pct}%)</strong></div>`;
+  }).join('');
+
   document.getElementById('tab-dashboard').innerHTML = `
     <div class="dashboard-grid">
 
@@ -1012,6 +1178,8 @@ function renderDashboard() {
         <div class="stat-row"><span>Day</span><strong>${state.day}</strong></div>
         <div class="stat-row"><span>Reputation</span><strong>${state.reputation.toFixed(2)}</strong></div>
         <div class="stat-row"><span>Garage</span><strong>${state.garage.length} / ${state.garageSlots} slots</strong></div>
+        <div class="stat-row"><span>Daily Overhead</span>
+          <strong class="text-red">−${formatCurrency(Math.round(overhead * diffMult))}/day</strong></div>
         <div class="stat-row"><span>Listed for Sale</span><strong>${forSaleCount}</strong></div>
         <div class="stat-row"><span>In Service</span><strong>${inService}</strong></div>
         <div class="stat-row"><span>Pending Deliveries</span><strong>${state.deliveries.length}</strong></div>
@@ -1023,6 +1191,12 @@ function renderDashboard() {
         <div class="stat-row"><span>Cumulative Profit</span>
           <strong class="${totalProfit >= 0 ? 'text-green' : 'text-red'}">${formatCurrency(totalProfit)}</strong>
         </div>
+      </div>
+
+      <div class="dash-card">
+        <h3>📈 Market Conditions</h3>
+        ${marketRows}
+        ${state.lastMarketEvent ? `<div class="tab-info" style="margin-top:10px;font-size:.8rem">${state.lastMarketEvent}</div>` : ''}
       </div>
 
       <div class="dash-card">
@@ -1061,34 +1235,42 @@ function renderFactory() {
 
   const garageFull = state.garage.length + state.deliveries.length >= state.garageSlots;
 
-  let html = `<div class="tab-info">🏭 Factory prices are fixed — no negotiation. Cars arrive in a few days.</div>`;
+  let html = `<div class="tab-info">🏭 Factory sells 2026 model year cars at fixed invoice prices — no negotiation. Arrives in a few days with 5–50 miles.</div>`;
   for (const [cat, cars] of Object.entries(grouped)) {
     html += `<div class="category-section">
       <h3>${CATEGORY_ICONS[cat] || ''} ${cat}</h3>
       <div class="card-grid">`;
 
     for (const car of cars) {
-      const delivDays = state.upgrades.expressDelivery ? Math.max(1, car.deliveryDays - 1) : car.deliveryDays;
-      const margin    = car.marketValue - car.basePrice;
-      const canBuy    = !garageFull && state.cash >= car.basePrice;
-      const stars     = '⭐'.repeat(Math.round(car.demandFactor * 2));
+      const delivDays  = state.upgrades.expressDelivery ? Math.max(1, car.deliveryDays - 1) : car.deliveryDays;
+      const margin     = car.marketValue - car.basePrice;
+      const marketIdx  = (state.marketIndices || {})[cat] ?? 1.0;
+      const adjMarket  = Math.round(car.marketValue * marketIdx);
+      const adjMargin  = adjMarket - car.basePrice;
+      const canBuy     = !garageFull && state.cash >= car.basePrice;
+      const stars      = '⭐'.repeat(Math.round(car.demandFactor * 2));
+      const idxPct     = ((marketIdx - 1) * 100).toFixed(0);
+      const idxCls     = marketIdx >= 1.02 ? 'text-green' : marketIdx <= 0.98 ? 'text-red' : 'text-muted';
 
       html += `
         <div class="car-card factory-card">
           <div class="car-card-header">
-            <span class="car-name">${car.make} ${car.model}</span>
+            <span class="car-name">2026 ${car.make} ${car.model}</span>
             <span class="badge badge-gray">${cat}</span>
           </div>
           <div class="car-details">
-            <div class="detail-row"><span>Years</span><span>${car.yearRange[0]}–${car.yearRange[1]}</span></div>
-            <div class="detail-row"><span>Wholesale</span><span class="text-blue">${formatCurrency(car.basePrice)}</span></div>
-            <div class="detail-row"><span>Market Value</span><span class="text-green">${formatCurrency(car.marketValue)}</span></div>
-            <div class="detail-row"><span>Est. Margin</span><span class="text-green">+${formatCurrency(margin)}</span></div>
+            <div class="detail-row"><span>Trim</span><span style="font-weight:600">${car.trim || '—'}</span></div>
+            <div class="detail-row"><span>Invoice Price</span><span class="text-blue">${formatCurrency(car.basePrice)}</span></div>
+            <div class="detail-row"><span>Market Value</span><span class="text-green">${formatCurrency(adjMarket)}</span></div>
+            <div class="detail-row"><span>Est. Margin</span>
+              <span class="${adjMargin >= 0 ? 'text-green' : 'text-red'}">${adjMargin >= 0 ? '+' : ''}${formatCurrency(adjMargin)}</span></div>
+            <div class="detail-row"><span>Market Index</span>
+              <span class="${idxCls}">${(marketIdx * 100).toFixed(1)}% (${idxPct >= 0 ? '+' : ''}${idxPct}%)</span></div>
             <div class="detail-row"><span>Delivery</span><span>${delivDays} day${delivDays !== 1 ? 's' : ''}</span></div>
             <div class="detail-row"><span>Demand</span><span title="${car.demandFactor}">${stars}</span></div>
           </div>
           <button class="btn btn-primary btn-full" onclick="buyFromFactory(${car.idx})" ${canBuy ? '' : 'disabled'}>
-            ${garageFull ? '🚫 Garage Full' : state.cash < car.basePrice ? `💸 Need ${formatCurrency(car.basePrice - state.cash)} more` : `Buy — ${formatCurrency(car.basePrice)}`}
+            ${garageFull ? '🚫 Garage Full' : state.cash < car.basePrice ? `💸 Need ${formatCurrency(car.basePrice - state.cash)} more` : `Order — ${formatCurrency(car.basePrice)}`}
           </button>
         </div>`;
     }
@@ -1125,12 +1307,19 @@ function renderUsedMarket() {
     const canAccept     = !garageFull && state.cash >= displayPrice;
     const canInspect    = !offer.inspected && state.cash >= inspectCost;
     const negState      = offer.negotiationState;
+    const marketIdx     = (state.marketIndices || {})[offer.category] ?? 1.0;
 
     let negotiationHtml = '';
     if (negState === 'countered' && counterPrice) {
+      const ratio = (offer.playerOffer ?? 0) / offer.minAcceptPrice;
+      const tone  = getSellerTone(ratio, offer.patience);
       negotiationHtml = `
         <div class="neg-status neg-countered">
           💬 Seller countered: <strong>${formatCurrency(counterPrice)}</strong>
+          <div style="font-size:.78rem;margin-top:4px">
+            Seller mood: <strong class="${tone.cls}">${tone.text}</strong>
+            &nbsp;|&nbsp; Rounds left: <strong>${offer.patience}</strong>
+          </div>
           <div class="car-actions" style="margin-top:8px">
             <button class="btn btn-success" onclick="acceptUsedOffer('${offer.id}')" ${canAccept ? '' : 'disabled'}>
               ✅ Accept ${formatCurrency(counterPrice)}
@@ -1139,33 +1328,42 @@ function renderUsedMarket() {
           <div class="neg-input-row" style="margin-top:8px">
             <input type="number" class="price-input" id="neg-${offer.id}" placeholder="Your counter offer" min="1" value="${offer.playerOffer || ''}">
             <button class="btn btn-warning" onclick="submitUsedOffer('${offer.id}', document.getElementById('neg-${offer.id}').value)"
-              ${offer.patience > 0 ? '' : 'disabled'} title="${offer.patience === 0 ? 'No more rounds' : ''}">
+              ${offer.patience > 0 ? '' : 'disabled'} title="${offer.patience === 0 ? 'No more rounds — accept or pass' : ''}">
               Counter
             </button>
           </div>
         </div>`;
     } else if (!negState) {
-      // Initial offer UI
+      // Initial offer UI — show tone hint as player types
       negotiationHtml = `
         <div class="neg-input-row">
-          <input type="number" class="price-input" id="neg-${offer.id}" placeholder="Your offer" min="1">
+          <input type="number" class="price-input" id="neg-${offer.id}" placeholder="Your offer" min="1"
+            oninput="updateNegTone('${offer.id}', this.value)">
           <button class="btn btn-warning" onclick="submitUsedOffer('${offer.id}', document.getElementById('neg-${offer.id}').value)">
             🤝 Negotiate
           </button>
+        </div>
+        <div id="neg-tone-${offer.id}" style="font-size:.76rem;margin-top:4px;color:var(--text-muted)">
+          Enter an offer to see seller's likely reaction.
         </div>`;
     }
 
     return `
       <div class="car-card tradein-card">
         <div class="car-card-header">
-          <span class="car-name">${offer.year} ${offer.make} ${offer.model}</span>
+          <span class="car-name">${offer.year} ${offer.make} ${offer.model}${offer.trim ? ' ' + offer.trim : ''}</span>
           ${condBadge(offer.condition)}
         </div>
         <div class="car-details">
           <div class="detail-row"><span>Category</span><span>${offer.category}</span></div>
           <div class="detail-row"><span>Mileage</span><span>${offer.mileage.toLocaleString()} mi</span></div>
           <div class="detail-row"><span>Asking Price</span><span class="text-blue">${formatCurrency(asking)}</span></div>
-          <div class="detail-row"><span>Est. Market Value</span><span class="text-green">${formatCurrency(offer.marketValue)}</span></div>
+          <div class="detail-row"><span>Est. Market Value</span>
+            <span class="text-green">${formatCurrency(offer.marketValue)}</span></div>
+          <div class="detail-row"><span>Market Segment</span>
+            <span class="${marketIdx >= 1.02 ? 'text-green' : marketIdx <= 0.98 ? 'text-red' : 'text-muted'}">
+              ${(marketIdx * 100).toFixed(1)}%
+            </span></div>
           ${offer.inspected ? `<div class="detail-row"><span>Repair Cost</span><span class="text-red">${formatCurrency(offer.repairCost)}</span></div>` : ''}
           ${offer.inspected ? `<div class="detail-row"><span>Net Margin</span>
             <span class="${offer.marketValue - offer.repairCost - displayPrice >= 0 ? 'text-green' : 'text-red'}">
@@ -1353,7 +1551,7 @@ function renderGarage() {
     return `
       <div class="car-card garage-card ${car.isForSale ? 'for-sale' : ''} ${inService ? 'in-service' : ''}">
         <div class="car-card-header">
-          <span class="car-name">${car.year} ${car.make} ${car.model}</span>
+          <span class="car-name">${car.year} ${car.make} ${car.model}${car.trim ? ' ' + car.trim : ''}</span>
           ${condBadge(car.condition)}
         </div>
         ${inService ? `<div class="service-banner">🔧 IN SERVICE — Ready Day ${car.inServiceUntilDay} (${car.pendingService?.type === 'repair' ? 'Basic Repair' : 'Parts Upgrade'})</div>` : ''}
@@ -1413,11 +1611,13 @@ function renderForSale() {
       if (!car) return '';
       const isCountered = offer.state === 'countered';
       const estProfit   = offer.offeredPrice - Math.round(offer.offeredPrice * TRANSACTION_FEE) - car.purchasePrice;
+      const tone        = getBuyerTone(offer.offeredPrice, car.listPrice, offer.patience ?? 1);
+      const pat         = offer.patience ?? 1;
 
       return `
         <div class="car-card offer-card ${isCountered ? 'countered-card' : ''}">
           <div class="car-card-header">
-            <span class="car-name">${car.year} ${car.make} ${car.model}</span>
+            <span class="car-name">${car.year} ${car.make} ${car.model}${car.trim ? ' ' + car.trim : ''}</span>
             <span class="badge ${isCountered ? 'badge-yellow' : 'badge-blue'}">${isCountered ? 'Countered' : 'Offer'}</span>
           </div>
           <div class="car-details">
@@ -1427,6 +1627,10 @@ function renderForSale() {
             <div class="detail-row"><span>Est. Profit</span>
               <span class="${estProfit >= 0 ? 'text-green' : 'text-red'}">${estProfit >= 0 ? '+' : ''}${formatCurrency(estProfit)}</span>
             </div>
+            <div class="detail-row"><span>Buyer Mood</span>
+              <span class="${tone.cls}">${tone.text}</span></div>
+            <div class="detail-row"><span>Rounds Left</span>
+              <span class="${pat === 0 ? 'text-red' : 'text-muted'}">${pat}</span></div>
             ${isCountered ? `<div class="detail-row"><span>Your Counter</span><span>${formatCurrency(offer.playerCounter)}</span></div>` : ''}
           </div>
           ${isCountered
@@ -1476,7 +1680,7 @@ function renderForSale() {
     return `
       <div class="car-card forsale-card ${hasOffer ? 'has-offer' : ''}">
         <div class="car-card-header">
-          <span class="car-name">${car.year} ${car.make} ${car.model}</span>
+          <span class="car-name">${car.year} ${car.make} ${car.model}${car.trim ? ' ' + car.trim : ''}</span>
           ${condBadge(car.condition)}
         </div>
         ${hasOffer ? '<div class="offer-banner">📬 Customer offer waiting (see above)</div>' : ''}
@@ -1560,6 +1764,72 @@ function renderUpgrades() {
 }
 
 // ============================================================
+// RENDER — Settings
+// ============================================================
+function renderSettings() {
+  const isDark = settings.darkMode;
+  const isHard = settings.difficulty === 'hard';
+  const overhead = OVERHEAD_BY_LEVEL[state.upgrades.garageLevel] ?? 300;
+
+  document.getElementById('tab-settings').innerHTML = `
+    <div class="settings-panel">
+      <div class="dash-card settings-card">
+        <h3>🎨 Display</h3>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Dark Mode</div>
+            <div class="setting-desc">Easy on the eyes for late-night dealin'.</div>
+          </div>
+          <button class="toggle-btn ${isDark ? 'active' : ''}" onclick="toggleDarkMode()" aria-label="Toggle dark mode">
+            <span class="toggle-thumb"></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="dash-card settings-card">
+        <h3>⚙️ Economy Difficulty</h3>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Normal</div>
+            <div class="setting-desc">Standard overhead & market volatility. Good for learning.</div>
+          </div>
+          <button class="btn btn-sm ${!isHard ? 'btn-primary' : 'btn-secondary'}" onclick="setDifficulty('normal')">
+            ${!isHard ? '✔ Selected' : 'Select'}
+          </button>
+        </div>
+        <div class="setting-row" style="margin-top:10px">
+          <div>
+            <div class="setting-label">Hard 💪</div>
+            <div class="setting-desc">1.5× overhead costs, higher market swings & more frequent events. Easy to go broke.</div>
+          </div>
+          <button class="btn btn-sm ${isHard ? 'btn-danger' : 'btn-secondary'}" onclick="setDifficulty('hard')">
+            ${isHard ? '✔ Selected' : 'Select'}
+          </button>
+        </div>
+      </div>
+
+      <div class="dash-card settings-card">
+        <h3>📋 Current Economy Info</h3>
+        <div class="stat-row">
+          <span>Difficulty</span>
+          <strong class="${isHard ? 'text-red' : 'text-green'}">${isHard ? 'Hard 💪' : 'Normal'}</strong>
+        </div>
+        <div class="stat-row">
+          <span>Daily Overhead</span>
+          <strong class="text-red">−${formatCurrency(Math.round(overhead * (isHard ? 1.5 : 1.0)))}/day</strong>
+        </div>
+        <div class="stat-row">
+          <span>Garage Level</span>
+          <strong>Tier ${state.upgrades.garageLevel} (${state.garageSlots} slots)</strong>
+        </div>
+        <p class="text-muted" style="font-size:.82rem;margin-top:10px">
+          💡 Overhead scales with garage size — only expand when you can handle the extra costs!
+        </p>
+      </div>
+    </div>`;
+}
+
+// ============================================================
 // RENDER — All
 // ============================================================
 function renderAll() {
@@ -1574,6 +1844,7 @@ function renderAll() {
     case 'garage':      renderGarage();          break;
     case 'forsale':     renderForSale();         break;
     case 'upgrades':    renderUpgrades();        break;
+    case 'settings':    renderSettings();        break;
   }
 }
 
@@ -1591,6 +1862,7 @@ function switchTab(name) {
     case 'garage':      renderGarage();          break;
     case 'forsale':     renderForSale();         break;
     case 'upgrades':    renderUpgrades();        break;
+    case 'settings':    renderSettings();        break;
   }
 }
 
@@ -1622,9 +1894,62 @@ function showModal(title, message, onConfirm) {
 function closeModal() { document.getElementById('modal').classList.add('hidden'); }
 
 // ============================================================
+// SETTINGS (dark mode, difficulty)  — separate localStorage key
+// ============================================================
+let settings = { darkMode: false, difficulty: 'normal' };
+
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem('dealerSim_settings');
+    if (raw) settings = { ...settings, ...JSON.parse(raw) };
+  } catch (_) {}
+  applyDarkMode();
+}
+
+function saveSettings() {
+  localStorage.setItem('dealerSim_settings', JSON.stringify(settings));
+}
+
+function applyDarkMode() {
+  document.body.classList.toggle('dark', !!settings.darkMode);
+}
+
+function toggleDarkMode() {
+  settings.darkMode = !settings.darkMode;
+  applyDarkMode();
+  saveSettings();
+  renderSettings();
+}
+
+function setDifficulty(level) {
+  settings.difficulty = level;
+  saveSettings();
+  renderSettings();
+  showToast(`Difficulty set to ${level === 'hard' ? 'Hard 💪' : 'Normal'}.`);
+}
+
+/** Live tone preview as player types in an offer amount on used market cards. */
+function updateNegTone(offerId, rawVal) {
+  const el = document.getElementById('neg-tone-' + offerId);
+  if (!el) return;
+  const amount = parseFloat(rawVal);
+  if (!amount || isNaN(amount)) {
+    el.textContent = 'Enter an offer to see seller\'s likely reaction.';
+    el.className = '';
+    return;
+  }
+  const offer = state.usedMarketOffers.find(o => o.id === offerId);
+  if (!offer) return;
+  const ratio = amount / offer.minAcceptPrice;
+  const tone  = getSellerTone(ratio, offer.patience);
+  el.innerHTML = `Seller reaction: <strong class="${tone.cls}">${tone.text}</strong>`;
+}
+
+// ============================================================
 // INIT
 // ============================================================
 function init() {
+  loadSettings(); // must be before any render so dark mode applies
   if (!loadState()) {
     state.usedMarketOffers = generateUsedMarket();
     saveState();
@@ -1648,12 +1973,13 @@ function init() {
   // Expose functions for inline onclick handlers in dynamically rendered HTML
   Object.assign(window, {
     buyFromFactory,
-    acceptUsedOffer, declineUsedOffer, inspectUsedOffer, submitUsedOffer,
+    acceptUsedOffer, declineUsedOffer, inspectUsedOffer, submitUsedOffer, updateNegTone,
     acceptTradeInRequest, rejectTradeInRequest, counterTradeInRequest,
     acceptCustomerOffer, rejectCustomerOffer, counterCustomerOffer,
     markForSale, updateListPrice, setListPriceMultiplier,
     buyUpgrade, detailCar, carWash, basicRepair, partsUpgrade,
     confirmNewGame, exportSave,
+    toggleDarkMode, setDifficulty,
     renderGarage, renderForSale, renderUsedMarket, renderTradeInRequests,
   });
 

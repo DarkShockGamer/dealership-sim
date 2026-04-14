@@ -679,3 +679,168 @@ body {
   padding: 4px 8px;
   border-radius: var(--radius-sm);
 }
+
+/* ============================================================
+   Dark Mode
+   ============================================================ */
+body.dark {
+  --bg:          #0d1117;
+  --surface:     #161b22;
+  --surface-2:   #21262d;
+  --border:      #30363d;
+  --text:        #e6edf3;
+  --text-muted:  #8b949e;
+  --text-light:  #6e7681;
+  --header-bg:   #090d13;
+  --header-text: #c9d1d9;
+  --primary:     #388bfd;
+  --primary-dk:  #1f6feb;
+  --success:     #3fb950;
+  --danger:      #f85149;
+  --warning:     #d29922;
+  --info:        #39c5cf;
+}
+
+body.dark .tab-info {
+  background: #0d1f37;
+  border-color: #1f6feb;
+  color: #79c0ff;
+}
+
+body.dark .neg-countered {
+  background: #2a1f00;
+  border-color: #6a4700;
+  color: #d29922;
+}
+
+body.dark .service-banner {
+  background: #0a1929;
+  color: #39c5cf;
+}
+
+body.dark .wash-banner {
+  background: #0a1f10;
+  color: #3fb950;
+}
+
+body.dark .for-sale-banner {
+  background: #2a1f00;
+  color: #d29922;
+}
+
+body.dark .offer-banner {
+  background: #0a1f10;
+  color: #3fb950;
+}
+
+body.dark .tradein-banner {
+  background: #0d1f37;
+  color: #79c0ff;
+}
+
+body.dark .recon-tag {
+  background: #0d1f37;
+  color: #79c0ff;
+  border-color: #1f6feb;
+}
+
+body.dark .issue-tag {
+  background: #1a0a0a;
+  color: #f85149;
+  border-color: #6e2929;
+}
+
+body.dark .btn-secondary {
+  background: #21262d;
+  color: #c9d1d9;
+  border: 1px solid #30363d;
+}
+body.dark .btn-secondary:hover:not(:disabled) {
+  background: #30363d;
+}
+
+body.dark .price-input {
+  background: #0d1117;
+  border-color: #30363d;
+  color: #e6edf3;
+}
+
+body.dark .modal-box {
+  background: #161b22;
+  border: 1px solid #30363d;
+}
+
+body.dark .badge-gray   { background: #21262d; color: #8b949e; }
+body.dark .badge-blue   { background: #0d1f37; color: #79c0ff; }
+body.dark .badge-green  { background: #0a1f10; color: #3fb950; }
+body.dark .badge-yellow { background: #2a1f00; color: #d29922; }
+body.dark .badge-red    { background: #1a0a0a; color: #f85149; }
+
+body.dark .tradein-half,
+body.dark .tradein-summary {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+/* ============================================================
+   Settings Panel
+   ============================================================ */
+.settings-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 560px;
+}
+
+.settings-card {
+  padding: 20px 24px;
+}
+
+.setting-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 0;
+}
+
+.setting-label {
+  font-weight: 600;
+  font-size: .95rem;
+  color: var(--text);
+}
+
+.setting-desc {
+  font-size: .8rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+/* Toggle switch button */
+.toggle-btn {
+  position: relative;
+  width: 48px;
+  height: 26px;
+  border-radius: 13px;
+  background: var(--border);
+  border: none;
+  cursor: pointer;
+  transition: background var(--transition);
+  flex-shrink: 0;
+}
+.toggle-btn.active { background: var(--primary); }
+.toggle-btn:focus  { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+.toggle-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform var(--transition);
+  box-shadow: 0 1px 3px rgba(0,0,0,.2);
+}
+.toggle-btn.active .toggle-thumb { transform: translateX(22px); }

@@ -1,204 +1,313 @@
 /**
- * Car Catalog — factory wholesale inventory.
- * Each entry: make, model, category, basePrice (wholesale cost),
- * marketValue (typical retail), deliveryDays, yearRange [min,max],
- * baseMileage [min,max], demandFactor (0.5–1.5).
+ * Car Catalog — factory wholesale & used market inventory.
+ *
+ * Each entry:
+ *   make, model, trim, category
+ *   basePrice   – dealer invoice / wholesale (≈ 87–89% of MSRP) — what the factory charges YOU
+ *   marketValue – MSRP / retail price (used as the "new" market value)
+ *   deliveryDays – days from factory order to arrival
+ *   yearRange   – [min, max] year for *used market* generation; factory always overrides to 2026
+ *   baseMileage – [min, max] mileage range for *used market*; factory overrides to 5–50 mi
+ *   demandFactor – relative market demand (0.5–1.5)
+ *
+ * Prices are approximate 2026 model year values in USD.
  */
 export const CAR_CATALOG = [
-  // ── Economy ──────────────────────────────────────────────
-  {
-    make: 'Toyota', model: 'Corolla', category: 'Economy',
-    basePrice: 14000, marketValue: 18500, deliveryDays: 2,
-    yearRange: [2018, 2023], baseMileage: [5000, 45000], demandFactor: 1.3,
-  },
-  {
-    make: 'Honda', model: 'Civic', category: 'Economy',
-    basePrice: 14500, marketValue: 19000, deliveryDays: 2,
-    yearRange: [2018, 2023], baseMileage: [5000, 45000], demandFactor: 1.4,
-  },
-  {
-    make: 'Hyundai', model: 'Elantra', category: 'Economy',
-    basePrice: 12500, marketValue: 16500, deliveryDays: 2,
-    yearRange: [2018, 2023], baseMileage: [8000, 50000], demandFactor: 1.1,
-  },
-  {
-    make: 'Kia', model: 'Forte', category: 'Economy',
-    basePrice: 12000, marketValue: 15800, deliveryDays: 2,
-    yearRange: [2018, 2023], baseMileage: [8000, 50000], demandFactor: 1.0,
-  },
-  {
-    make: 'Nissan', model: 'Sentra', category: 'Economy',
-    basePrice: 12800, marketValue: 16200, deliveryDays: 3,
-    yearRange: [2018, 2023], baseMileage: [8000, 48000], demandFactor: 1.0,
-  },
-  {
-    make: 'Chevrolet', model: 'Spark', category: 'Economy',
-    basePrice: 9500, marketValue: 12500, deliveryDays: 3,
-    yearRange: [2018, 2023], baseMileage: [10000, 55000], demandFactor: 0.8,
-  },
 
-  // ── Sedan ─────────────────────────────────────────────────
-  {
-    make: 'Toyota', model: 'Camry', category: 'Sedan',
-    basePrice: 18000, marketValue: 24000, deliveryDays: 3,
-    yearRange: [2017, 2023], baseMileage: [10000, 55000], demandFactor: 1.3,
-  },
-  {
-    make: 'Honda', model: 'Accord', category: 'Sedan',
-    basePrice: 18500, marketValue: 24500, deliveryDays: 3,
-    yearRange: [2017, 2023], baseMileage: [10000, 55000], demandFactor: 1.2,
-  },
-  {
-    make: 'Mazda', model: '6', category: 'Sedan',
-    basePrice: 16000, marketValue: 21000, deliveryDays: 3,
-    yearRange: [2017, 2022], baseMileage: [10000, 55000], demandFactor: 1.0,
-  },
-  {
-    make: 'Volkswagen', model: 'Jetta', category: 'Sedan',
-    basePrice: 15500, marketValue: 20000, deliveryDays: 3,
-    yearRange: [2017, 2023], baseMileage: [10000, 55000], demandFactor: 0.9,
-  },
-  {
-    make: 'Subaru', model: 'Legacy', category: 'Sedan',
-    basePrice: 17000, marketValue: 22000, deliveryDays: 4,
-    yearRange: [2017, 2023], baseMileage: [10000, 55000], demandFactor: 0.9,
-  },
-  {
-    make: 'Ford', model: 'Fusion', category: 'Sedan',
-    basePrice: 14000, marketValue: 18500, deliveryDays: 3,
-    yearRange: [2016, 2020], baseMileage: [15000, 65000], demandFactor: 0.8,
-  },
+  // ── Economy (Compact) ────────────────────────────────────
+  { make: 'Toyota',    model: 'Corolla',      trim: 'LE',           category: 'Economy',
+    basePrice: 20300, marketValue: 23400, deliveryDays: 2,
+    yearRange: [2012, 2024], baseMileage: [8000,  110000], demandFactor: 1.3 },
+  { make: 'Toyota',    model: 'Corolla',      trim: 'SE',           category: 'Economy',
+    basePrice: 22500, marketValue: 25900, deliveryDays: 2,
+    yearRange: [2014, 2024], baseMileage: [5000,   90000], demandFactor: 1.3 },
+  { make: 'Toyota',    model: 'Corolla',      trim: 'XSE',          category: 'Economy',
+    basePrice: 24700, marketValue: 28400, deliveryDays: 2,
+    yearRange: [2017, 2024], baseMileage: [3000,   70000], demandFactor: 1.2 },
 
-  // ── SUV ───────────────────────────────────────────────────
-  {
-    make: 'Toyota', model: 'RAV4', category: 'SUV',
-    basePrice: 22000, marketValue: 29000, deliveryDays: 3,
-    yearRange: [2017, 2023], baseMileage: [10000, 55000], demandFactor: 1.5,
-  },
-  {
-    make: 'Honda', model: 'CR-V', category: 'SUV',
-    basePrice: 21000, marketValue: 28000, deliveryDays: 3,
-    yearRange: [2017, 2023], baseMileage: [10000, 55000], demandFactor: 1.4,
-  },
-  {
-    make: 'Ford', model: 'Explorer', category: 'SUV',
-    basePrice: 26000, marketValue: 34000, deliveryDays: 4,
-    yearRange: [2017, 2023], baseMileage: [15000, 60000], demandFactor: 1.2,
-  },
-  {
-    make: 'Chevrolet', model: 'Equinox', category: 'SUV',
-    basePrice: 18000, marketValue: 24000, deliveryDays: 3,
-    yearRange: [2017, 2023], baseMileage: [10000, 55000], demandFactor: 1.1,
-  },
-  {
-    make: 'Jeep', model: 'Grand Cherokee', category: 'SUV',
-    basePrice: 28000, marketValue: 37000, deliveryDays: 4,
-    yearRange: [2017, 2023], baseMileage: [15000, 60000], demandFactor: 1.2,
-  },
-  {
-    make: 'Nissan', model: 'Pathfinder', category: 'SUV',
-    basePrice: 24000, marketValue: 32000, deliveryDays: 4,
-    yearRange: [2017, 2023], baseMileage: [15000, 60000], demandFactor: 1.0,
-  },
-  {
-    make: 'Hyundai', model: 'Tucson', category: 'SUV',
-    basePrice: 19000, marketValue: 25000, deliveryDays: 3,
-    yearRange: [2018, 2023], baseMileage: [10000, 50000], demandFactor: 1.1,
-  },
+  { make: 'Honda',     model: 'Civic',        trim: 'LX',           category: 'Economy',
+    basePrice: 21200, marketValue: 24400, deliveryDays: 2,
+    yearRange: [2012, 2024], baseMileage: [8000,  110000], demandFactor: 1.4 },
+  { make: 'Honda',     model: 'Civic',        trim: 'Sport',        category: 'Economy',
+    basePrice: 23400, marketValue: 26900, deliveryDays: 2,
+    yearRange: [2014, 2024], baseMileage: [5000,   90000], demandFactor: 1.4 },
+  { make: 'Honda',     model: 'Civic',        trim: 'Touring',      category: 'Economy',
+    basePrice: 26100, marketValue: 30000, deliveryDays: 2,
+    yearRange: [2017, 2024], baseMileage: [3000,   70000], demandFactor: 1.3 },
+
+  { make: 'Hyundai',   model: 'Elantra',      trim: 'SE',           category: 'Economy',
+    basePrice: 19000, marketValue: 21900, deliveryDays: 2,
+    yearRange: [2012, 2024], baseMileage: [10000, 120000], demandFactor: 1.1 },
+  { make: 'Hyundai',   model: 'Elantra',      trim: 'SEL',          category: 'Economy',
+    basePrice: 21200, marketValue: 24400, deliveryDays: 2,
+    yearRange: [2015, 2024], baseMileage: [5000,   90000], demandFactor: 1.1 },
+  { make: 'Hyundai',   model: 'Elantra',      trim: 'N-Line',       category: 'Economy',
+    basePrice: 24300, marketValue: 27900, deliveryDays: 2,
+    yearRange: [2018, 2024], baseMileage: [3000,   60000], demandFactor: 1.2 },
+
+  { make: 'Kia',       model: 'Forte',        trim: 'FE',           category: 'Economy',
+    basePrice: 18200, marketValue: 20900, deliveryDays: 2,
+    yearRange: [2012, 2024], baseMileage: [10000, 120000], demandFactor: 1.0 },
+  { make: 'Kia',       model: 'Forte',        trim: 'GT-Line',      category: 'Economy',
+    basePrice: 22500, marketValue: 25800, deliveryDays: 2,
+    yearRange: [2016, 2024], baseMileage: [4000,   75000], demandFactor: 1.1 },
+
+  { make: 'Nissan',    model: 'Sentra',       trim: 'S',            category: 'Economy',
+    basePrice: 19100, marketValue: 21900, deliveryDays: 3,
+    yearRange: [2012, 2024], baseMileage: [8000,  110000], demandFactor: 1.0 },
+  { make: 'Nissan',    model: 'Sentra',       trim: 'SR',           category: 'Economy',
+    basePrice: 23400, marketValue: 26900, deliveryDays: 3,
+    yearRange: [2016, 2024], baseMileage: [4000,   75000], demandFactor: 1.0 },
+
+  { make: 'Chevrolet', model: 'Trax',         trim: 'LS',           category: 'Economy',
+    basePrice: 19100, marketValue: 21900, deliveryDays: 3,
+    yearRange: [2015, 2024], baseMileage: [8000,  100000], demandFactor: 0.9 },
+  { make: 'Chevrolet', model: 'Trax',         trim: 'RS',           category: 'Economy',
+    basePrice: 21700, marketValue: 24900, deliveryDays: 3,
+    yearRange: [2018, 2024], baseMileage: [5000,   75000], demandFactor: 0.9 },
+
+  // ── Sedan (Mid-size) ─────────────────────────────────────
+  { make: 'Toyota',    model: 'Camry',        trim: 'LE',           category: 'Sedan',
+    basePrice: 24300, marketValue: 27900, deliveryDays: 3,
+    yearRange: [2012, 2024], baseMileage: [10000, 120000], demandFactor: 1.3 },
+  { make: 'Toyota',    model: 'Camry',        trim: 'SE',           category: 'Sedan',
+    basePrice: 26900, marketValue: 30900, deliveryDays: 3,
+    yearRange: [2015, 2024], baseMileage: [7000,  100000], demandFactor: 1.3 },
+  { make: 'Toyota',    model: 'Camry',        trim: 'XSE',          category: 'Sedan',
+    basePrice: 29500, marketValue: 33900, deliveryDays: 3,
+    yearRange: [2017, 2024], baseMileage: [4000,   80000], demandFactor: 1.2 },
+
+  { make: 'Honda',     model: 'Accord',       trim: 'LX',           category: 'Sedan',
+    basePrice: 25200, marketValue: 28900, deliveryDays: 3,
+    yearRange: [2012, 2024], baseMileage: [10000, 120000], demandFactor: 1.2 },
+  { make: 'Honda',     model: 'Accord',       trim: 'Sport',        category: 'Sedan',
+    basePrice: 27800, marketValue: 31900, deliveryDays: 3,
+    yearRange: [2015, 2024], baseMileage: [6000,  100000], demandFactor: 1.2 },
+  { make: 'Honda',     model: 'Accord',       trim: 'Touring',      category: 'Sedan',
+    basePrice: 33100, marketValue: 37900, deliveryDays: 3,
+    yearRange: [2018, 2024], baseMileage: [3000,   70000], demandFactor: 1.1 },
+
+  { make: 'Volkswagen',model: 'Jetta',        trim: 'S',            category: 'Sedan',
+    basePrice: 19100, marketValue: 21900, deliveryDays: 3,
+    yearRange: [2012, 2024], baseMileage: [10000, 120000], demandFactor: 0.9 },
+  { make: 'Volkswagen',model: 'Jetta',        trim: 'SEL',          category: 'Sedan',
+    basePrice: 23500, marketValue: 26900, deliveryDays: 3,
+    yearRange: [2015, 2024], baseMileage: [6000,   90000], demandFactor: 0.9 },
+
+  { make: 'Subaru',    model: 'Legacy',       trim: 'Base',         category: 'Sedan',
+    basePrice: 21700, marketValue: 24900, deliveryDays: 4,
+    yearRange: [2012, 2024], baseMileage: [10000, 110000], demandFactor: 0.9 },
+  { make: 'Subaru',    model: 'Legacy',       trim: 'Premium',      category: 'Sedan',
+    basePrice: 24300, marketValue: 27900, deliveryDays: 4,
+    yearRange: [2015, 2024], baseMileage: [6000,   90000], demandFactor: 0.9 },
+
+  { make: 'Mazda',     model: 'Mazda3',       trim: 'Select',       category: 'Sedan',
+    basePrice: 22600, marketValue: 25900, deliveryDays: 3,
+    yearRange: [2014, 2024], baseMileage: [6000,   95000], demandFactor: 1.1 },
+  { make: 'Mazda',     model: 'Mazda3',       trim: 'Premium',      category: 'Sedan',
+    basePrice: 25900, marketValue: 29700, deliveryDays: 3,
+    yearRange: [2016, 2024], baseMileage: [3000,   70000], demandFactor: 1.1 },
+
+  // ── SUV (Crossover / Midsize) ─────────────────────────────
+  { make: 'Toyota',    model: 'RAV4',         trim: 'LE',           category: 'SUV',
+    basePrice: 28700, marketValue: 32900, deliveryDays: 3,
+    yearRange: [2012, 2024], baseMileage: [10000, 120000], demandFactor: 1.5 },
+  { make: 'Toyota',    model: 'RAV4',         trim: 'XLE',          category: 'SUV',
+    basePrice: 32200, marketValue: 36900, deliveryDays: 3,
+    yearRange: [2015, 2024], baseMileage: [7000,  100000], demandFactor: 1.5 },
+  { make: 'Toyota',    model: 'RAV4',         trim: 'TRD Off-Road', category: 'SUV',
+    basePrice: 36600, marketValue: 41900, deliveryDays: 3,
+    yearRange: [2018, 2024], baseMileage: [4000,   70000], demandFactor: 1.4 },
+
+  { make: 'Honda',     model: 'CR-V',         trim: 'LX',           category: 'SUV',
+    basePrice: 27000, marketValue: 30900, deliveryDays: 3,
+    yearRange: [2012, 2024], baseMileage: [10000, 120000], demandFactor: 1.4 },
+  { make: 'Honda',     model: 'CR-V',         trim: 'EX',           category: 'SUV',
+    basePrice: 30500, marketValue: 34900, deliveryDays: 3,
+    yearRange: [2015, 2024], baseMileage: [6000,  100000], demandFactor: 1.4 },
+  { make: 'Honda',     model: 'CR-V',         trim: 'Touring',      category: 'SUV',
+    basePrice: 34800, marketValue: 39900, deliveryDays: 3,
+    yearRange: [2018, 2024], baseMileage: [3000,   70000], demandFactor: 1.3 },
+
+  { make: 'Ford',      model: 'Explorer',     trim: 'Base',         category: 'SUV',
+    basePrice: 33100, marketValue: 37900, deliveryDays: 4,
+    yearRange: [2011, 2024], baseMileage: [15000, 130000], demandFactor: 1.2 },
+  { make: 'Ford',      model: 'Explorer',     trim: 'XLT',          category: 'SUV',
+    basePrice: 38300, marketValue: 43900, deliveryDays: 4,
+    yearRange: [2014, 2024], baseMileage: [10000, 110000], demandFactor: 1.2 },
+  { make: 'Ford',      model: 'Explorer',     trim: 'Platinum',     category: 'SUV',
+    basePrice: 54000, marketValue: 61900, deliveryDays: 4,
+    yearRange: [2017, 2024], baseMileage: [5000,   75000], demandFactor: 1.1 },
+
+  { make: 'Chevrolet', model: 'Equinox',      trim: 'LS',           category: 'SUV',
+    basePrice: 24400, marketValue: 27900, deliveryDays: 3,
+    yearRange: [2012, 2024], baseMileage: [10000, 120000], demandFactor: 1.1 },
+  { make: 'Chevrolet', model: 'Equinox',      trim: 'LT',           category: 'SUV',
+    basePrice: 27900, marketValue: 31900, deliveryDays: 3,
+    yearRange: [2014, 2024], baseMileage: [7000,  100000], demandFactor: 1.1 },
+
+  { make: 'Jeep',      model: 'Grand Cherokee',trim: 'Laredo',      category: 'SUV',
+    basePrice: 34900, marketValue: 39900, deliveryDays: 4,
+    yearRange: [2012, 2024], baseMileage: [15000, 130000], demandFactor: 1.2 },
+  { make: 'Jeep',      model: 'Grand Cherokee',trim: 'Limited',     category: 'SUV',
+    basePrice: 41800, marketValue: 47900, deliveryDays: 4,
+    yearRange: [2015, 2024], baseMileage: [8000,  100000], demandFactor: 1.2 },
+
+  { make: 'Hyundai',   model: 'Tucson',       trim: 'SE',           category: 'SUV',
+    basePrice: 23500, marketValue: 26900, deliveryDays: 3,
+    yearRange: [2012, 2024], baseMileage: [10000, 120000], demandFactor: 1.1 },
+  { make: 'Hyundai',   model: 'Tucson',       trim: 'SEL',          category: 'SUV',
+    basePrice: 27000, marketValue: 30900, deliveryDays: 3,
+    yearRange: [2015, 2024], baseMileage: [6000,   95000], demandFactor: 1.1 },
+  { make: 'Hyundai',   model: 'Tucson',       trim: 'N-Line',       category: 'SUV',
+    basePrice: 31400, marketValue: 35900, deliveryDays: 3,
+    yearRange: [2018, 2024], baseMileage: [3000,   65000], demandFactor: 1.2 },
+
+  { make: 'Nissan',    model: 'Pathfinder',   trim: 'S',            category: 'SUV',
+    basePrice: 34900, marketValue: 39900, deliveryDays: 4,
+    yearRange: [2013, 2024], baseMileage: [12000, 120000], demandFactor: 1.0 },
+  { make: 'Nissan',    model: 'Pathfinder',   trim: 'SL',           category: 'SUV',
+    basePrice: 42100, marketValue: 48200, deliveryDays: 4,
+    yearRange: [2016, 2024], baseMileage: [7000,   90000], demandFactor: 1.0 },
 
   // ── Truck ─────────────────────────────────────────────────
-  {
-    make: 'Ford', model: 'F-150', category: 'Truck',
-    basePrice: 30000, marketValue: 40000, deliveryDays: 4,
-    yearRange: [2017, 2023], baseMileage: [15000, 70000], demandFactor: 1.5,
-  },
-  {
-    make: 'Chevrolet', model: 'Silverado 1500', category: 'Truck',
-    basePrice: 29000, marketValue: 38000, deliveryDays: 4,
-    yearRange: [2017, 2023], baseMileage: [15000, 70000], demandFactor: 1.4,
-  },
-  {
-    make: 'Toyota', model: 'Tacoma', category: 'Truck',
-    basePrice: 26000, marketValue: 35000, deliveryDays: 4,
-    yearRange: [2017, 2023], baseMileage: [10000, 60000], demandFactor: 1.4,
-  },
-  {
-    make: 'RAM', model: '1500', category: 'Truck',
-    basePrice: 29000, marketValue: 38500, deliveryDays: 4,
-    yearRange: [2017, 2023], baseMileage: [15000, 70000], demandFactor: 1.3,
-  },
-  {
-    make: 'GMC', model: 'Sierra 1500', category: 'Truck',
-    basePrice: 30000, marketValue: 39000, deliveryDays: 4,
-    yearRange: [2017, 2023], baseMileage: [15000, 70000], demandFactor: 1.2,
-  },
-  {
-    make: 'Nissan', model: 'Frontier', category: 'Truck',
-    basePrice: 22000, marketValue: 29000, deliveryDays: 4,
-    yearRange: [2017, 2023], baseMileage: [15000, 65000], demandFactor: 1.0,
-  },
+  { make: 'Ford',      model: 'F-150',        trim: 'XL',           category: 'Truck',
+    basePrice: 32200, marketValue: 36900, deliveryDays: 4,
+    yearRange: [2011, 2024], baseMileage: [15000, 150000], demandFactor: 1.5 },
+  { make: 'Ford',      model: 'F-150',        trim: 'XLT',          category: 'Truck',
+    basePrice: 40200, marketValue: 46000, deliveryDays: 4,
+    yearRange: [2014, 2024], baseMileage: [10000, 120000], demandFactor: 1.5 },
+  { make: 'Ford',      model: 'F-150',        trim: 'Lariat',       category: 'Truck',
+    basePrice: 50600, marketValue: 57900, deliveryDays: 4,
+    yearRange: [2017, 2024], baseMileage: [6000,   90000], demandFactor: 1.4 },
+
+  { make: 'Chevrolet', model: 'Silverado 1500',trim: 'WT',          category: 'Truck',
+    basePrice: 33100, marketValue: 37900, deliveryDays: 4,
+    yearRange: [2011, 2024], baseMileage: [15000, 150000], demandFactor: 1.4 },
+  { make: 'Chevrolet', model: 'Silverado 1500',trim: 'LT',          category: 'Truck',
+    basePrice: 41800, marketValue: 47900, deliveryDays: 4,
+    yearRange: [2014, 2024], baseMileage: [10000, 120000], demandFactor: 1.4 },
+  { make: 'Chevrolet', model: 'Silverado 1500',trim: 'LTZ',         category: 'Truck',
+    basePrice: 50600, marketValue: 57900, deliveryDays: 4,
+    yearRange: [2017, 2024], baseMileage: [6000,   90000], demandFactor: 1.3 },
+
+  { make: 'Toyota',    model: 'Tacoma',       trim: 'SR',           category: 'Truck',
+    basePrice: 28800, marketValue: 32900, deliveryDays: 4,
+    yearRange: [2012, 2024], baseMileage: [10000, 130000], demandFactor: 1.4 },
+  { make: 'Toyota',    model: 'Tacoma',       trim: 'SR5',          category: 'Truck',
+    basePrice: 34100, marketValue: 38900, deliveryDays: 4,
+    yearRange: [2015, 2024], baseMileage: [7000,  100000], demandFactor: 1.4 },
+  { make: 'Toyota',    model: 'Tacoma',       trim: 'TRD Sport',    category: 'Truck',
+    basePrice: 39300, marketValue: 44900, deliveryDays: 4,
+    yearRange: [2017, 2024], baseMileage: [3000,   70000], demandFactor: 1.4 },
+
+  { make: 'RAM',       model: '1500',         trim: 'Tradesman',    category: 'Truck',
+    basePrice: 33100, marketValue: 37900, deliveryDays: 4,
+    yearRange: [2011, 2024], baseMileage: [15000, 150000], demandFactor: 1.3 },
+  { make: 'RAM',       model: '1500',         trim: 'Big Horn',     category: 'Truck',
+    basePrice: 40200, marketValue: 46000, deliveryDays: 4,
+    yearRange: [2014, 2024], baseMileage: [10000, 120000], demandFactor: 1.3 },
+  { make: 'RAM',       model: '1500',         trim: 'Laramie',      category: 'Truck',
+    basePrice: 48300, marketValue: 55200, deliveryDays: 4,
+    yearRange: [2017, 2024], baseMileage: [5000,   85000], demandFactor: 1.3 },
+
+  { make: 'GMC',       model: 'Sierra 1500',  trim: 'Regular',      category: 'Truck',
+    basePrice: 33100, marketValue: 37900, deliveryDays: 4,
+    yearRange: [2011, 2024], baseMileage: [15000, 150000], demandFactor: 1.2 },
+  { make: 'GMC',       model: 'Sierra 1500',  trim: 'SLE',          category: 'Truck',
+    basePrice: 41000, marketValue: 46900, deliveryDays: 4,
+    yearRange: [2014, 2024], baseMileage: [10000, 120000], demandFactor: 1.2 },
+
+  { make: 'Nissan',    model: 'Frontier',     trim: 'S',            category: 'Truck',
+    basePrice: 27900, marketValue: 31900, deliveryDays: 4,
+    yearRange: [2012, 2024], baseMileage: [15000, 140000], demandFactor: 1.0 },
+  { make: 'Nissan',    model: 'Frontier',     trim: 'SV',           category: 'Truck',
+    basePrice: 31400, marketValue: 35900, deliveryDays: 4,
+    yearRange: [2015, 2024], baseMileage: [10000, 110000], demandFactor: 1.0 },
 
   // ── Sports ────────────────────────────────────────────────
-  {
-    make: 'Ford', model: 'Mustang', category: 'Sports',
-    basePrice: 24000, marketValue: 32000, deliveryDays: 3,
-    yearRange: [2017, 2023], baseMileage: [5000, 40000], demandFactor: 1.2,
-  },
-  {
-    make: 'Chevrolet', model: 'Camaro', category: 'Sports',
-    basePrice: 23000, marketValue: 31000, deliveryDays: 3,
-    yearRange: [2017, 2023], baseMileage: [5000, 40000], demandFactor: 1.1,
-  },
-  {
-    make: 'Subaru', model: 'BRZ', category: 'Sports',
-    basePrice: 20000, marketValue: 27000, deliveryDays: 3,
-    yearRange: [2018, 2023], baseMileage: [5000, 35000], demandFactor: 1.0,
-  },
-  {
-    make: 'Mazda', model: 'MX-5 Miata', category: 'Sports',
-    basePrice: 21000, marketValue: 28000, deliveryDays: 3,
-    yearRange: [2017, 2023], baseMileage: [5000, 35000], demandFactor: 1.1,
-  },
-  {
-    make: 'Dodge', model: 'Challenger', category: 'Sports',
-    basePrice: 24000, marketValue: 32000, deliveryDays: 3,
-    yearRange: [2017, 2023], baseMileage: [5000, 40000], demandFactor: 1.1,
-  },
-  {
-    make: 'Honda', model: 'Civic Type R', category: 'Sports',
-    basePrice: 32000, marketValue: 42000, deliveryDays: 5,
-    yearRange: [2018, 2023], baseMileage: [2000, 30000], demandFactor: 1.3,
-  },
+  { make: 'Ford',      model: 'Mustang',      trim: 'EcoBoost',     category: 'Sports',
+    basePrice: 27900, marketValue: 31900, deliveryDays: 3,
+    yearRange: [2015, 2024], baseMileage: [3000,   70000], demandFactor: 1.2 },
+  { make: 'Ford',      model: 'Mustang',      trim: 'GT',           category: 'Sports',
+    basePrice: 37600, marketValue: 43000, deliveryDays: 3,
+    yearRange: [2015, 2024], baseMileage: [2000,   55000], demandFactor: 1.3 },
+  { make: 'Ford',      model: 'Mustang',      trim: 'Mach 1',       category: 'Sports',
+    basePrice: 48900, marketValue: 55900, deliveryDays: 3,
+    yearRange: [2021, 2024], baseMileage: [500,    30000], demandFactor: 1.3 },
+
+  { make: 'Chevrolet', model: 'Camaro',       trim: 'LS',           category: 'Sports',
+    basePrice: 26200, marketValue: 29900, deliveryDays: 3,
+    yearRange: [2016, 2024], baseMileage: [3000,   70000], demandFactor: 1.1 },
+  { make: 'Chevrolet', model: 'Camaro',       trim: 'SS',           category: 'Sports',
+    basePrice: 40300, marketValue: 46100, deliveryDays: 3,
+    yearRange: [2016, 2024], baseMileage: [2000,   50000], demandFactor: 1.2 },
+
+  { make: 'Subaru',    model: 'BRZ',          trim: 'Premium',      category: 'Sports',
+    basePrice: 26200, marketValue: 29900, deliveryDays: 3,
+    yearRange: [2017, 2024], baseMileage: [3000,   60000], demandFactor: 1.1 },
+  { make: 'Subaru',    model: 'BRZ',          trim: 'Limited',      category: 'Sports',
+    basePrice: 29300, marketValue: 33500, deliveryDays: 3,
+    yearRange: [2017, 2024], baseMileage: [2000,   45000], demandFactor: 1.1 },
+
+  { make: 'Mazda',     model: 'MX-5 Miata',   trim: 'Sport',        category: 'Sports',
+    basePrice: 27000, marketValue: 30900, deliveryDays: 3,
+    yearRange: [2016, 2024], baseMileage: [2000,   60000], demandFactor: 1.1 },
+  { make: 'Mazda',     model: 'MX-5 Miata',   trim: 'Grand Touring',category: 'Sports',
+    basePrice: 31400, marketValue: 35900, deliveryDays: 3,
+    yearRange: [2016, 2024], baseMileage: [1000,   40000], demandFactor: 1.1 },
+
+  { make: 'Honda',     model: 'Civic Type R',  trim: 'Type R',       category: 'Sports',
+    basePrice: 38400, marketValue: 43900, deliveryDays: 5,
+    yearRange: [2018, 2024], baseMileage: [1000,   40000], demandFactor: 1.3 },
+
+  { make: 'Dodge',     model: 'Challenger',   trim: 'SXT',          category: 'Sports',
+    basePrice: 28800, marketValue: 32900, deliveryDays: 3,
+    yearRange: [2015, 2024], baseMileage: [3000,   70000], demandFactor: 1.1 },
+  { make: 'Dodge',     model: 'Challenger',   trim: 'R/T',          category: 'Sports',
+    basePrice: 36000, marketValue: 41200, deliveryDays: 3,
+    yearRange: [2015, 2024], baseMileage: [2000,   55000], demandFactor: 1.2 },
 
   // ── Luxury ────────────────────────────────────────────────
-  {
-    make: 'BMW', model: '3 Series', category: 'Luxury',
-    basePrice: 30000, marketValue: 40000, deliveryDays: 5,
-    yearRange: [2017, 2023], baseMileage: [10000, 55000], demandFactor: 1.1,
-  },
-  {
-    make: 'Mercedes-Benz', model: 'C-Class', category: 'Luxury',
-    basePrice: 31000, marketValue: 42000, deliveryDays: 5,
-    yearRange: [2017, 2023], baseMileage: [10000, 55000], demandFactor: 1.1,
-  },
-  {
-    make: 'Audi', model: 'A4', category: 'Luxury',
-    basePrice: 29000, marketValue: 39000, deliveryDays: 5,
-    yearRange: [2017, 2023], baseMileage: [10000, 55000], demandFactor: 1.0,
-  },
-  {
-    make: 'Lexus', model: 'IS', category: 'Luxury',
-    basePrice: 28000, marketValue: 37000, deliveryDays: 5,
-    yearRange: [2017, 2023], baseMileage: [10000, 55000], demandFactor: 1.0,
-  },
-  {
-    make: 'Cadillac', model: 'CT5', category: 'Luxury',
-    basePrice: 30000, marketValue: 40000, deliveryDays: 5,
-    yearRange: [2018, 2023], baseMileage: [10000, 55000], demandFactor: 0.9,
-  },
-  {
-    make: 'Infiniti', model: 'Q50', category: 'Luxury',
-    basePrice: 27000, marketValue: 36000, deliveryDays: 5,
-    yearRange: [2017, 2023], baseMileage: [10000, 55000], demandFactor: 0.9,
-  },
+  { make: 'BMW',       model: '3 Series',     trim: '330i',         category: 'Luxury',
+    basePrice: 39200, marketValue: 44900, deliveryDays: 5,
+    yearRange: [2015, 2024], baseMileage: [8000,   90000], demandFactor: 1.1 },
+  { make: 'BMW',       model: '3 Series',     trim: 'M340i',        category: 'Luxury',
+    basePrice: 50600, marketValue: 57900, deliveryDays: 5,
+    yearRange: [2018, 2024], baseMileage: [3000,   60000], demandFactor: 1.2 },
+
+  { make: 'Mercedes-Benz',model: 'C-Class',  trim: 'C300',         category: 'Luxury',
+    basePrice: 40200, marketValue: 45900, deliveryDays: 5,
+    yearRange: [2015, 2024], baseMileage: [8000,   90000], demandFactor: 1.1 },
+  { make: 'Mercedes-Benz',model: 'C-Class',  trim: 'AMG C43',      category: 'Luxury',
+    basePrice: 54100, marketValue: 61900, deliveryDays: 5,
+    yearRange: [2018, 2024], baseMileage: [2000,   55000], demandFactor: 1.2 },
+
+  { make: 'Audi',      model: 'A4',           trim: 'Premium',      category: 'Luxury',
+    basePrice: 36700, marketValue: 41900, deliveryDays: 5,
+    yearRange: [2015, 2024], baseMileage: [8000,   90000], demandFactor: 1.0 },
+  { make: 'Audi',      model: 'A4',           trim: 'Premium Plus', category: 'Luxury',
+    basePrice: 41800, marketValue: 47900, deliveryDays: 5,
+    yearRange: [2017, 2024], baseMileage: [4000,   70000], demandFactor: 1.1 },
+
+  { make: 'Lexus',     model: 'IS',           trim: 'IS 300',       category: 'Luxury',
+    basePrice: 38400, marketValue: 43900, deliveryDays: 5,
+    yearRange: [2015, 2024], baseMileage: [8000,   90000], demandFactor: 1.0 },
+  { make: 'Lexus',     model: 'IS',           trim: 'IS 350',       category: 'Luxury',
+    basePrice: 45500, marketValue: 52100, deliveryDays: 5,
+    yearRange: [2017, 2024], baseMileage: [4000,   65000], demandFactor: 1.1 },
+
+  { make: 'Cadillac',  model: 'CT5',          trim: 'Luxury',       category: 'Luxury',
+    basePrice: 38400, marketValue: 43900, deliveryDays: 5,
+    yearRange: [2020, 2024], baseMileage: [5000,   70000], demandFactor: 0.9 },
+  { make: 'Cadillac',  model: 'CT5',          trim: 'Sport',        category: 'Luxury',
+    basePrice: 44600, marketValue: 51100, deliveryDays: 5,
+    yearRange: [2020, 2024], baseMileage: [2000,   50000], demandFactor: 1.0 },
+
+  { make: 'Infiniti',  model: 'Q50',          trim: 'Pure',         category: 'Luxury',
+    basePrice: 36700, marketValue: 41900, deliveryDays: 5,
+    yearRange: [2014, 2024], baseMileage: [10000, 100000], demandFactor: 0.9 },
+  { make: 'Infiniti',  model: 'Q50',          trim: 'Luxe',         category: 'Luxury',
+    basePrice: 41000, marketValue: 46900, deliveryDays: 5,
+    yearRange: [2014, 2024], baseMileage: [6000,   85000], demandFactor: 0.9 },
 ];
