@@ -12,7 +12,7 @@ import { CAR_CATALOG } from './data/cars.js';
 // DEFAULT STATE
 // ============================================================
 const DEFAULT_STATE = {
-  saveVersion: 4,
+  saveVersion: 5,
   cash: 25000,
   day: 1,
   reputation: 1.0,
@@ -58,6 +58,7 @@ const DEFAULT_STATE = {
   totalLoanDrawn: 0,
   totalLoanPaidDown: 0,
   bankruptcyCount: 0,
+  lastLeaseReturnReport: null,
   consecutiveCleanSales: 0,
   lemonSales: 0,
   salvageProfitSales: 0,
@@ -153,6 +154,19 @@ const SFX_ATTACK_SECONDS = 0.01;
 const LOAN_TERMS = {
   normal: { limit: 60000, apr: 0.12, minPrincipalRate: 0 },
   hard:   { limit: 45000, apr: 0.18, minPrincipalRate: 0.01 },
+};
+const LEASE_TERM_DAYS = [60, 120, 180];
+const LEASE_RATE_BY_SEGMENT = {
+  normal: { Economy: 0.024, Sedan: 0.023, SUV: 0.025, Truck: 0.024, Sports: 0.027, Luxury: 0.021 },
+  hard:   { Economy: 0.021, Sedan: 0.020, SUV: 0.022, Truck: 0.021, Sports: 0.024, Luxury: 0.019 },
+};
+const LEASE_MILES_PER_DAY = {
+  Economy: [55, 110],
+  Sedan: [50, 100],
+  SUV: [45, 95],
+  Truck: [45, 90],
+  Sports: [35, 80],
+  Luxury: [30, 75],
 };
 const DELINQUENCY_WARNING_LEVEL = 1;
 const DELINQUENCY_DEFAULT_LEVEL = 2;
@@ -438,6 +452,16 @@ function loadState() {
           day: loaded.day ?? 1,
         });
       }
+      if (loaded.saveVersion < 5) {
+        loaded.saveVersion = 5;
+        loaded.lastLeaseReturnReport = loaded.lastLeaseReturnReport ?? null;
+        loaded.notifications = loaded.notifications || [];
+        loaded.notifications.unshift({
+          message: '📝 Save upgraded to v5 — leasing system enabled.',
+          type: 'info',
+          day: loaded.day ?? 1,
+        });
+      }
       loaded.loanBalance = loaded.loanBalance ?? 0;
       loaded.loanLimit = loaded.loanLimit ?? getBaseLoanTerms().limit;
       loaded.loanApr = loaded.loanApr ?? getBaseLoanTerms().apr;
@@ -448,6 +472,7 @@ function loadState() {
       loaded.totalLoanDrawn = loaded.totalLoanDrawn ?? 0;
       loaded.totalLoanPaidDown = loaded.totalLoanPaidDown ?? 0;
       loaded.bankruptcyCount = loaded.bankruptcyCount ?? 0;
+      loaded.lastLeaseReturnReport = loaded.lastLeaseReturnReport ?? null;
       loaded.consecutiveCleanSales = loaded.consecutiveCleanSales ?? 0;
       loaded.lemonSales = loaded.lemonSales ?? 0;
       loaded.salvageProfitSales = loaded.salvageProfitSales ?? 0;
@@ -474,6 +499,10 @@ function migrateCar(car) {
   if (car.pendingService    === undefined) car.pendingService    = null;
   if (car.reconditionLog    === undefined) car.reconditionLog    = [];
   if (car.washBoostDays     === undefined) car.washBoostDays     = 0;
+  if (car.leaseStatus       === undefined) car.leaseStatus       = 'none';
+  if (!['none', 'available', 'active'].includes(car.leaseStatus)) car.leaseStatus = 'none';
+  if (car.activeLease       === undefined) car.activeLease       = null;
+  if (car.leaseStatus === 'active' && !car.activeLease) car.leaseStatus = 'none';
   if (car.trim              === undefined) car.trim              = '';
   if (!TITLE_STATUSES.includes(car.titleStatus)) car.titleStatus = 'clean';
   // Old offers had 'tradein' source — normalise
@@ -544,6 +573,8 @@ function buildCar(entry, condition, source, inspected = false) {
     pendingService: null,
     reconditionLog: [],
     washBoostDays: 0,
+    leaseStatus: 'none',
+    activeLease: null,
   };
 }
 
@@ -762,6 +793,117 @@ function getLiquidationMultiplier(car) {
   return LIQUIDATION_MULT[car?.titleStatus] || LIQUIDATION_MULT.clean;
 }
 
+function getLeaseRate(car) {
+  const diffKey = settings.difficulty === 'hard' ? 'hard' : 'normal';
+  return LEASE_RATE_BY_SEGMENT[diffKey][car.category] ?? LEASE_RATE_BY_SEGMENT[diffKey].Sedan;
+}
+
+function computeLeasePaymentPerDay(car) {
+  return Math.max(20, Math.round((car.marketValue * getLeaseRate(car)) / 30));
+}
+
+function computeLeaseIncomePerDay() {
+  return state.garage.reduce((sum, car) => {
+    if (car.leaseStatus !== 'active' || !car.activeLease) return sum;
+    return sum + (car.activeLease.paymentPerDay || 0);
+  }, 0);
+}
+
+function downgradeConditionBySteps(condition, steps) {
+  const idx = CONDITIONS.indexOf(condition);
+  if (idx < 0) return condition;
+  return CONDITIONS[Math.min(CONDITIONS.length - 1, idx + steps)];
+}
+
+function processLeases() {
+  for (const car of state.garage) {
+    if (car.leaseStatus !== 'active' || !car.activeLease) continue;
+    const lease = car.activeLease;
+    state.cash += lease.paymentPerDay;
+    lease.totalPaid = (lease.totalPaid || 0) + lease.paymentPerDay;
+
+    const milesDelta = Math.max(10, lease.milesPerDay + randomInt(-8, 14));
+    car.mileage += milesDelta;
+    lease.totalMilesAdded = (lease.totalMilesAdded || 0) + milesDelta;
+    car.marketValue = Math.max(1000, Math.round(car.marketValue * (1 - (milesDelta / 420000))));
+
+    const termProgress = clamp((state.day - lease.startDay + 1) / lease.termDays, 0, 1.5);
+    const hardBonus = settings.difficulty === 'hard' ? 0.0015 : 0;
+    const titleBonus = car.titleStatus === 'lemon' ? 0.003 : car.titleStatus === 'salvage' ? 0.0015 : 0;
+    const issueChance = clamp(0.001 + (termProgress * 0.007) + titleBonus + hardBonus, 0, 0.04);
+    if (Math.random() < issueChance) {
+      const issue = { ...randomFrom(HIDDEN_ISSUES) };
+      lease.pendingIssues = lease.pendingIssues || [];
+      if (!lease.pendingIssues.some(i => i.name === issue.name)) lease.pendingIssues.push(issue);
+    }
+
+    if (state.day >= lease.endDay) {
+      const pendingIssues = lease.pendingIssues || [];
+      for (const issue of pendingIssues) {
+        if (!car.hiddenIssues.some(i => i.name === issue.name)) car.hiddenIssues.push(issue);
+      }
+      car.repairCost = car.hiddenIssues.reduce((s, i) => s + i.cost, 0);
+      car.inspected = true;
+
+      const before = car.condition;
+      const steps = lease.totalMilesAdded >= 18000 ? 2 : lease.totalMilesAdded >= 9000 ? 1 : 0;
+      if (steps > 0) car.condition = downgradeConditionBySteps(car.condition, steps);
+
+      const report = {
+        day: state.day,
+        carLabel: `${car.year} ${car.make} ${car.model}${car.trim ? ` ${car.trim}` : ''}`,
+        incomeEarned: lease.totalPaid || 0,
+        milesAdded: lease.totalMilesAdded || 0,
+        issuesAdded: pendingIssues.map(i => i.name),
+        conditionBefore: before,
+        conditionAfter: car.condition,
+      };
+      state.lastLeaseReturnReport = report;
+      addNote(
+        `📄 Lease return: ${report.carLabel}. Income ${formatCurrency(report.incomeEarned)}, miles +${report.milesAdded.toLocaleString()}, issues ${report.issuesAdded.length}.`,
+        report.issuesAdded.length ? 'warning' : 'info'
+      );
+      showModal(
+        'Lease Return Report',
+        `${report.carLabel}\nIncome: ${formatCurrency(report.incomeEarned)}\nMiles Added: ${report.milesAdded.toLocaleString()} mi\nCondition: ${report.conditionBefore} → ${report.conditionAfter}\nIssues Found: ${report.issuesAdded.length ? report.issuesAdded.join(', ') : 'None'}`,
+        () => {}
+      );
+      car.leaseStatus = 'none';
+      car.activeLease = null;
+    }
+  }
+
+  let startedToday = 0;
+  for (const car of state.garage) {
+    if (startedToday >= 2) break;
+    if (car.leaseStatus !== 'available' || car.inServiceUntilDay || car.isForSale) continue;
+    const valueScore = clamp(1 - ((car.marketValue || 0) / 220000), 0.18, 0.95);
+    const demand = clamp(car.demandFactor || 1, 0.7, 1.4);
+    const chance = clamp(0.05 + (0.16 * valueScore * demand), 0.04, 0.30);
+    if (Math.random() >= chance) continue;
+
+    const termDays = randomFrom(LEASE_TERM_DAYS);
+    const milesRange = LEASE_MILES_PER_DAY[car.category] || LEASE_MILES_PER_DAY.Sedan;
+    const milesPerDay = randomInt(milesRange[0], milesRange[1]);
+    const paymentPerDay = computeLeasePaymentPerDay(car);
+    car.leaseStatus = 'active';
+    car.activeLease = {
+      startDay: state.day,
+      termDays,
+      endDay: state.day + termDays,
+      paymentPerDay,
+      milesPerDay,
+      totalPaid: 0,
+      totalMilesAdded: 0,
+      pendingIssues: [],
+    };
+    state.customerOffers = state.customerOffers.filter(o => o.carId !== car.id);
+    state.tradeInRequests = state.tradeInRequests.filter(r => r.targetCarId !== car.id);
+    startedToday++;
+    addNote(`📝 Lease started: ${car.year} ${car.make} ${car.model} (${termDays}d) at ${formatCurrency(paymentPerDay)}/day.`, 'info');
+  }
+}
+
 function processLoanAndDelinquency() {
   const terms = getBaseLoanTerms();
   let due = 0;
@@ -820,7 +962,9 @@ function triggerBankruptcy() {
   }
 
   const liquidationLog = [];
-  const sortedCars = [...state.garage].sort((a, b) => b.marketValue - a.marketValue);
+  const sortedCars = [...state.garage]
+    .filter(car => !(car.leaseStatus === 'active' && car.activeLease))
+    .sort((a, b) => b.marketValue - a.marketValue);
   for (const car of sortedCars) {
     if (state.cash >= 0) break;
     const salePrice = Math.max(500, Math.round(car.marketValue * getLiquidationMultiplier(car)));
@@ -992,7 +1136,7 @@ function processForSale() {
   const soldIds = new Set();
   const remaining = [];
   for (const car of state.garage) {
-    if (!car.isForSale || car.listPrice <= 0 || car.inServiceUntilDay) {
+    if (!car.isForSale || car.listPrice <= 0 || car.inServiceUntilDay || (car.leaseStatus === 'active' && car.activeLease)) {
       remaining.push(car); continue;
     }
     const chance = computeSaleChance(car);
@@ -1069,6 +1213,7 @@ function resolveCustomerOfferCounters() {
 
 /** Shared helper: execute a sale from an offer. */
 function executeSale(offer, car, salePrice) {
+  if (car.leaseStatus === 'active' && car.activeLease) return;
   const fee    = Math.round(salePrice * TRANSACTION_FEE);
   const profit = salePrice - fee - car.purchasePrice;
   state.cash  += salePrice - fee;
@@ -1090,6 +1235,11 @@ function resolveTradeInCounters() {
     if (req.state === 'countered' && req.counterCashDelta !== null) {
       const targetCar = state.garage.find(c => c.id === req.targetCarId);
       if (!targetCar) { toRemove.add(req.id); continue; }
+      if (targetCar.leaseStatus === 'active' && targetCar.activeLease) {
+        addNote(`❌ Trade-in counter expired for ${targetCar.year} ${targetCar.make} ${targetCar.model} because the car is leased.`, 'warning');
+        toRemove.add(req.id);
+        continue;
+      }
       // Customer acceptance probability based on how fair the counter is
       const totalCustomerCost = req.customerCarValue + req.counterCashDelta;
       const fairness = totalCustomerCost / targetCar.listPrice;
@@ -1155,6 +1305,7 @@ function nextDay() {
   resolveTradeInCounters();
   expireOffers();
   processForSale();
+  processLeases();
   tickDaysInLot();
   // Generate new offers for the new day
   state.usedMarketOffers = generateUsedMarket();
@@ -1169,7 +1320,9 @@ function nextDay() {
   renderAll();
   const offerAlert = newOffers.length ? ` ${newOffers.length} offer(s) on your cars!` : '';
   const tradeAlert = newTIR.length   ? ` ${newTIR.length} trade-in request(s)!` : '';
-  showToast(`Day ${state.day} — new used cars available!${offerAlert}${tradeAlert}`);
+  const leaseIncome = computeLeaseIncomePerDay();
+  const leaseAlert = leaseIncome > 0 ? ` Active lease income/day: ${formatCurrency(leaseIncome)}.` : '';
+  showToast(`Day ${state.day} — new used cars available!${offerAlert}${tradeAlert}${leaseAlert}`);
 }
 
 // ============================================================
@@ -1308,6 +1461,8 @@ function submitUsedOffer(offerId, rawAmount) {
 function acceptTradeInRequest(requestId) {
   const req = state.tradeInRequests.find(r => r.id === requestId);
   if (!req) return;
+  const targetCar = state.garage.find(c => c.id === req.targetCarId);
+  if (targetCar?.leaseStatus === 'active' && targetCar.activeLease) { showToast('Leased cars cannot be traded in until lease return.', 'error'); return; }
   const cashDelta = req.counterCashDelta ?? req.cashDelta;
   executeTradeIn(req, cashDelta);
   addNote(`🤝 Trade-in accepted! Got ${req.customerCar.year} ${req.customerCar.make} ${req.customerCar.model}.`, 'success');
@@ -1338,6 +1493,7 @@ function counterTradeInRequest(requestId, rawDelta) {
 function executeTradeIn(req, cashDelta) {
   const targetCar = state.garage.find(c => c.id === req.targetCarId);
   if (!targetCar) return;
+  if (targetCar.leaseStatus === 'active' && targetCar.activeLease) return;
 
   // Apply cash delta: positive = customer pays us, negative = we pay customer
   state.cash += cashDelta;
@@ -1382,6 +1538,7 @@ function acceptCustomerOffer(offerId) {
   if (!offer) return;
   const car = state.garage.find(c => c.id === offer.carId);
   if (!car) return;
+  if (car.leaseStatus === 'active' && car.activeLease) { showToast('Leased cars cannot be sold until lease return.', 'error'); return; }
   const salePrice = offer.offeredPrice;
   executeSale(offer, car, salePrice);
   addNote(`✅ Accepted offer on ${car.year} ${car.make} ${car.model} for ${formatCurrency(salePrice)}.`, 'success');
@@ -1448,6 +1605,7 @@ function markForSale(carId) {
   const car = state.garage.find(c => c.id === carId);
   if (!car) return;
   if (car.inServiceUntilDay) { showToast('Car is currently in service — wait until complete.', 'error'); return; }
+  if (car.leaseStatus === 'active' && car.activeLease) { showToast('Leased cars cannot be listed or sold until lease return.', 'error'); return; }
   car.isForSale = !car.isForSale;
   if (car.isForSale && car.listPrice === 0) car.listPrice = car.marketValue;
   if (!car.isForSale) {
@@ -1478,7 +1636,7 @@ function setListPriceMultiplier(carId, mult) {
 function markAllForSale() {
   let changed = 0;
   for (const car of state.garage) {
-    if (car.inServiceUntilDay || car.isForSale) continue;
+    if (car.inServiceUntilDay || car.isForSale || (car.leaseStatus === 'active' && car.activeLease)) continue;
     car.isForSale = true;
     if (!car.listPrice) car.listPrice = car.marketValue;
     changed++;
@@ -1538,6 +1696,7 @@ function buyUpgrade(upgradeId) {
 function carWash(carId) {
   const car = state.garage.find(c => c.id === carId);
   if (!car) return;
+  if (car.leaseStatus === 'active' && car.activeLease) { showToast('No recon actions allowed while lease is active.', 'error'); return; }
   const cost = 150;
   if (state.cash < cost) { showToast(`Car wash costs ${formatCurrency(cost)} — not enough cash!`, 'error'); return; }
   if (car.washBoostDays > 0) { showToast('Car was recently washed — wait for the boost to fade.', 'error'); return; }
@@ -1554,6 +1713,7 @@ function basicRepair(carId) {
   if (!state.upgrades.serviceBay) { showToast('You need the Service Bay upgrade first!', 'error'); return; }
   const car = state.garage.find(c => c.id === carId);
   if (!car) return;
+  if (car.leaseStatus === 'active' && car.activeLease) { showToast('No recon actions allowed while lease is active.', 'error'); return; }
   if (car.condition === 'A' || (car.condition === 'B' && car.hiddenIssues.length === 0)) {
     showToast('Car is in good condition — no major repairs needed!', 'error'); return;
   }
@@ -1574,6 +1734,7 @@ function partsUpgrade(carId) {
   if (!state.upgrades.performanceShop) { showToast('You need the Performance Shop upgrade first!', 'error'); return; }
   const car = state.garage.find(c => c.id === carId);
   if (!car) return;
+  if (car.leaseStatus === 'active' && car.activeLease) { showToast('No recon actions allowed while lease is active.', 'error'); return; }
   if (!PERF_ELIGIBLE.includes(car.category)) {
     showToast('Parts upgrades are only for Sports, SUV, and Truck vehicles.', 'error'); return;
   }
@@ -1596,6 +1757,7 @@ function detailCar(carId) {
   if (!state.upgrades.detailing) { showToast('You need the Detailing Bay upgrade first!', 'error'); return; }
   const car = state.garage.find(c => c.id === carId);
   if (!car) return;
+  if (car.leaseStatus === 'active' && car.activeLease) { showToast('No recon actions allowed while lease is active.', 'error'); return; }
   if (car.condition === 'A') { showToast('Car is already in excellent condition!', 'error'); return; }
   if (car.inServiceUntilDay) { showToast('Car is currently in service — wait until complete.', 'error'); return; }
   if (state.cash < 500) { showToast('Not enough cash for detailing ($500)!', 'error'); return; }
@@ -1607,6 +1769,44 @@ function detailCar(carId) {
   addNote(`✨ Detailed ${car.year} ${car.make} ${car.model} → condition now ${car.condition}.`, 'success');
   saveState();
   renderAll();
+}
+
+function makeLeaseAvailable(carId) {
+  const car = state.garage.find(c => c.id === carId);
+  if (!car) return;
+  if (car.inServiceUntilDay) { showToast('Car in service cannot be offered for lease.', 'error'); return; }
+  if (car.leaseStatus === 'active' && car.activeLease) { showToast('Car is already on an active lease.', 'error'); return; }
+  if (car.isForSale) { showToast('Unlist the car before offering lease.', 'error'); return; }
+  car.leaseStatus = 'available';
+  saveState();
+  renderGarage();
+}
+
+function stopOfferingLease(carId) {
+  const car = state.garage.find(c => c.id === carId);
+  if (!car) return;
+  if (car.leaseStatus !== 'available') return;
+  car.leaseStatus = 'none';
+  saveState();
+  renderGarage();
+}
+
+function viewLeaseDetails(carId) {
+  const car = state.garage.find(c => c.id === carId);
+  if (!car || car.leaseStatus !== 'active' || !car.activeLease) return;
+  const lease = car.activeLease;
+  const daysLeft = Math.max(0, lease.endDay - state.day);
+  showModal(
+    'Lease Details',
+    `${car.year} ${car.make} ${car.model}${car.trim ? ` ${car.trim}` : ''}\nTerm: ${lease.termDays} game days (~${Math.round(lease.termDays * 0.3)} months)\nDays left: ${daysLeft}\nPayment/day: ${formatCurrency(lease.paymentPerDay)}\nIncome earned: ${formatCurrency(lease.totalPaid || 0)}\nMiles added: ${(lease.totalMilesAdded || 0).toLocaleString()} mi`,
+    () => {}
+  );
+}
+
+function toggleShowLeasedCars() {
+  settings.showLeasedCars = !settings.showLeasedCars;
+  saveSettings();
+  renderGarage();
 }
 
 // ============================================================
@@ -1681,6 +1881,9 @@ function renderStats() {
   document.getElementById('stat-garage').textContent = `🏠 ${state.garage.length} / ${state.garageSlots}`;
   const debtChip = document.getElementById('stat-debt');
   if (debtChip) debtChip.textContent = `🏦 Debt ${formatCurrency(state.loanBalance || 0)}`;
+  const activeLeases = state.garage.filter(c => c.leaseStatus === 'active' && c.activeLease).length;
+  const leaseChip = document.getElementById('stat-lease');
+  if (leaseChip) leaseChip.textContent = `📝 Leases ${activeLeases} · ${formatCurrency(computeLeaseIncomePerDay())}/day`;
 }
 
 // ============================================================
@@ -1692,6 +1895,8 @@ function renderDashboard() {
   const pendingOffers = state.customerOffers.filter(o => o.state === 'pending').length;
   const pendingTIR    = state.tradeInRequests.filter(r => r.state === 'pending').length;
   const inService     = state.garage.filter(c => c.inServiceUntilDay).length;
+  const activeLeases  = state.garage.filter(c => c.leaseStatus === 'active' && c.activeLease).length;
+  const leaseIncome   = computeLeaseIncomePerDay();
   const overhead      = OVERHEAD_BY_LEVEL[state.upgrades.garageLevel] ?? 300;
   const diffMult      = (settings.difficulty === 'hard') ? 1.5 : 1.0;
   const wageTotal     = getTotalStaffWages();
@@ -1757,6 +1962,8 @@ function renderDashboard() {
         <div class="stat-row"><span>Hired Staff</span><strong>${state.staff?.length || 0}</strong></div>
         <div class="stat-row"><span>Listed for Sale</span><strong>${forSaleCount}</strong></div>
         <div class="stat-row"><span>In Service</span><strong>${inService}</strong></div>
+        <div class="stat-row"><span>Active Leases</span><strong>${activeLeases}</strong></div>
+        <div class="stat-row"><span>Lease Income / Day</span><strong class="text-green">+${formatCurrency(leaseIncome)}</strong></div>
         <div class="stat-row"><span>Pending Deliveries</span><strong>${state.deliveries.length}</strong></div>
         <div class="stat-row"><span>Customer Offers</span>
           <strong ${pendingOffers > 0 ? 'class="text-green"' : ''}>${pendingOffers}</strong></div>
@@ -2095,6 +2302,7 @@ function renderTradeInRequests() {
 // ============================================================
 function renderGarage() {
   const el = document.getElementById('tab-garage');
+  const showLeased = settings.showLeasedCars !== false;
 
   if (!state.garage.length) {
     el.innerHTML = `<div class="empty-state">
@@ -2102,8 +2310,13 @@ function renderGarage() {
     return;
   }
 
-  const cards = state.garage.map(car => {
+  const visibleCars = showLeased
+    ? state.garage
+    : state.garage.filter(car => !(car.leaseStatus === 'active' && car.activeLease));
+  const cards = visibleCars.map(car => {
     const inService = !!car.inServiceUntilDay;
+    const isLeased = car.leaseStatus === 'active' && !!car.activeLease;
+    const leaseDaysLeft = isLeased ? Math.max(0, car.activeLease.endDay - state.day) : 0;
     const issuesHtml = car.inspected
       ? (car.hiddenIssues.length === 0
           ? '<span class="text-green">✅ None</span>'
@@ -2125,7 +2338,9 @@ function renderGarage() {
     const perfEligible = PERF_ELIGIBLE.includes(car.category);
     const perfDone     = car.reconditionLog.some(r => r.type === 'Parts Upgrade');
     let reconHtml = '';
-    if (!inService) {
+    if (isLeased) {
+      reconHtml = `<div class="tab-info" style="font-size:.75rem;padding:8px 10px;margin-top:4px">🧰 Recon disabled while lease is active.</div>`;
+    } else if (!inService) {
       reconHtml = `<div class="recon-actions">`;
       // Car Wash
       const canWash = Number(state.cash) >= 150;
@@ -2166,10 +2381,13 @@ function renderGarage() {
             <div class="badge-stack">
               ${condBadge(car.condition)}
               ${titleBadge(car.titleStatus)}
+              ${car.leaseStatus === 'available' ? '<span class="badge badge-blue">LEASE AVAILABLE</span>' : ''}
+              ${isLeased ? `<span class="badge badge-blue">LEASED (${leaseDaysLeft}d left)</span>` : ''}
             </div>
           </div>
         ${inService ? `<div class="service-banner">🔧 IN SERVICE — Ready Day ${car.inServiceUntilDay} (${car.pendingService?.type === 'repair' ? 'Basic Repair' : 'Parts Upgrade'})</div>` : ''}
         ${car.isForSale ? '<div class="for-sale-banner">🏷️ LISTED FOR SALE</div>' : ''}
+        ${isLeased ? `<div class="service-banner">📝 LEASE ACTIVE — ${leaseDaysLeft} day(s) remaining</div>` : ''}
         ${car.washBoostDays > 0 ? `<div class="wash-banner">🚿 Wash boost active (${car.washBoostDays} days left)</div>` : ''}
         <div class="car-details">
           <div class="detail-row"><span>Category</span><span>${car.category}</span></div>
@@ -2178,6 +2396,8 @@ function renderGarage() {
           <div class="detail-row"><span>Purchased For</span><span>${formatCurrency(car.purchasePrice)}</span></div>
           <div class="detail-row"><span>Market Value</span><span class="text-green">${formatCurrency(car.marketValue)}</span></div>
           <div class="detail-row"><span>Source</span><span>${car.source === 'factory' ? '🏭 Factory' : '🚗 Used Market'}</span></div>
+          <div class="detail-row"><span>Lease Status</span><span>${isLeased ? `Active (${leaseDaysLeft}d left)` : car.leaseStatus === 'available' ? 'Available' : 'Not Offered'}</span></div>
+          ${isLeased ? `<div class="detail-row"><span>Lease Income / Day</span><span class="text-green">+${formatCurrency(car.activeLease.paymentPerDay)}</span></div>` : ''}
           ${car.isForSale ? `<div class="detail-row"><span>Days on Lot</span><span>${car.daysInLot}</span></div>` : ''}
           ${car.isForSale ? `<div class="detail-row"><span>Sale Chance</span><span>${saleChance}</span></div>` : ''}
         </div>
@@ -2192,19 +2412,29 @@ function renderGarage() {
         ${reconHtml}
         <div class="car-actions" style="margin-top:4px">
           <button class="btn ${car.isForSale ? 'btn-warning' : 'btn-primary'}"
-            onclick="markForSale('${car.id}')" ${inService ? 'disabled' : ''}>
+            onclick="markForSale('${car.id}')" ${inService || isLeased ? 'disabled' : ''}>
             ${car.isForSale ? '📤 Unlist' : '🏷️ Mark for Sale'}
           </button>
+          ${car.leaseStatus === 'none' ? `<button class="btn btn-secondary" onclick="makeLeaseAvailable('${car.id}')" ${car.isForSale || inService ? 'disabled' : ''}>📝 Make Lease Available</button>` : ''}
+          ${car.leaseStatus === 'available' ? `<button class="btn btn-warning" onclick="stopOfferingLease('${car.id}')">⏹️ Stop Offering Lease</button>` : ''}
+          ${isLeased ? `<button class="btn btn-secondary" onclick="viewLeaseDetails('${car.id}')">📄 Lease Details</button>` : ''}
         </div>
       </div>`;
   }).join('');
 
+  const activeLeases = state.garage.filter(c => c.leaseStatus === 'active' && c.activeLease).length;
   el.innerHTML = `
     <div class="tab-info">
       🏠 Garage: ${state.garage.length}/${state.garageSlots} slots.
       ${state.garage.filter(c => c.isForSale).length} listed for sale.
       ${state.garage.filter(c => c.inServiceUntilDay).length ? `🔧 ${state.garage.filter(c => c.inServiceUntilDay).length} in service.` : ''}
+      ${activeLeases ? `📝 ${activeLeases} active lease(s).` : ''}
+      <br>Lease income/day: <strong>${formatCurrency(computeLeaseIncomePerDay())}</strong>.
+      ${showLeased ? '' : '<span class="text-yellow"> (leased cars hidden)</span>'}
       ${state.upgrades.crmSuite ? '<br>💼 High-volume tools active: bulk list/unlist available.' : ''}
+    </div>
+    <div class="bulk-row">
+      <button class="btn btn-sm btn-secondary" onclick="toggleShowLeasedCars()">${showLeased ? 'Hide Leased Cars' : 'Show Leased Cars'}</button>
     </div>
     ${state.upgrades.crmSuite ? `
       <div class="bulk-row">
@@ -2698,7 +2928,7 @@ function closeModal() { document.getElementById('modal').classList.add('hidden')
 // ============================================================
 // SETTINGS (dark mode, difficulty)  — separate localStorage key
 // ============================================================
-let settings = { darkMode: false, difficulty: 'normal', sfxMuted: false, sfxVolume: 0.22, showWordmarks: true };
+let settings = { darkMode: false, difficulty: 'normal', sfxMuted: false, sfxVolume: 0.22, showWordmarks: true, showLeasedCars: true };
 let audioCtx = null;
 const SFX = {
   click:   [420, 0.03, 'triangle'],
@@ -2713,6 +2943,7 @@ function loadSettings() {
     const raw = localStorage.getItem('dealerSim_settings');
     if (raw) settings = { ...settings, ...JSON.parse(raw) };
   } catch (_) {}
+  if (settings.showLeasedCars === undefined) settings.showLeasedCars = true;
   applyDarkMode();
 }
 
@@ -2837,6 +3068,7 @@ function init() {
     acceptTradeInRequest, rejectTradeInRequest, counterTradeInRequest,
     acceptCustomerOffer, rejectCustomerOffer, counterCustomerOffer, applyStaffSuggestion,
     markForSale, updateListPrice, setListPriceMultiplier, markAllForSale, unlistAllCars, bulkSetListing,
+    makeLeaseAvailable, stopOfferingLease, viewLeaseDetails, toggleShowLeasedCars,
     buyUpgrade, detailCar, carWash, basicRepair, partsUpgrade,
     drawLoan, payDownLoan,
     confirmNewGame, exportSave, hireStaff, dismissCandidate,
