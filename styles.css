@@ -348,7 +348,18 @@ body {
   gap: 8px;
   margin-top: 4px;
 }
-.car-actions .btn { flex: 1; min-width: 100px; }
+.car-actions .btn {
+  flex: 1 1 160px;
+  min-width: 140px;
+}
+
+@media (max-width: 420px) {
+  .car-actions .btn {
+    min-width: 120px;
+    white-space: normal;
+    line-height: 1.15;
+  }
+}
 
 /* For-sale banner strip */
 .for-sale-banner {
