@@ -188,15 +188,90 @@ const LEASE_MILES_PER_DAY = {
 const DELINQUENCY_WARNING_LEVEL = 1;
 const DELINQUENCY_DEFAULT_LEVEL = 2;
 const DELINQUENCY_BANKRUPTCY_LEVEL = 3;
+// SVG icon helper — returns a 28×28 SVG icon (stroke-based, matches blue theme)
+function achSvg(pathD) {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24"
+    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+    class="ach-icon" aria-hidden="true">${pathD}</svg>`;
+}
+const ACH_ICONS = {
+  star:       achSvg('<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>'),
+  handshake:  achSvg('<path d="M18 11V6l-9 5-5-3v5l5 3 9-5z"/><path d="M3 11l5 3 9-5 4 2.5v5l-4-2.5-9 5-5-3V11z"/>'),
+  shield:     achSvg('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>'),
+  trophy:     achSvg('<path d="M6 9H4a2 2 0 0 0-2 2v0a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2h-2"/><path d="M8 21h8"/><path d="M12 17v4"/><path d="M6 2h12v11a6 6 0 0 1-6 6 6 6 0 0 1-6-6V2z"/>'),
+  zap:        achSvg('<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>'),
+  tag:        achSvg('<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>'),
+  wrench:     achSvg('<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.77 3.77z"/>'),
+  dollar:     achSvg('<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>'),
+  trending:   achSvg('<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>'),
+  car:        achSvg('<rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>'),
+  repeat:     achSvg('<polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>'),
+  alert:      achSvg('<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>'),
+  flame:      achSvg('<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>'),
+  award:      achSvg('<circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/>'),
+  lock:       achSvg('<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'),
+  unlock:     achSvg('<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>'),
+  map:        achSvg('<polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21 3 6"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/>'),
+  clock:      achSvg('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'),
+  creditcard: achSvg('<rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>'),
+  layers:     achSvg('<polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>'),
+  key:        achSvg('<path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>'),
+};
 const ACHIEVEMENTS = [
-  { id: 'title_clean_start', kind: 'serious', name: 'Flawless Paperwork', desc: 'Sell your first clean-title car.', check: s => !!s.achievementsUnlocked.title_clean_start || s.salesHistory.some(h => h.titleStatus === 'clean') },
-  { id: 'title_clean_streak', kind: 'serious', name: 'Clean Sweep', desc: 'Sell 5 clean-title cars in a row.', check: s => (s.consecutiveCleanSales || 0) >= 5 },
-  { id: 'loan_interest_paid', kind: 'serious', name: 'Bank Relationship', desc: 'Pay at least $2,500 in interest.', check: s => (s.totalInterestPaid || 0) >= 2500 },
-  { id: 'loan_debt_free', kind: 'serious', name: 'Debt Free Dealer', desc: 'Use the credit line, then fully pay it off.', check: s => (s.totalLoanDrawn || 0) > 0 && Math.round(s.loanBalance || 0) <= 0 },
-  { id: 'bankruptcy_survivor', kind: 'serious', name: 'Back From The Brink', desc: 'Survive a bankruptcy in normal mode.', check: s => (s.bankruptcyCount || 0) > 0 && !s.gameOver },
-  { id: 'salvage_profit', kind: 'funny', name: 'Salvage? More Like Savings.', desc: 'Make a profit on a salvage-title sale.', check: s => (s.salvageProfitSales || 0) >= 1 },
-  { id: 'lemonade_stand', kind: 'funny', name: 'The Lemonade Stand', desc: 'Sell 3 lemon-title cars.', check: s => (s.lemonSales || 0) >= 3 },
-  { id: 'interest_enthusiast', kind: 'funny', name: 'Interest Enthusiast', desc: 'Pay $10,000 total interest.', check: s => (s.totalInterestPaid || 0) >= 10000 },
+  { id: 'first_sale',          icon: ACH_ICONS.tag,        name: 'First Deal Done',        desc: 'Complete your first car sale.',
+    check: s => (s.salesHistory || []).length >= 1, progress: s => Math.min(1, (s.salesHistory||[]).length) },
+  { id: 'ten_sales',           icon: ACH_ICONS.star,       name: 'Dealership Regular',     desc: 'Sell 10 cars total.',
+    check: s => (s.salesHistory || []).length >= 10, progress: s => (s.salesHistory||[]).length + '/10' },
+  { id: 'fifty_sales',         icon: ACH_ICONS.trophy,     name: 'Volume Dealer',          desc: 'Sell 50 cars total.',
+    check: s => (s.salesHistory || []).length >= 50, progress: s => (s.salesHistory||[]).length + '/50' },
+  { id: 'hundred_sales',       icon: ACH_ICONS.award,      name: 'Century Club',           desc: 'Sell 100 cars. The lot never sleeps.',
+    check: s => (s.salesHistory || []).length >= 100, progress: s => (s.salesHistory||[]).length + '/100' },
+  { id: 'net_worth_100k',      icon: ACH_ICONS.dollar,     name: 'Six Figures',            desc: 'Reach $100,000 in cash.',
+    check: s => (s.cash || 0) >= 100000, progress: s => formatCurrency(Math.min(s.cash||0, 100000)) + '/$100k' },
+  { id: 'net_worth_500k',      icon: ACH_ICONS.trending,   name: 'Half a Million',         desc: 'Accumulate $500,000 in cash.',
+    check: s => (s.cash || 0) >= 500000, progress: s => formatCurrency(Math.min(s.cash||0, 500000)) + '/$500k' },
+  { id: 'net_worth_1m',        icon: ACH_ICONS.flame,      name: 'Millionaire Mogul',      desc: 'Hit $1,000,000 in cash. You made it.',
+    check: s => (s.cash || 0) >= 1000000, progress: s => formatCurrency(Math.min(s.cash||0, 1000000)) + '/$1M' },
+  { id: 'title_clean_start',   icon: ACH_ICONS.shield,     name: 'Flawless Paperwork',     desc: 'Sell your first clean-title car.',
+    check: s => !!s.achievementsUnlocked?.title_clean_start || (s.salesHistory||[]).some(h => h.titleStatus === 'clean') },
+  { id: 'title_clean_streak',  icon: ACH_ICONS.repeat,     name: 'Clean Sweep',            desc: 'Sell 5 clean-title cars in a row.',
+    check: s => (s.consecutiveCleanSales || 0) >= 5, progress: s => (s.consecutiveCleanSales||0) + '/5' },
+  { id: 'salvage_profit',      icon: ACH_ICONS.wrench,     name: 'Salvage Savant',         desc: 'Profit on a salvage-title sale.',
+    check: s => (s.salvageProfitSales || 0) >= 1 },
+  { id: 'lemonade_stand',      icon: ACH_ICONS.alert,      name: 'Lemon Vendor',           desc: 'Sell 3 lemon-title cars. Sweet and sour.',
+    check: s => (s.lemonSales || 0) >= 3, progress: s => (s.lemonSales||0) + '/3' },
+  { id: 'loan_interest_paid',  icon: ACH_ICONS.creditcard, name: 'Bank Relationship',      desc: 'Pay at least $2,500 in loan interest.',
+    check: s => (s.totalInterestPaid || 0) >= 2500, progress: s => formatCurrency(Math.min(s.totalInterestPaid||0,2500)) + '/$2.5k' },
+  { id: 'interest_enthusiast', icon: ACH_ICONS.dollar,     name: 'Interest Connoisseur',   desc: 'Pay $10,000 in total interest — you love the bank.',
+    check: s => (s.totalInterestPaid || 0) >= 10000, progress: s => formatCurrency(Math.min(s.totalInterestPaid||0,10000)) + '/$10k' },
+  { id: 'loan_debt_free',      icon: ACH_ICONS.unlock,     name: 'Debt-Free Dealer',       desc: 'Draw from the credit line, then pay it all off.',
+    check: s => (s.totalLoanDrawn || 0) > 0 && Math.round(s.loanBalance || 0) <= 0 },
+  { id: 'bankruptcy_survivor', icon: ACH_ICONS.flame,      name: 'Back From The Brink',    desc: 'Survive a bankruptcy and keep the doors open.',
+    check: s => (s.bankruptcyCount || 0) > 0 && !s.gameOver },
+  { id: 'first_upgrade',       icon: ACH_ICONS.layers,     name: 'Investing in the Future',desc: 'Purchase your first dealership upgrade.',
+    check: s => Object.values(s.upgrades||{}).some(v => v === true || (typeof v === 'number' && v > 1)) },
+  { id: 'garage_tier4',        icon: ACH_ICONS.map,        name: 'Mega Lot',               desc: 'Expand to Garage Tier 4 (35 slots).',
+    check: s => (s.upgrades?.garageLevel || 1) >= 4 },
+  { id: 'first_lease',         icon: ACH_ICONS.key,        name: 'Lease Launch',           desc: 'Get your first active lease.',
+    check: s => (s.garage||[]).some(c => c.leaseStatus === 'active') || (s.salesHistory||[]).some(h => h.wasLease) },
+  { id: 'five_leases',         icon: ACH_ICONS.repeat,     name: 'Fleet Manager',          desc: 'Run 5 simultaneous active leases.',
+    check: s => (s.garage||[]).filter(c => c.leaseStatus === 'active').length >= 5,
+    progress: s => (s.garage||[]).filter(c => c.leaseStatus === 'active').length + '/5' },
+  { id: 'first_tradein',       icon: ACH_ICONS.car,        name: 'Swap Deal',              desc: 'Accept your first trade-in.',
+    check: s => (s.salesHistory||[]).some(h => h.tradeInAccepted) || (s.garage||[]).some(c => c.source === 'tradein') },
+  { id: 'five_tradeins',       icon: ACH_ICONS.handshake,  name: 'Trade-In Tycoon',        desc: 'Accept 5 trade-ins.',
+    check: s => (s.totalTradeInsAccepted || 0) >= 5, progress: s => (s.totalTradeInsAccepted||0) + '/5' },
+  { id: 'detail_ten',          icon: ACH_ICONS.star,       name: 'Detail Fanatic',         desc: 'Detail 10 cars in total.',
+    check: s => (s.totalDetailsPerformed || 0) >= 10, progress: s => (s.totalDetailsPerformed||0) + '/10' },
+  { id: 'luxury_seller',       icon: ACH_ICONS.award,      name: 'Luxury Lane',            desc: 'Sell 5 Luxury category cars.',
+    check: s => (s.salesHistory||[]).filter(h => h.category === 'Luxury').length >= 5,
+    progress: s => (s.salesHistory||[]).filter(h => h.category === 'Luxury').length + '/5' },
+  { id: 'supercar_seller',     icon: ACH_ICONS.zap,        name: 'Supercar Broker',        desc: 'Sell a car worth over $500,000.',
+    check: s => (s.salesHistory||[]).some(h => h.salePrice >= 500000) },
+  { id: 'day_50',              icon: ACH_ICONS.clock,      name: 'Grind Begins',           desc: 'Reach Day 50.',
+    check: s => (s.day || 1) >= 50, progress: s => Math.min(s.day||1, 50) + '/50' },
+  { id: 'day_200',             icon: ACH_ICONS.map,        name: 'Long Haul',              desc: 'Keep the dealership running to Day 200.',
+    check: s => (s.day || 1) >= 200, progress: s => Math.min(s.day||1, 200) + '/200' },
 ];
 
 const UPGRADES_CONFIG = [
@@ -289,6 +364,46 @@ const UPGRADES_CONFIG = [
     desc: 'Attracts high-value buyers for premium inventory and supercars.',
     requires: u => !u.luxuryLounge,
     apply: s => { s.upgrades.luxuryLounge = true; },
+  },
+  {
+    id: 'financeOffice', name: 'Finance Office', icon: '🏦', category: 'Finance', cost: 22000,
+    desc: 'Unlocks a dedicated finance desk: reduces loan APR by 1% and raises credit limit by $25,000.',
+    requires: u => !u.financeOffice,
+    apply: s => {
+      s.upgrades.financeOffice = true;
+      s.loanApr = Math.max(0.01, (s.loanApr || 0.08) - 0.01);
+      s.loanLimit = (s.loanLimit || 50000) + 25000;
+    },
+  },
+  {
+    id: 'overheadReduction', name: 'Cost Efficiency Program', icon: '📉', category: 'Finance', cost: 14000,
+    desc: 'Streamlines operations — reduces daily overhead by $50/day. Stackable up to 3×.',
+    requires: u => (u.overheadReductions || 0) < 3,
+    apply: s => { s.upgrades.overheadReductions = (s.upgrades.overheadReductions || 0) + 1; },
+  },
+  {
+    id: 'photoStudio', name: 'Photo Studio', icon: '📸', category: 'Marketing', cost: 9500,
+    desc: 'Professional listing photos improve sale-chance by 10% for all listed cars.',
+    requires: u => !u.photoStudio,
+    apply: s => { s.upgrades.photoStudio = true; },
+  },
+  {
+    id: 'leaseManagement', name: 'Lease Management System', icon: '📝', category: 'Leasing', cost: 16000,
+    desc: 'Dedicated lease desk: increases daily lease payment rate by 8% and improves lease-signing probability.',
+    requires: u => !u.leaseManagement,
+    apply: s => { s.upgrades.leaseManagement = true; },
+  },
+  {
+    id: 'factoryAllocation', name: 'Factory Allocation Program', icon: '🏭', category: 'Factory', cost: 35000,
+    desc: 'Priority manufacturer relationship: factory delivery time −1 additional day, and access to rare high-trim allocations.',
+    requires: u => u.expressDelivery && !u.factoryAllocation,
+    apply: s => { s.upgrades.factoryAllocation = true; },
+  },
+  {
+    id: 'reconditioningWorkshop', name: 'Reconditioning Workshop', icon: '🛠️', category: 'Reconditioning', cost: 25000,
+    desc: 'Fully-equipped workshop: reduces in-service time for Basic Repair and Parts Upgrade from 1 day to same-day.',
+    requires: u => u.serviceBay && !u.reconditioningWorkshop,
+    apply: s => { s.upgrades.reconditioningWorkshop = true; },
   },
 ];
 
@@ -478,6 +593,23 @@ function loadState() {
           day: loaded.day ?? 1,
         });
       }
+      if (loaded.saveVersion < 6) {
+        loaded.saveVersion = 6;
+        if (loaded.upgrades.financeOffice        === undefined) loaded.upgrades.financeOffice        = false;
+        if (loaded.upgrades.overheadReductions   === undefined) loaded.upgrades.overheadReductions   = 0;
+        if (loaded.upgrades.photoStudio          === undefined) loaded.upgrades.photoStudio          = false;
+        if (loaded.upgrades.leaseManagement      === undefined) loaded.upgrades.leaseManagement      = false;
+        if (loaded.upgrades.factoryAllocation    === undefined) loaded.upgrades.factoryAllocation    = false;
+        if (loaded.upgrades.reconditioningWorkshop === undefined) loaded.upgrades.reconditioningWorkshop = false;
+        loaded.totalDetailsPerformed = loaded.totalDetailsPerformed ?? 0;
+        loaded.totalTradeInsAccepted = loaded.totalTradeInsAccepted ?? 0;
+        loaded.notifications = loaded.notifications || [];
+        loaded.notifications.unshift({
+          message: '🔧 Save upgraded to v6 — achievements redesigned, new upgrades, detailing exploit fix.',
+          type: 'info',
+          day: loaded.day ?? 1,
+        });
+      }
       loaded.loanBalance = loaded.loanBalance ?? 0;
       loaded.loanLimit = loaded.loanLimit ?? getBaseLoanTerms().limit;
       loaded.loanApr = loaded.loanApr ?? getBaseLoanTerms().apr;
@@ -495,6 +627,14 @@ function loadState() {
       loaded.gameOver = !!loaded.gameOver;
       loaded.lastBankruptcyReport = loaded.lastBankruptcyReport ?? null;
       loaded.achievementsUnlocked = loaded.achievementsUnlocked || {};
+      loaded.totalDetailsPerformed = loaded.totalDetailsPerformed ?? 0;
+      loaded.totalTradeInsAccepted = loaded.totalTradeInsAccepted ?? 0;
+      if (loaded.upgrades.financeOffice          === undefined) loaded.upgrades.financeOffice          = false;
+      if (loaded.upgrades.overheadReductions     === undefined) loaded.upgrades.overheadReductions     = 0;
+      if (loaded.upgrades.photoStudio            === undefined) loaded.upgrades.photoStudio            = false;
+      if (loaded.upgrades.leaseManagement        === undefined) loaded.upgrades.leaseManagement        = false;
+      if (loaded.upgrades.factoryAllocation      === undefined) loaded.upgrades.factoryAllocation      = false;
+      if (loaded.upgrades.reconditioningWorkshop === undefined) loaded.upgrades.reconditioningWorkshop = false;
       // Migrate car objects
       for (const car of loaded.garage || []) migrateCar(car);
       for (const d of loaded.deliveries || []) migrateCar(d.car);
@@ -511,18 +651,17 @@ function loadState() {
 
 function migrateCar(car) {
   if (!car) return;
-  if (car.inServiceUntilDay === undefined) car.inServiceUntilDay = null;
-  if (car.pendingService    === undefined) car.pendingService    = null;
-  if (car.reconditionLog    === undefined) car.reconditionLog    = [];
-  if (car.washBoostDays     === undefined) car.washBoostDays     = 0;
-  if (car.leaseStatus       === undefined) car.leaseStatus       = 'none';
-  if (!LEASE_STATUSES.includes(car.leaseStatus)) car.leaseStatus = 'none';
-  if (car.activeLease       === undefined) car.activeLease       = null;
+  if (car.inServiceUntilDay  === undefined) car.inServiceUntilDay  = null;
+  if (car.pendingService     === undefined) car.pendingService     = null;
+  if (car.reconditionLog     === undefined) car.reconditionLog     = [];
+  if (car.washBoostDays      === undefined) car.washBoostDays      = 0;
+  if (car.leaseStatus        === undefined) car.leaseStatus        = 'none';
+  if (!LEASE_STATUSES.includes(car.leaseStatus)) car.leaseStatus   = 'none';
+  if (car.activeLease        === undefined) car.activeLease        = null;
   if (car.leaseStatus === 'active' && !car.activeLease) car.leaseStatus = 'none';
-  if (car.trim              === undefined) car.trim              = '';
-  if (!TITLE_STATUSES.includes(car.titleStatus)) car.titleStatus = 'clean';
-  // Old offers had 'tradein' source — normalise
-  if (car.source === 'tradein') car.source = 'used';
+  if (car.trim               === undefined) car.trim               = '';
+  if (!TITLE_STATUSES.includes(car.titleStatus)) car.titleStatus   = 'clean';
+  if (car.hasBeenDetailed    === undefined) car.hasBeenDetailed    = car.reconditionLog.some(r => r.type === 'Detailing');
 }
 
 // ============================================================
@@ -591,6 +730,7 @@ function buildCar(entry, condition, source, inspected = false) {
     washBoostDays: 0,
     leaseStatus: 'none',
     activeLease: null,
+    hasBeenDetailed: false,
   };
 }
 
@@ -1541,12 +1681,15 @@ function executeTradeIn(req, cashDelta) {
   // Add customer's car to inventory
   const newCar = { ...req.customerCar };
   newCar.purchasePrice = 0; // we acquired it through trade
+  newCar.source = 'tradein';
   migrateCar(newCar);
   if (state.garage.length < state.garageSlots) {
     state.garage.push(newCar);
   } else {
     addNote(`⚠️ Trade-in car couldn't fit — garage full! Consider expanding.`, 'warning');
   }
+
+  state.totalTradeInsAccepted = (state.totalTradeInsAccepted || 0) + 1;
 
   state.reputation = profit > 0
     ? Math.min(state.reputation + 0.02, 2.0)
@@ -1781,6 +1924,7 @@ function detailCar(carId) {
   const car = state.garage.find(c => c.id === carId);
   if (!car) return;
   if (car.leaseStatus === 'active' && car.activeLease) { showToast('No recon actions allowed while lease is active.', 'error'); return; }
+  if (car.hasBeenDetailed) { showToast('This car has already been detailed — detailing can only be done once per ownership.', 'error'); return; }
   if (car.condition === 'A') { showToast('Car is already in excellent condition!', 'error'); return; }
   if (car.inServiceUntilDay) { showToast('Car is currently in service — wait until complete.', 'error'); return; }
   if (state.cash < 500) { showToast('Not enough cash for detailing ($500)!', 'error'); return; }
@@ -1788,7 +1932,9 @@ function detailCar(carId) {
   const idx = CONDITIONS.indexOf(car.condition);
   car.condition   = CONDITIONS[idx - 1];
   car.marketValue = Math.round(car.marketValue * 1.07);
+  car.hasBeenDetailed = true;
   car.reconditionLog.push({ type: 'Detailing', day: state.day });
+  state.totalDetailsPerformed = (state.totalDetailsPerformed || 0) + 1;
   addNote(`✨ Detailed ${car.year} ${car.make} ${car.model} → condition now ${car.condition}.`, 'success');
   saveState();
   renderAll();
@@ -2238,94 +2384,11 @@ function renderUsedMarket() {
 // ============================================================
 function renderTradeInRequests() {
   const el = document.getElementById('tab-tradeins');
-  const listed = state.garage.filter(c => c.isForSale);
-
-  if (!listed.length) {
-    el.innerHTML = `<div class="empty-state">
-      <p>You have no cars listed for sale. Customers can't make trade-in proposals unless you're selling something.<br>
-      Go to <strong>Garage</strong> and mark cars for sale.</p></div>`;
-    return;
-  }
-
-  const pending  = state.tradeInRequests.filter(r => r.state === 'pending');
-  const countered = state.tradeInRequests.filter(r => r.state === 'countered');
-
-  if (!pending.length && !countered.length) {
-    el.innerHTML = `
-      <div class="tab-info">🔔 No trade-in requests today. Customers will propose swaps on future days.</div>
-      <div class="empty-state"><p>Check back after pressing <strong>Next Day</strong>.</p></div>`;
-    return;
-  }
-
-  const renderRequest = req => {
-    const targetCar = state.garage.find(c => c.id === req.targetCarId);
-    if (!targetCar) return '';
-    const cashDelta = req.counterCashDelta ?? req.cashDelta;
-    const isCountered = req.state === 'countered';
-    const netValueToYou = req.customerCarValue + cashDelta;
-    const canAccept = cashDelta < 0 ? state.cash >= Math.abs(cashDelta) : true;
-    const canFit    = state.garage.length < state.garageSlots || !targetCar; // we'll free a slot
-
-    return `
-      <div class="car-card tradein-request-card ${isCountered ? 'countered-card' : ''}">
-        <div class="car-card-header">
-          <span class="car-name">Trade-In Offer</span>
-          <span class="badge ${isCountered ? 'badge-yellow' : 'badge-blue'}">${isCountered ? 'Countered — pending' : 'New Request'}</span>
-        </div>
-        <div class="tradein-split">
-          <div class="tradein-half">
-            <h5>🚗 Their Car</h5>
-            <div class="detail-row"><span>Car</span><span>${settings.showWordmarks ? `${renderBrandWordmark(req.customerCar.make)} ` : ''}${req.customerCar.year} ${req.customerCar.make} ${req.customerCar.model}</span></div>
-            <div class="detail-row"><span>Condition</span>${condBadge(req.customerCar.condition)}</div>
-            <div class="detail-row"><span>Title</span><span>${TITLE_LABELS[req.customerCar.titleStatus] || 'Clean'}</span></div>
-            <div class="detail-row"><span>Mileage</span><span>${req.customerCar.mileage.toLocaleString()} mi</span></div>
-            <div class="detail-row"><span>Their Car Value</span><span class="text-green">${formatCurrency(req.customerCarValue)}</span></div>
-          </div>
-          <div class="tradein-half">
-            <h5>🏷️ Your Car</h5>
-            <div class="detail-row"><span>Car</span><span>${settings.showWordmarks ? `${renderBrandWordmark(targetCar.make)} ` : ''}${targetCar.year} ${targetCar.make} ${targetCar.model}</span></div>
-            <div class="detail-row"><span>Listed Price</span><span class="text-blue">${formatCurrency(targetCar.listPrice)}</span></div>
-            <div class="detail-row"><span>Title</span><span>${TITLE_LABELS[targetCar.titleStatus] || 'Clean'}</span></div>
-          </div>
-        </div>
-        <div class="tradein-summary">
-          <div class="detail-row">
-            <span>${cashDelta >= 0 ? 'Customer Pays Extra' : 'You Pay Extra'}</span>
-            <span class="${cashDelta >= 0 ? 'text-green' : 'text-red'}">${cashDelta >= 0 ? '+' : ''}${formatCurrency(cashDelta)}</span>
-          </div>
-          <div class="detail-row">
-            <span>Net Value to You</span>
-            <span class="${netValueToYou >= targetCar.listPrice * 0.85 ? 'text-green' : 'text-yellow'}">${formatCurrency(netValueToYou)}</span>
-          </div>
-          <div class="detail-row"><span>Your Car's Cost</span><span>${formatCurrency(targetCar.purchasePrice)}</span></div>
-          ${isCountered ? `<p class="text-muted" style="font-size:.8rem;margin-top:6px">⏳ Counter sent — customer responds next day (Day ${req.expiresDay}).</p>` : ''}
-        </div>
-        ${!isCountered ? `
-        <div class="neg-input-row" style="margin-top:4px">
-          <label style="color:var(--text-muted);font-size:.82rem;white-space:nowrap">Counter cash:</label>
-          <input type="number" class="price-input" id="tir-${req.id}" placeholder="${cashDelta >= 0 ? cashDelta : Math.abs(cashDelta)}" value="${cashDelta}">
-          <button class="btn btn-warning" onclick="counterTradeInRequest('${req.id}', document.getElementById('tir-${req.id}').value)">
-            Counter
-          </button>
-        </div>
-        <div class="car-actions">
-          <button class="btn btn-success" onclick="acceptTradeInRequest('${req.id}')" ${canAccept && canFit ? '' : 'disabled'}
-            title="${!canFit ? 'Garage full after trade?' : !canAccept ? 'Need more cash' : ''}">
-            ✅ Accept Deal
-          </button>
-          <button class="btn btn-danger" onclick="rejectTradeInRequest('${req.id}')">❌ Reject</button>
-        </div>` : ''}
-      </div>`;
-  };
-
-  el.innerHTML = `
-    <div class="tab-info">
-      🔄 ${pending.length} pending trade-in request(s). ${countered.length} awaiting customer response.
-      ${state.upgrades.negotiationTraining ? '🤝 Negotiation Training active.' : ''}
-    </div>
-    <div class="card-grid">
-      ${[...pending, ...countered].map(renderRequest).join('')}
-    </div>`;
+  el.innerHTML = `<div class="empty-state" style="padding-top:40px">
+    <p>Trade-in requests now appear in the <strong>For Sale</strong> tab alongside your listings.<br>
+    Accepted trade-ins are clearly labeled with a <strong>TRADE-IN</strong> badge.</p>
+    <button class="btn btn-primary" onclick="switchTab('forsale')" style="margin-top:16px">Go to For Sale →</button>
+  </div>`;
 }
 
 // ============================================================
@@ -2383,9 +2446,13 @@ function renderGarage() {
       }
       // Detailing
       const canDetail = Number(state.cash) >= 500;
-      if (state.upgrades.detailing && car.condition !== 'A') {
-        reconHtml += `<button class="btn btn-sm btn-secondary recon-btn" onclick="detailCar('${car.id}')"
-          ${canDetail ? '' : 'disabled'} title="Instant: +1 condition tier, +7% value">✨ Detail ($500)</button>`;
+      if (state.upgrades.detailing) {
+        if (car.hasBeenDetailed) {
+          reconHtml += `<button class="btn btn-sm btn-secondary recon-btn" disabled title="Already detailed once this ownership">✨ Detailed</button>`;
+        } else if (car.condition !== 'A') {
+          reconHtml += `<button class="btn btn-sm btn-secondary recon-btn" onclick="detailCar('${car.id}')"
+            ${canDetail ? '' : 'disabled'} title="Instant: +1 condition tier, +7% value">✨ Detail ($500)</button>`;
+        }
       }
       // Basic Repair
       const canRepair = Number(state.cash) >= 800;
@@ -2555,9 +2622,75 @@ function renderForSale() {
       </div>`;
   }
 
+  // Trade-In Requests section — show inline in For Sale
+  const pendingTIR   = state.tradeInRequests.filter(r => r.state === 'pending');
+  const counteredTIR = state.tradeInRequests.filter(r => r.state === 'countered');
+  let tradeInHtml = '';
+  if (pendingTIR.length || counteredTIR.length) {
+    const tirCards = [...pendingTIR, ...counteredTIR].map(req => {
+      const targetCar = state.garage.find(c => c.id === req.targetCarId);
+      if (!targetCar) return '';
+      const cashDelta = req.counterCashDelta ?? req.cashDelta;
+      const isCountered = req.state === 'countered';
+      const netValueToYou = req.customerCarValue + cashDelta;
+      const canAccept = cashDelta < 0 ? state.cash >= Math.abs(cashDelta) : true;
+      const canFit    = state.garage.length < state.garageSlots || !targetCar;
+      return `
+        <div class="car-card tradein-request-card ${isCountered ? 'countered-card' : ''}">
+          <div class="car-card-header">
+            <span class="car-name">Trade-In Offer</span>
+            <span class="badge ${isCountered ? 'badge-yellow' : 'badge-blue'}">${isCountered ? 'Countered' : 'New Request'}</span>
+          </div>
+          <div class="tradein-split">
+            <div class="tradein-half">
+              <h5>🚗 Their Car</h5>
+              <div class="detail-row"><span>Car</span><span>${req.customerCar.year} ${req.customerCar.make} ${req.customerCar.model}</span></div>
+              <div class="detail-row"><span>Condition</span>${condBadge(req.customerCar.condition)}</div>
+              <div class="detail-row"><span>Title</span><span>${TITLE_LABELS[req.customerCar.titleStatus] || 'Clean'}</span></div>
+              <div class="detail-row"><span>Mileage</span><span>${req.customerCar.mileage.toLocaleString()} mi</span></div>
+              <div class="detail-row"><span>Their Car Value</span><span class="text-green">${formatCurrency(req.customerCarValue)}</span></div>
+            </div>
+            <div class="tradein-half">
+              <h5>🏷️ Your Car</h5>
+              <div class="detail-row"><span>Car</span><span>${targetCar.year} ${targetCar.make} ${targetCar.model}</span></div>
+              <div class="detail-row"><span>Listed Price</span><span class="text-blue">${formatCurrency(targetCar.listPrice)}</span></div>
+              <div class="detail-row"><span>Title</span><span>${TITLE_LABELS[targetCar.titleStatus] || 'Clean'}</span></div>
+            </div>
+          </div>
+          <div class="tradein-summary">
+            <div class="detail-row">
+              <span>${cashDelta >= 0 ? 'Customer Pays Extra' : 'You Pay Extra'}</span>
+              <span class="${cashDelta >= 0 ? 'text-green' : 'text-red'}">${cashDelta >= 0 ? '+' : ''}${formatCurrency(cashDelta)}</span>
+            </div>
+            <div class="detail-row">
+              <span>Net Value to You</span>
+              <span class="${netValueToYou >= targetCar.listPrice * 0.85 ? 'text-green' : 'text-yellow'}">${formatCurrency(netValueToYou)}</span>
+            </div>
+            ${isCountered ? `<p class="text-muted" style="font-size:.8rem;margin-top:6px">⏳ Counter sent — customer responds Day ${req.expiresDay}.</p>` : ''}
+          </div>
+          ${!isCountered ? `
+          <div class="neg-input-row" style="margin-top:4px">
+            <label style="color:var(--text-muted);font-size:.82rem;white-space:nowrap">Counter cash:</label>
+            <input type="number" class="price-input" id="tir-${req.id}" placeholder="${Math.abs(cashDelta)}" value="${cashDelta}">
+            <button class="btn btn-warning" onclick="counterTradeInRequest('${req.id}', document.getElementById('tir-${req.id}').value)">Counter</button>
+          </div>
+          <div class="car-actions">
+            <button class="btn btn-success" onclick="acceptTradeInRequest('${req.id}')" ${canAccept && canFit ? '' : 'disabled'}>✅ Accept Deal</button>
+            <button class="btn btn-danger" onclick="rejectTradeInRequest('${req.id}')">❌ Reject</button>
+          </div>` : ''}
+        </div>`;
+    }).join('');
+    tradeInHtml = `
+      <div class="category-section">
+        <h3>🔄 Trade-In Requests (${pendingTIR.length} pending, ${counteredTIR.length} countered)</h3>
+        <div class="card-grid">${tirCards}</div>
+      </div>`;
+  }
+
   if (!listed.length) {
     el.innerHTML = `
       ${offersHtml || ''}
+      ${tradeInHtml}
       <div class="empty-state">
         <p>No cars are listed for sale. Go to <strong>Garage</strong> and click "Mark for Sale".</p></div>`;
     return;
@@ -2577,19 +2710,20 @@ function renderForSale() {
     const hasTIR   = state.tradeInRequests.some(r => r.targetCarId === car.id && r.state === 'pending');
 
     return `
-      <div class="car-card forsale-card ${hasOffer ? 'has-offer' : ''}">
+      <div class="car-card forsale-card ${hasOffer ? 'has-offer' : ''} ${car.source === 'tradein' ? 'tradein-inventory' : ''}">
         <div class="car-card-header">
           <div>
             ${settings.showWordmarks ? renderBrandWordmark(car.make) : ''}
             <span class="car-name">${formatCarDisplayName(car)}</span>
           </div>
           <div class="badge-stack">
+            ${car.source === 'tradein' ? '<span class="badge badge-tradein">TRADE-IN</span>' : ''}
             ${condBadge(car.condition)}
             ${titleBadge(car.titleStatus)}
           </div>
         </div>
+        ${car.source === 'tradein' ? '<div class="tradein-source-banner">🔄 Accepted trade-in vehicle</div>' : ''}
         ${hasOffer ? '<div class="offer-banner">📬 Customer offer waiting (see above)</div>' : ''}
-        ${hasTIR   ? '<div class="tradein-banner">🔄 Trade-in request waiting (see Trade-Ins tab)</div>' : ''}
         ${car.washBoostDays > 0 ? `<div class="wash-banner">🚿 Wash boost active (${car.washBoostDays} days)</div>` : ''}
         <div class="car-details">
           <div class="detail-row"><span>Purchased For</span><span>${formatCurrency(car.purchasePrice)}</span></div>
@@ -2622,6 +2756,7 @@ function renderForSale() {
 
   el.innerHTML = `
     ${offersHtml}
+    ${tradeInHtml}
     <div class="category-section">
       <h3>🏷️ Your Listings (${listed.length})</h3>
       <div class="tab-info">
@@ -2764,25 +2899,23 @@ function renderFinance() {
 
 function renderAchievements() {
   const unlocked = state.achievementsUnlocked || {};
-  const renderGroup = kind => ACHIEVEMENTS.filter(a => a.kind === kind).map(a => {
+  const unlockedCount = ACHIEVEMENTS.filter(a => unlocked[a.id]).length;
+  const cards = ACHIEVEMENTS.map(a => {
     const day = unlocked[a.id];
+    const prog = !day && a.progress ? `<p class="ach-progress">${a.progress(state)}</p>` : '';
     return `<div class="car-card achievement-card ${day ? 'achievement-unlocked' : 'achievement-locked'}">
-      <div class="car-card-header">
+      <div class="ach-icon-wrap ${day ? 'ach-icon-unlocked' : 'ach-icon-locked'}">${a.icon}</div>
+      <div class="car-card-header" style="margin-top:8px">
         <span class="car-name">${a.name}</span>
-        <span class="badge ${day ? 'badge-green' : 'badge-gray'}">${day ? `Unlocked Day ${day}` : 'Locked'}</span>
+        <span class="badge ${day ? 'badge-green' : 'badge-gray'}">${day ? `Day ${day}` : 'Locked'}</span>
       </div>
       <p class="upgrade-desc">${a.desc}</p>
+      ${prog}
     </div>`;
   }).join('');
   document.getElementById('tab-achievements').innerHTML = `
-    <div class="category-section">
-      <h3>🎯 Serious Achievements</h3>
-      <div class="card-grid">${renderGroup('serious')}</div>
-    </div>
-    <div class="category-section">
-      <h3>😄 Funny Achievements</h3>
-      <div class="card-grid">${renderGroup('funny')}</div>
-    </div>`;
+    <div class="tab-info">🏆 ${unlockedCount} / ${ACHIEVEMENTS.length} achievements unlocked.</div>
+    <div class="card-grid">${cards}</div>`;
 }
 
 // ============================================================
@@ -3122,6 +3255,22 @@ function init() {
   });
 
   renderAll();
+
+  // Keyboard navigation — arrow keys cycle through visible tabs, ignore when focus is in input/select/textarea
+  document.addEventListener('keydown', e => {
+    const tag = document.activeElement?.tagName?.toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    const tabs = [...document.querySelectorAll('.tab-btn:not([style*="display: none"]):not([style*="display:none"])')];
+    if (!tabs.length) return;
+    const activeIndex = tabs.findIndex(t => t.classList.contains('active'));
+    let next = activeIndex + (e.key === 'ArrowRight' ? 1 : -1);
+    if (next < 0) next = tabs.length - 1;
+    if (next >= tabs.length) next = 0;
+    tabs[next].click();
+    tabs[next].focus();
+    e.preventDefault();
+  });
 }
 
 init();
