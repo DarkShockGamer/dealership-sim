@@ -4,7 +4,7 @@ A fully client-side, single-page car dealership simulator. Buy cars, manage your
 
 ## 🎨 UI Theme
 
-DealerSim now uses a cohesive blue, game-inspired HUD theme:
+DealerSim now uses a cohesive, blue game-inspired HUD theme:
 - Gradient blue backdrop with glass-style panels/cards
 - Segmented pill tab navigation
 - Consistent badge/chip/button styling across all sections (Dashboard, Factory, Used Market, Trade-Ins, Garage, For Sale, Upgrades, Settings)
