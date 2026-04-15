@@ -67,6 +67,17 @@
     </div>
   </div>
 
+  <!-- ── Car Image Modal ────────────────────────────────── -->
+  <div id="car-img-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="car-img-modal-name" tabindex="-1">
+    <div class="modal-box car-img-modal-box">
+      <div class="car-img-modal-header">
+        <strong id="car-img-modal-name"></strong>
+        <button class="btn btn-sm btn-secondary car-img-modal-close" onclick="closeCarImageModal()" aria-label="Close photo">✕</button>
+      </div>
+      <div id="car-img-modal-body" class="car-img-modal-body"></div>
+    </div>
+  </div>
+
   <!-- Hidden file input for save import -->
   <input type="file" id="import-file" accept=".json" style="display:none" />
 

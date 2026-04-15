@@ -7,6 +7,7 @@
  */
 
 import { CAR_CATALOG } from './data/cars.js';
+import { getCommonsTitle, fetchCommonsImageInfo, prefetchCarImages } from './data/car-images.js';
 
 // ============================================================
 // DEFAULT STATE
@@ -2310,6 +2311,7 @@ function renderFactory() {
             ${titleBadge('clean')}
           </div>
         </div>
+        ${carThumbHtml(car.make, car.model, car.trim, 2026, car.category)}
         <div class="car-details">
           <div class="detail-row"><span>Trim</span><span style="font-weight:600">${car.trim || '—'}</span></div>
           <div class="detail-row"><span>Title Status</span><span>Clean</span></div>
@@ -2325,6 +2327,7 @@ function renderFactory() {
   }
   html += `</div>`;
   document.getElementById('tab-factory').innerHTML = html;
+  scheduleImageUpdate();
 }
 
 // ============================================================
@@ -2408,6 +2411,7 @@ function renderUsedMarket() {
               ${titleBadge(offer.titleStatus)}
             </div>
           </div>
+          ${carThumbHtml(offer.make, offer.model, offer.trim, offer.year, offer.category)}
         <div class="car-details">
           <div class="detail-row"><span>Category</span><span>${offer.category}</span></div>
           <div class="detail-row"><span>Title Status</span><span>${TITLE_LABELS[offer.titleStatus] || 'Clean'}</span></div>
@@ -2446,6 +2450,7 @@ function renderUsedMarket() {
       ${state.upgrades.negotiationTraining ? '🤝 Negotiation Training active — better deal outcomes.' : ''}
     </div>
     <div class="card-grid">${cards}</div>`;
+  scheduleImageUpdate();
 }
 
 // ============================================================
@@ -2550,6 +2555,7 @@ function renderGarage() {
               ${isLeased ? `<span class="badge badge-blue">LEASED (${leaseDaysLeft}d left)</span>` : ''}
             </div>
           </div>
+          ${carThumbHtml(car.make, car.model, car.trim, car.year, car.category)}
         ${inService ? `<div class="service-banner">🔧 IN SERVICE — Ready Day ${car.inServiceUntilDay} (${car.pendingService?.type === 'repair' ? 'Basic Repair' : 'Parts Upgrade'})</div>` : ''}
         ${car.isForSale ? '<div class="for-sale-banner">🏷️ LISTED FOR SALE</div>' : ''}
         ${isLeased ? `<div class="service-banner">📝 LEASE ACTIVE — ${leaseDaysLeft} day(s) remaining</div>` : ''}
@@ -2604,6 +2610,7 @@ function renderGarage() {
         <button class="btn btn-sm btn-warning" onclick="unlistAllCars()">Unlist All</button>
       </div>` : ''}
     <div class="card-grid">${cards}</div>`;
+  scheduleImageUpdate();
 }
 
 // ============================================================
@@ -2779,6 +2786,7 @@ function renderForSale() {
             ${titleBadge(car.titleStatus)}
           </div>
         </div>
+        ${carThumbHtml(car.make, car.model, car.trim, car.year, car.category)}
         ${car.source === 'tradein' ? '<div class="tradein-source-banner">🔄 Accepted trade-in vehicle</div>' : ''}
         ${hasOffer ? '<div class="offer-banner">📬 Customer offer waiting (see above)</div>' : ''}
         ${car.washBoostDays > 0 ? `<div class="wash-banner">🚿 Wash boost active (${car.washBoostDays} days)</div>` : ''}
@@ -2827,6 +2835,7 @@ function renderForSale() {
         </div>` : ''}
       <div class="card-grid">${cards}</div>
     </div>`;
+  scheduleImageUpdate();
 }
 
 // ============================================================
@@ -3007,6 +3016,15 @@ function renderSettings() {
             <span class="toggle-thumb"></span>
           </button>
         </div>
+        <div class="setting-row" style="margin-top:10px">
+          <div>
+            <div class="setting-label">Show Car Photos</div>
+            <div class="setting-desc">Display thumbnail photos on vehicle cards (fetched from Wikimedia Commons). Click any photo to see a larger view with attribution.</div>
+          </div>
+          <button class="toggle-btn ${settings.showCarImages ? 'active' : ''}" onclick="toggleCarImages()" aria-label="Toggle car photos">
+            <span class="toggle-thumb"></span>
+          </button>
+        </div>
       </div>
 
       <div class="dash-card settings-card">
@@ -3162,6 +3180,7 @@ let settings = {
   sfxVolume: 0.22,
   showWordmarks: true,
   showLeasedCars: true,
+  showCarImages: true,
 };
 let audioCtx = null;
 const SFX = {
@@ -3178,6 +3197,7 @@ function loadSettings() {
     if (raw) settings = { ...settings, ...JSON.parse(raw) };
   } catch (_) {}
   if (settings.showLeasedCars === undefined) settings.showLeasedCars = true;
+  if (settings.showCarImages  === undefined) settings.showCarImages  = true;
   applyDarkMode();
 }
 
@@ -3220,6 +3240,168 @@ function setSfxVolume(raw) {
 
 function toggleWordmarks() {
   settings.showWordmarks = !settings.showWordmarks;
+  saveSettings();
+  renderAll();
+}
+
+// ============================================================
+// CAR IMAGES — Wikimedia Commons thumbnails + details modal
+// ============================================================
+
+// Inline SVG car silhouette placeholder (no local file; generated in JS)
+const CAR_PLACEHOLDER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 72" class="car-placeholder-svg" aria-hidden="true">
+  <rect x="4" y="40" width="112" height="24" rx="5" fill="currentColor" opacity="0.20"/>
+  <path d="M18 40 L34 16 L86 16 L102 40 Z" fill="currentColor" opacity="0.28"/>
+  <rect x="36" y="19" width="48" height="16" rx="3" fill="currentColor" opacity="0.14"/>
+  <rect x="4" y="52" width="112" height="8" rx="3" fill="currentColor" opacity="0.12"/>
+  <circle cx="30" cy="60" r="10" fill="none" stroke="currentColor" stroke-width="4" opacity="0.30"/>
+  <circle cx="90" cy="60" r="10" fill="none" stroke="currentColor" stroke-width="4" opacity="0.30"/>
+  <rect x="8" y="40" width="18" height="8" rx="2" fill="currentColor" opacity="0.18"/>
+  <rect x="94" y="40" width="18" height="8" rx="2" fill="currentColor" opacity="0.18"/>
+</svg>`;
+
+/**
+ * Return the thumbnail HTML for a car card. Shows a placeholder immediately;
+ * the async image update replaces it once the Wikimedia API responds.
+ * Clicking the thumbnail opens the car image details modal.
+ * Car data is stored in data-* attributes to avoid any escaping issues.
+ */
+function carThumbHtml(make, model, trim, year, category) {
+  if (!settings.showCarImages) return '';
+  const title = getCommonsTitle(make, model, trim);
+  const commonsAttr = title ? ` data-commons="${title.replace(/"/g, '&quot;')}"` : '';
+  const altText = `${year || ''} ${make} ${model}${trim ? ' ' + trim : ''}`.trim();
+
+  // Store car identity as data attributes — browsers handle encoding automatically,
+  // so there is no risk of attribute injection regardless of special characters.
+  function qa(s) { return (s || '').replace(/"/g, '&quot;'); }
+  return `<div class="car-thumb"${commonsAttr}
+    data-alt="${qa(altText)}"
+    data-make="${qa(make)}"
+    data-model="${qa(model)}"
+    data-trim="${qa(trim || '')}"
+    data-year="${qa(String(year || ''))}"
+    data-category="${qa(category || '')}"
+    onclick="openCarImageModalFromEl(this)"
+    role="button" tabindex="0"
+    title="${title ? 'View vehicle photo' : 'No photo available'}">
+    ${CAR_PLACEHOLDER_SVG}
+  </div>`;
+}
+
+// Debounce flag — avoids scheduling multiple update frames at once
+let _imgUpdatePending = false;
+
+/**
+ * Schedule an async DOM update pass that replaces placeholder thumbnails
+ * with real images from the Wikimedia Commons cache / API.
+ */
+function scheduleImageUpdate() {
+  if (!settings.showCarImages || _imgUpdatePending) return;
+  _imgUpdatePending = true;
+  requestAnimationFrame(() => {
+    _imgUpdatePending = false;
+    updateCarImagesInDOM();
+  });
+}
+
+async function updateCarImagesInDOM() {
+  const thumbs = [...document.querySelectorAll('.car-thumb[data-commons]:not(.loaded)')];
+  if (!thumbs.length) return;
+  await Promise.allSettled(thumbs.map(async el => {
+    const title = el.dataset.commons;
+    const info  = await fetchCommonsImageInfo(title);
+    if (!el.isConnected) return; // element removed during async wait
+    el.classList.add('loaded');
+    if (info) {
+      const img = document.createElement('img');
+      img.className  = 'car-thumb-img';
+      img.alt        = el.dataset.alt || 'Vehicle photo';
+      img.loading    = 'lazy';
+      img.onerror    = () => el.classList.add('no-image');
+      img.src        = info.url;
+      el.innerHTML   = '';
+      el.appendChild(img);
+    } else {
+      el.classList.add('no-image');
+    }
+  }));
+}
+
+/**
+ * Open the car image details modal for the given vehicle.
+ * Fetches the Wikimedia Commons image and attribution metadata asynchronously.
+ */
+async function openCarImageModal(make, model, trim, year, category) {
+  const modal   = document.getElementById('car-img-modal');
+  const nameEl  = document.getElementById('car-img-modal-name');
+  const bodyEl  = document.getElementById('car-img-modal-body');
+  if (!modal || !nameEl || !bodyEl) return;
+
+  const carName = `${year ? year + ' ' : ''}${make} ${model}${trim ? ' ' + trim : ''}`;
+  nameEl.textContent = carName;
+  bodyEl.innerHTML = `<div class="car-img-spinner" aria-label="Loading image…"></div>`;
+  modal.classList.remove('hidden');
+  modal.focus();
+
+  const title = getCommonsTitle(make, model, trim);
+  if (!title) {
+    bodyEl.innerHTML = `<div class="car-img-placeholder-large">${CAR_PLACEHOLDER_SVG}</div>
+      <p class="car-img-no-photo">No photo available for this vehicle.</p>`;
+    return;
+  }
+
+  const info = await fetchCommonsImageInfo(title);
+  if (!info) {
+    bodyEl.innerHTML = `<div class="car-img-placeholder-large">${CAR_PLACEHOLDER_SVG}</div>
+      <p class="car-img-no-photo">Image could not be loaded.</p>`;
+    return;
+  }
+
+  const imgEl = document.createElement('img');
+  imgEl.className = 'car-img-full';
+  imgEl.alt = carName;
+  imgEl.src = info.url;
+  imgEl.onerror = () => {
+    imgEl.replaceWith(Object.assign(document.createElement('div'), {
+      className: 'car-img-placeholder-large',
+      innerHTML: `${CAR_PLACEHOLDER_SVG}<p class="car-img-no-photo">Image failed to load.</p>`,
+    }));
+  };
+
+  const attrEl = document.createElement('div');
+  attrEl.className = 'car-img-attribution';
+  const commonsLink = document.createElement('a');
+  commonsLink.href   = info.descUrl;
+  commonsLink.target = '_blank';
+  commonsLink.rel    = 'noopener noreferrer';
+  commonsLink.textContent = 'Wikimedia Commons';
+  attrEl.append('Photo via ', commonsLink);
+  if (info.author)  attrEl.append(' · ', Object.assign(document.createElement('span'), { className: 'attr-author',  textContent: info.author  }));
+  if (info.license) attrEl.append(' · ', Object.assign(document.createElement('span'), { className: 'attr-license', textContent: info.license }));
+
+  bodyEl.innerHTML = '';
+  bodyEl.append(imgEl, attrEl);
+}
+
+function closeCarImageModal() {
+  const modal = document.getElementById('car-img-modal');
+  if (modal) modal.classList.add('hidden');
+}
+
+/** Convenience wrapper called from thumbnail onclick — reads car data from element attributes. */
+function openCarImageModalFromEl(el) {
+  openCarImageModal(
+    el.dataset.make     || '',
+    el.dataset.model    || '',
+    el.dataset.trim     || '',
+    el.dataset.year     || '',
+    el.dataset.category || '',
+  );
+}
+
+function toggleCarImages() {
+  settings.showCarImages = !settings.showCarImages;
   saveSettings();
   renderAll();
 }
@@ -3290,6 +3472,22 @@ function init() {
     if (e.target === document.getElementById('modal')) closeModal();
   });
 
+  // Car image modal — close on backdrop click or Escape key
+  const carImgModal = document.getElementById('car-img-modal');
+  if (carImgModal) {
+    carImgModal.addEventListener('click', e => {
+      if (e.target === carImgModal) closeCarImageModal();
+    });
+  }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      if (!document.getElementById('car-img-modal')?.classList.contains('hidden')) {
+        closeCarImageModal();
+        e.preventDefault();
+      }
+    }
+  });
+
   document.getElementById('import-file').addEventListener('change', e => {
     if (e.target.files[0]) { importSave(e.target.files[0]); e.target.value = ''; }
   });
@@ -3306,11 +3504,15 @@ function init() {
     buyUpgrade, detailCar, carWash, basicRepair, partsUpgrade,
     drawLoan, payDownLoan,
     confirmNewGame, exportSave, hireStaff, dismissCandidate,
-    toggleDarkMode, setDifficulty, toggleSfxMuted, setSfxVolume, toggleWordmarks,
+    toggleDarkMode, setDifficulty, toggleSfxMuted, setSfxVolume, toggleWordmarks, toggleCarImages,
+    openCarImageModal, openCarImageModalFromEl, closeCarImageModal,
     renderGarage, renderForSale, renderUsedMarket, renderFinance, renderAchievements,
   });
 
   renderAll();
+
+  // Pre-warm the Commons image cache for cars the player may encounter
+  prefetchCarImages(CAR_CATALOG);
 
   // Keyboard navigation — arrow keys cycle through visible tabs, ignore when focus is in input/select/textarea
   document.addEventListener('keydown', e => {
