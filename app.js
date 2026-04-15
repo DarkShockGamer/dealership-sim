@@ -12,7 +12,7 @@ import { CAR_CATALOG } from './data/cars.js';
 // DEFAULT STATE
 // ============================================================
 const DEFAULT_STATE = {
-  saveVersion: 6,
+  saveVersion: 7,
   cash: 25000,
   day: 1,
   reputation: 1.0,
@@ -40,6 +40,9 @@ const DEFAULT_STATE = {
     aiPricing: false,
     luxuryLounge: false,
     financeOffice: false,
+    creditLineBoost1: false,
+    creditLineBoost2: false,
+    creditLineBoost3: false,
     overheadReductions: 0,
     photoStudio: false,
     leaseManagement: false,
@@ -377,11 +380,25 @@ const UPGRADES_CONFIG = [
     id: 'financeOffice', name: 'Finance Office', icon: '🏦', category: 'Finance', cost: 22000,
     desc: 'Unlocks a dedicated finance desk: reduces loan APR by 1% and raises credit limit by $25,000.',
     requires: u => !u.financeOffice,
-    apply: s => {
-      s.upgrades.financeOffice = true;
-      s.loanApr = Math.max(0.01, (s.loanApr || 0.08) - 0.01);
-      s.loanLimit = (s.loanLimit || 50000) + 25000;
-    },
+    apply: s => { s.upgrades.financeOffice = true; },
+  },
+  {
+    id: 'creditLineBoost1', name: 'Credit Line Expansion I', icon: '💳', category: 'Finance', cost: 45000,
+    desc: 'Negotiate a larger revolving credit facility: +$50,000 loan limit and −0.5% APR.',
+    requires: u => u.financeOffice && !u.creditLineBoost1,
+    apply: s => { s.upgrades.creditLineBoost1 = true; },
+  },
+  {
+    id: 'creditLineBoost2', name: 'Credit Line Expansion II', icon: '💳💳', category: 'Finance', cost: 95000,
+    desc: 'Secure institutional lending terms: +$100,000 loan limit and −0.5% APR.',
+    requires: u => u.creditLineBoost1 && !u.creditLineBoost2,
+    apply: s => { s.upgrades.creditLineBoost2 = true; },
+  },
+  {
+    id: 'creditLineBoost3', name: 'Premium Credit Facility', icon: '🏛️', category: 'Finance', cost: 210000,
+    desc: 'Elite floor-plan lending relationship: +$250,000 loan limit and −0.5% APR. Maximum available.',
+    requires: u => u.creditLineBoost2 && !u.creditLineBoost3,
+    apply: s => { s.upgrades.creditLineBoost3 = true; },
   },
   {
     id: 'overheadReduction', name: 'Cost Efficiency Program', icon: '📉', category: 'Finance', cost: 14000,
@@ -453,8 +470,15 @@ function syncLoanTermsToDifficulty() {
   if (state.loanLimit === undefined) state.loanLimit = terms.limit;
   if (state.loanApr === undefined) state.loanApr = terms.apr;
   if ((state.delinquencyLevel || 0) < DELINQUENCY_DEFAULT_LEVEL) {
-    state.loanLimit = terms.limit;
-    state.loanApr = terms.apr;
+    // Base terms from difficulty, then stack upgrade bonuses
+    let upgradeLimit = terms.limit;
+    let upgradeApr   = terms.apr;
+    if (state.upgrades?.financeOffice)    { upgradeLimit += 25000;  upgradeApr = Math.max(0.01, upgradeApr - 0.01); }
+    if (state.upgrades?.creditLineBoost1) { upgradeLimit += 50000;  upgradeApr = Math.max(0.01, upgradeApr - 0.005); }
+    if (state.upgrades?.creditLineBoost2) { upgradeLimit += 100000; upgradeApr = Math.max(0.01, upgradeApr - 0.005); }
+    if (state.upgrades?.creditLineBoost3) { upgradeLimit += 250000; upgradeApr = Math.max(0.01, upgradeApr - 0.005); }
+    state.loanLimit = upgradeLimit;
+    state.loanApr   = upgradeApr;
   }
 }
 
@@ -618,6 +642,26 @@ function loadState() {
           day: loaded.day ?? 1,
         });
       }
+      if (loaded.saveVersion < 7) {
+        loaded.saveVersion = 7;
+        // Init new credit-line upgrade flags
+        if (loaded.upgrades.creditLineBoost1 === undefined) loaded.upgrades.creditLineBoost1 = false;
+        if (loaded.upgrades.creditLineBoost2 === undefined) loaded.upgrades.creditLineBoost2 = false;
+        if (loaded.upgrades.creditLineBoost3 === undefined) loaded.upgrades.creditLineBoost3 = false;
+        // Soft-clamp extreme market indices so existing saves recover gracefully
+        // (values outside 0.78–1.22 are pulled to that band; they'll continue to converge naturally)
+        if (loaded.marketIndices) {
+          for (const seg of Object.keys(loaded.marketIndices)) {
+            loaded.marketIndices[seg] = clamp(loaded.marketIndices[seg], 0.78, 1.22);
+          }
+        }
+        loaded.notifications = loaded.notifications || [];
+        loaded.notifications.unshift({
+          message: '📈 Save upgraded to v7 — new loan upgrades, expanded catalog, and market stability improvements.',
+          type: 'info',
+          day: loaded.day ?? 1,
+        });
+      }
       loaded.loanBalance = loaded.loanBalance ?? 0;
       loaded.loanLimit = loaded.loanLimit ?? getBaseLoanTerms().limit;
       loaded.loanApr = loaded.loanApr ?? getBaseLoanTerms().apr;
@@ -638,6 +682,9 @@ function loadState() {
       loaded.totalDetailsPerformed = loaded.totalDetailsPerformed ?? 0;
       loaded.totalTradeInsAccepted = loaded.totalTradeInsAccepted ?? 0;
       if (loaded.upgrades.financeOffice          === undefined) loaded.upgrades.financeOffice          = false;
+      if (loaded.upgrades.creditLineBoost1       === undefined) loaded.upgrades.creditLineBoost1       = false;
+      if (loaded.upgrades.creditLineBoost2       === undefined) loaded.upgrades.creditLineBoost2       = false;
+      if (loaded.upgrades.creditLineBoost3       === undefined) loaded.upgrades.creditLineBoost3       = false;
       if (loaded.upgrades.overheadReductions     === undefined) loaded.upgrades.overheadReductions     = 0;
       if (loaded.upgrades.photoStudio            === undefined) loaded.upgrades.photoStudio            = false;
       if (loaded.upgrades.leaseManagement        === undefined) loaded.upgrades.leaseManagement        = false;
@@ -1175,14 +1222,19 @@ function triggerBankruptcy() {
 
 /** Shift per-segment market indices and occasionally fire a market event. */
 function processMarketVolatility() {
-  const diffMultiplier = (settings.difficulty === 'hard') ? 1.4 : 1.0;
+  const isHard = settings.difficulty === 'hard';
+  const diffMultiplier = isHard ? 1.4 : 1.0;
   for (const seg of Object.keys(state.marketIndices)) {
-    // Daily drift ±0–2.5% (scaled by difficulty)
-    const drift = (Math.random() - 0.5) * 0.05 * diffMultiplier;
-    state.marketIndices[seg] = clamp(state.marketIndices[seg] * (1 + drift), 0.60, 1.50);
+    // Daily drift ±0–1.5% on Normal, ±0–2.1% on Hard (was ±2.5% on both)
+    const drift = (Math.random() - 0.5) * 0.03 * diffMultiplier;
+    // Mean reversion: gently pull index back toward 1.0 each day
+    // Normal: 3% of the excess per day; Hard: 1.5% (slower reversion = more volatility)
+    const reversionStrength = isHard ? 0.015 : 0.030;
+    const reversion = (1.0 - state.marketIndices[seg]) * reversionStrength;
+    state.marketIndices[seg] = clamp(state.marketIndices[seg] * (1 + drift) + reversion, 0.60, 1.50);
   }
-  // Random market event (~8% chance per day, 12% on hard)
-  const eventChance = (settings.difficulty === 'hard') ? 0.12 : 0.08;
+  // Random market event — reduced frequency on Normal (5% vs 12% on Hard)
+  const eventChance = isHard ? 0.12 : 0.05;
   if (Math.random() < eventChance) {
     const evt = randomFrom(MARKET_EVENTS);
     for (const [seg, delta] of Object.entries(evt.effects)) {
@@ -1863,6 +1915,7 @@ function buyUpgrade(upgradeId) {
   if (state.cash < upg.cost)         { showToast('Not enough cash!', 'error'); return; }
   state.cash -= upg.cost;
   upg.apply(state);
+  syncLoanTermsToDifficulty();   // recompute loan limit/APR after any upgrade
   if (upgradeId === 'staffOffice') ensureStaffCandidates();
   addNote(`⬆️ Purchased: ${upg.name}`, 'success');
   saveState();
