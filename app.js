@@ -107,13 +107,28 @@ const BRAND_WORDMARK_STYLES = {
   Bugatti:        { family: '"Times New Roman", Georgia, serif',                 weight: 700, spacing: '0.08em', color: '#0b4da2' },
   McLaren:        { family: '"Segoe UI", "Helvetica Neue", Arial, sans-serif',   weight: 700, spacing: '0.05em', color: '#ff6a00' },
   Porsche:        { family: '"Arial Narrow", Arial, sans-serif',                 weight: 700, spacing: '0.09em', color: '#222' },
-  Corvette:       { family: '"Trebuchet MS", Arial, sans-serif',                 weight: 700, spacing: '0.06em', color: '#1f2937' },
   BMW:            { family: '"Helvetica Neue", Arial, sans-serif',               weight: 700, spacing: '0.04em', color: '#1266d4' },
   'Mercedes-Benz':{ family: 'Georgia, "Times New Roman", serif',                 weight: 700, spacing: '0.03em', color: '#111827' },
   default:        { family: '"Segoe UI", Roboto, Arial, sans-serif',             weight: 700, spacing: '0.03em', color: '#334155' },
 };
 
 const STAFF_NAMES = ['Alex', 'Sam', 'Jordan', 'Taylor', 'Riley', 'Casey', 'Morgan', 'Parker', 'Jamie', 'Avery'];
+const STAFF_BASE_WAGE = 220;
+const STAFF_CANDIDATE_POOL_SIZE = 4;
+const STAFF_SKILL_WAGE_MULTIPLIER = 2.4;
+const STAFF_SPEED_WAGE_BONUS = 65;
+const STAFF_MAX_BASE = 4;
+const STAFF_MAX_WITH_CRM = 8;
+const STAFF_NEGOTIATION_WEIGHT = 0.55;
+const STAFF_SELLING_WEIGHT = 0.30;
+const STAFF_CLOSE_RATIO_MIN = 0.45;
+const STAFF_CLOSE_RATIO_MAX = 0.90;
+const STAFF_MEDIUM_CONFIDENCE_BUFFER = 1.05;
+const STAFF_ACTIVITY_MAX_ENTRIES = 120;
+const SFX_MIN_GAIN = 0.0001;
+const SFX_FLOOR_GAIN = 0.0002;
+const SFX_VOLUME_SCALE = 0.28;
+const SFX_ATTACK_SECONDS = 0.01;
 
 const UPGRADES_CONFIG = [
   {
@@ -231,23 +246,40 @@ function renderBrandWordmark(make) {
     title="${make}">${make}</span>`;
 }
 
+function formatCarDisplayName(car) {
+  const makeText = settings.showWordmarks ? '' : `${car.make} `;
+  return `${car.year} ${makeText}${car.model}${car.trim ? ' ' + car.trim : ''}`;
+}
+
 function ensureStaffCandidates() {
   if (!state.upgrades.staffOffice) return;
   if (!state.staffCandidates) state.staffCandidates = [];
-  while (state.staffCandidates.length < 4) {
+  const takenNames = new Set([...(state.staff || []).map(s => s.name), ...state.staffCandidates.map(c => c.name)]);
+  while (state.staffCandidates.length < STAFF_CANDIDATE_POOL_SIZE) {
     const negotiation = randomInt(45, 95);
     const selling     = randomInt(45, 95);
     const speed       = randomInt(1, 3);
-    const wage        = 220 + Math.round((negotiation + selling) * 2.4 + speed * 65);
+    const baseName    = randomFrom(STAFF_NAMES);
+    let name          = baseName;
+    let suffix        = 2;
+    while (takenNames.has(name)) {
+      name = `${baseName} ${suffix++}`;
+    }
+    takenNames.add(name);
+    const wage = STAFF_BASE_WAGE + Math.round((negotiation + selling) * STAFF_SKILL_WAGE_MULTIPLIER + speed * STAFF_SPEED_WAGE_BONUS);
     state.staffCandidates.push({
       id: generateId(),
-      name: randomFrom(STAFF_NAMES),
+      name,
       negotiation,
       selling,
       speed,
       wage,
     });
   }
+}
+
+function getTotalStaffWages() {
+  return (state.staff || []).reduce((sum, s) => sum + s.wage, 0);
 }
 
 // ============================================================
@@ -556,7 +588,7 @@ function getBuyerTone(offeredPrice, listPrice, patience) {
 function processOverhead() {
   const baseOverhead    = OVERHEAD_BY_LEVEL[state.upgrades.garageLevel] ?? 300;
   const diffMult        = (settings.difficulty === 'hard') ? 1.5 : 1.0;
-  const staffWages      = (state.staff || []).reduce((sum, s) => sum + s.wage, 0);
+  const staffWages      = getTotalStaffWages();
   const total           = Math.round(baseOverhead * diffMult) + staffWages;
   state.cash           -= total;
   if (state.cash < 0) state.cash = 0;
@@ -613,7 +645,7 @@ function processMarketDepreciation() {
 
 function addStaffActivity(message) {
   state.staffActivity.unshift({ day: state.day, message });
-  if (state.staffActivity.length > 120) state.staffActivity.pop();
+  if (state.staffActivity.length > STAFF_ACTIVITY_MAX_ENTRIES) state.staffActivity.pop();
 }
 
 function processStaffMode2Recommendations() {
@@ -621,16 +653,22 @@ function processStaffMode2Recommendations() {
   const pending = state.customerOffers.filter(o => o.state === 'pending');
   if (!pending.length) return;
   const capacity = state.staff.reduce((sum, s) => sum + s.speed, 0);
-  const maxActions = Math.min(pending.length, Math.max(1, capacity));
+  const maxActions = Math.min(pending.length, capacity);
   for (let i = 0; i < maxActions; i++) {
     const offer = pending[i];
     const car = state.garage.find(c => c.id === offer.carId);
     if (!car) continue;
     const staffer = state.staff[i % state.staff.length];
-    const closeRatio = clamp((staffer.negotiation / 100) * 0.55 + (staffer.selling / 100) * 0.30, 0.45, 0.90);
+    // We intentionally keep combined weights < 1.0 so staff suggestions remain conservative (below full list pressure).
+    const closeRatio = clamp(
+      (staffer.negotiation / 100) * STAFF_NEGOTIATION_WEIGHT + (staffer.selling / 100) * STAFF_SELLING_WEIGHT,
+      STAFF_CLOSE_RATIO_MIN,
+      STAFF_CLOSE_RATIO_MAX
+    );
     const target = Math.round(lerp(offer.offeredPrice, car.listPrice, closeRatio));
     const recommend = Math.min(car.listPrice, Math.max(offer.offeredPrice, target));
-    const confidence = recommend <= (offer.buyerMax ?? car.listPrice) ? 'High' : recommend <= (offer.buyerMax ?? car.listPrice) * 1.05 ? 'Medium' : 'Low';
+    const buyerMax = offer.buyerMax ?? car.listPrice;
+    const confidence = recommend <= buyerMax ? 'High' : recommend <= buyerMax * STAFF_MEDIUM_CONFIDENCE_BUFFER ? 'Medium' : 'Low';
     offer.staffSuggestion = {
       by: staffer.name,
       counterPrice: recommend,
@@ -1098,14 +1136,15 @@ function applyStaffSuggestion(offerId) {
   const offer = state.customerOffers.find(o => o.id === offerId);
   if (!offer?.staffSuggestion) return;
   counterCustomerOffer(offerId, offer.staffSuggestion.counterPrice);
-  addStaffActivity(`📝 You approved ${offer.staffSuggestion.by}'s counter recommendation on offer ${offerId.slice(-4)}.`);
+  const shortId = (typeof offerId === 'string' && offerId.length > 4) ? offerId.slice(-4) : offerId;
+  addStaffActivity(`📝 You approved ${offer.staffSuggestion.by}'s counter recommendation on offer ${shortId}.`);
 }
 
 function hireStaff(candidateId) {
   if (!state.upgrades.staffOffice) { showToast('Buy Staff Office first.', 'error'); return; }
   const candidate = state.staffCandidates.find(c => c.id === candidateId);
   if (!candidate) return;
-  const maxStaff = state.upgrades.crmSuite ? 8 : 4;
+  const maxStaff = state.upgrades.crmSuite ? STAFF_MAX_WITH_CRM : STAFF_MAX_BASE;
   if (state.staff.length >= maxStaff) { showToast(`Staff cap reached (${maxStaff}).`, 'error'); return; }
   state.staff.push(candidate);
   state.staffCandidates = state.staffCandidates.filter(c => c.id !== candidateId);
@@ -1363,7 +1402,7 @@ function renderDashboard() {
   const inService     = state.garage.filter(c => c.inServiceUntilDay).length;
   const overhead      = OVERHEAD_BY_LEVEL[state.upgrades.garageLevel] ?? 300;
   const diffMult      = (settings.difficulty === 'hard') ? 1.5 : 1.0;
-  const wageTotal     = (state.staff || []).reduce((sum, s) => sum + s.wage, 0);
+  const wageTotal     = getTotalStaffWages();
 
   const deliveryRows = state.deliveries.length
     ? state.deliveries.map(d => `
@@ -1515,7 +1554,7 @@ function renderFactory() {
         <div class="car-card-header">
           <div>
             ${settings.showWordmarks ? renderBrandWordmark(car.make) : ''}
-            <span class="car-name">2026 ${car.make} ${car.model}</span>
+            <span class="car-name">2026 ${settings.showWordmarks ? '' : `${car.make} `}${car.model}</span>
           </div>
           <span class="badge badge-gray">${car.category}</span>
         </div>
@@ -1609,7 +1648,7 @@ function renderUsedMarket() {
           <div class="car-card-header">
             <div>
               ${settings.showWordmarks ? renderBrandWordmark(offer.make) : ''}
-              <span class="car-name">${offer.year} ${offer.make} ${offer.model}${offer.trim ? ' ' + offer.trim : ''}</span>
+              <span class="car-name">${formatCarDisplayName(offer)}</span>
             </div>
             ${condBadge(offer.condition)}
           </div>
@@ -1812,7 +1851,7 @@ function renderGarage() {
           <div class="car-card-header">
             <div>
               ${settings.showWordmarks ? renderBrandWordmark(car.make) : ''}
-              <span class="car-name">${car.year} ${car.make} ${car.model}${car.trim ? ' ' + car.trim : ''}</span>
+              <span class="car-name">${formatCarDisplayName(car)}</span>
             </div>
             ${condBadge(car.condition)}
           </div>
@@ -1888,7 +1927,7 @@ function renderForSale() {
           <div class="car-card-header">
             <div>
               ${settings.showWordmarks ? renderBrandWordmark(car.make) : ''}
-              <span class="car-name">${car.year} ${car.make} ${car.model}${car.trim ? ' ' + car.trim : ''}</span>
+              <span class="car-name">${formatCarDisplayName(car)}</span>
             </div>
             <span class="badge ${isCountered ? 'badge-yellow' : 'badge-blue'}">${isCountered ? 'Countered' : 'Offer'}</span>
           </div>
@@ -1957,7 +1996,7 @@ function renderForSale() {
         <div class="car-card-header">
           <div>
             ${settings.showWordmarks ? renderBrandWordmark(car.make) : ''}
-            <span class="car-name">${car.year} ${car.make} ${car.model}${car.trim ? ' ' + car.trim : ''}</span>
+            <span class="car-name">${formatCarDisplayName(car)}</span>
           </div>
           ${condBadge(car.condition)}
         </div>
@@ -2159,7 +2198,7 @@ function renderSettings() {
         </div>
         <div class="stat-row">
           <span>Daily Wages</span>
-          <strong class="text-red">−${formatCurrency((state.staff || []).reduce((s, st) => s + st.wage, 0))}/day</strong>
+          <strong class="text-red">−${formatCurrency(getTotalStaffWages())}/day</strong>
         </div>
         <div class="stat-row">
           <span>Garage Level</span>
@@ -2317,9 +2356,10 @@ function playSfx(kind = 'click') {
     osc.type = type;
     osc.frequency.setValueAtTime(freq, now);
     osc.frequency.exponentialRampToValueAtTime(Math.max(120, freq * 0.92), now + dur);
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, settings.sfxVolume * 0.28), now + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+    // Short attack/decay envelope: exponential ramps cannot start/end at 0, so we clamp to tiny floors to avoid pops.
+    gain.gain.setValueAtTime(SFX_MIN_GAIN, now);
+    gain.gain.exponentialRampToValueAtTime(Math.max(SFX_FLOOR_GAIN, settings.sfxVolume * SFX_VOLUME_SCALE), now + SFX_ATTACK_SECONDS);
+    gain.gain.exponentialRampToValueAtTime(SFX_MIN_GAIN, now + dur);
     osc.connect(gain);
     gain.connect(audioCtx.destination);
     osc.start(now);
