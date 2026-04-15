@@ -136,6 +136,9 @@ Use **← → Arrow Keys** to cycle through tabs without using the mouse.
 | Upgrade | Cost | Effect |
 |---|---|---|
 | Finance Office | $22,000 | −1% loan APR, +$25k credit limit |
+| Credit Line Expansion I | $45,000 | +$50k loan limit, −0.5% APR (requires Finance Office) |
+| Credit Line Expansion II | $95,000 | +$100k loan limit, −0.5% APR (requires Expansion I) |
+| Premium Credit Facility | $210,000 | +$250k loan limit, −0.5% APR (requires Expansion II) |
 | Cost Efficiency Program | $14,000 | −$50/day overhead (×3 stackable) |
 
 ### Tools
@@ -187,7 +190,7 @@ Your lot isn't free. Every Next Day press deducts:
 The **Cost Efficiency Program** upgrade reduces overhead by $50/day per tier (up to $150/day off).
 
 ### Market Volatility
-Each segment (Economy, Sedan, SUV, Truck, Sports, Luxury) has a **Market Index** that drifts daily ±0–2.5%. Random market events (~8% chance/day) cause larger shifts.
+Each segment (Economy, Sedan, SUV, Truck, Sports, Luxury) has a **Market Index** that drifts daily ±0–1.5% on Normal (±0–2.1% on Hard). A mean-reversion force gently pulls each index back toward 1.0 each day, preventing runaway extremes. Random market events (~5% chance/day on Normal, 12% on Hard) cause additional shifts.
 
 ---
 
