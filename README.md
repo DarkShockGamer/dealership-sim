@@ -173,6 +173,19 @@ Cars being repaired or upgraded are **taken off the market** until service compl
 
 ---
 
+## 📝 Leasing System
+
+- Cars can be marked **Lease Available** from the Garage.
+- Lease terms are **60 / 120 / 180 game days** (flavored as ~18 / 36 / 54 months).
+- Lease payment/day is correlated to car `marketValue` and varies by segment + difficulty.
+- Active leases:
+  - cannot be sold, listed, or liquidated
+  - cannot be washed, detailed, repaired, or parts-upgraded
+  - add miles daily and can accumulate deferred issues
+- At lease end, the car returns and a **Lease Return Report** is shown with income, miles, and issues/condition changes.
+
+---
+
 ## 📈 Sale Probability Formula
 
 ```
@@ -216,8 +229,18 @@ Capped at **85% per day**.
    - Miss 1 payment: warning
    - Miss 2 payments: default (credit freeze + APR increase)
    - Miss 3 payments:
-     - Normal: instant liquidation + Bankruptcy Report, then continue
-     - Hard: immediate Game Over
+      - Normal: instant liquidation + Bankruptcy Report, then continue
+      - Hard: immediate Game Over
+
+### Leasing
+1. In **Garage**, click **Make Lease Available** on one or more cars.
+2. Press **Next Day** until a lease starts (badge changes to `LEASED (Xd left)`).
+3. Confirm while leased:
+   - **Mark for Sale** is disabled
+   - recon actions (wash/detail/repair/parts) are disabled
+4. Confirm dashboard/header lease stats update (active lease count and income/day).
+5. Continue days until lease end and verify **Lease Return Report** appears with income, miles added, and any issues/condition changes.
+6. Open **Finance** and force bankruptcy on Normal; confirm actively leased cars are not liquidated.
 
 ### Achievements (serious + funny)
 1. Open **Achievements** tab and check locked cards.
