@@ -12,7 +12,7 @@ import { CAR_CATALOG } from './data/cars.js';
 // DEFAULT STATE
 // ============================================================
 const DEFAULT_STATE = {
-  saveVersion: 2,
+  saveVersion: 3,
   cash: 25000,
   day: 1,
   reputation: 1.0,
@@ -22,6 +22,9 @@ const DEFAULT_STATE = {
   usedMarketOffers: [],    // buy-used cars with negotiation (was tradeInOffers)
   tradeInRequests: [],     // customers proposing to swap their car for one of yours
   customerOffers: [],      // pending below-list-price offers on your listed cars
+  staff: [],
+  staffCandidates: [],
+  staffActivity: [],
   upgrades: {
     garageLevel: 1,
     marketing: 0,
@@ -32,6 +35,10 @@ const DEFAULT_STATE = {
     serviceBay: false,
     performanceShop: false,
     negotiationTraining: false,
+    staffOffice: false,
+    crmSuite: false,
+    aiPricing: false,
+    luxuryLounge: false,
   },
   salesHistory: [],
   notifications: [],
@@ -90,6 +97,23 @@ const HIDDEN_ISSUES = [
   { name: 'Power steering leak',       cost: 380  },
   { name: 'Catalytic converter issue', cost: 950  },
 ];
+
+const BRAND_WORDMARK_STYLES = {
+  Toyota:         { family: '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif', weight: 700, spacing: '0.02em', color: '#d71920' },
+  Honda:          { family: '"Helvetica Neue", Arial, sans-serif',               weight: 700, spacing: '0.03em', color: '#d00000' },
+  Chevrolet:      { family: '"Trebuchet MS", Arial, sans-serif',                 weight: 700, spacing: '0.02em', color: '#c28b00' },
+  Ferrari:        { family: 'Georgia, "Times New Roman", serif',                 weight: 700, spacing: '0.05em', color: '#b70000' },
+  Lamborghini:    { family: 'Impact, "Arial Black", sans-serif',                 weight: 700, spacing: '0.06em', color: '#c9a227' },
+  Bugatti:        { family: '"Times New Roman", Georgia, serif',                 weight: 700, spacing: '0.08em', color: '#0b4da2' },
+  McLaren:        { family: '"Segoe UI", "Helvetica Neue", Arial, sans-serif',   weight: 700, spacing: '0.05em', color: '#ff6a00' },
+  Porsche:        { family: '"Arial Narrow", Arial, sans-serif',                 weight: 700, spacing: '0.09em', color: '#222' },
+  Corvette:       { family: '"Trebuchet MS", Arial, sans-serif',                 weight: 700, spacing: '0.06em', color: '#1f2937' },
+  BMW:            { family: '"Helvetica Neue", Arial, sans-serif',               weight: 700, spacing: '0.04em', color: '#1266d4' },
+  'Mercedes-Benz':{ family: 'Georgia, "Times New Roman", serif',                 weight: 700, spacing: '0.03em', color: '#111827' },
+  default:        { family: '"Segoe UI", Roboto, Arial, sans-serif',             weight: 700, spacing: '0.03em', color: '#334155' },
+};
+
+const STAFF_NAMES = ['Alex', 'Sam', 'Jordan', 'Taylor', 'Riley', 'Casey', 'Morgan', 'Parker', 'Jamie', 'Avery'];
 
 const UPGRADES_CONFIG = [
   {
@@ -158,6 +182,30 @@ const UPGRADES_CONFIG = [
     requires: u => !u.expressDelivery,
     apply: s => { s.upgrades.expressDelivery = true; },
   },
+  {
+    id: 'staffOffice', name: 'Staff Office', icon: '🧑‍💼', category: 'Management', cost: 28000,
+    desc: 'Unlock hiring sales staff (Mode 2: staff suggest counters, you finalize).',
+    requires: u => !u.staffOffice,
+    apply: s => { s.upgrades.staffOffice = true; },
+  },
+  {
+    id: 'crmSuite', name: 'CRM Suite', icon: '📚', category: 'Management', cost: 60000,
+    desc: 'High-volume tools: bulk list/unlist and smarter staff suggestions (+1 patience to generated customer offers).',
+    requires: u => u.staffOffice && !u.crmSuite,
+    apply: s => { s.upgrades.crmSuite = true; },
+  },
+  {
+    id: 'aiPricing', name: 'AI Pricing Terminal', icon: '🧠', category: 'Management', cost: 120000,
+    desc: 'Late-game pricing support: improves chance of buyer accepting close counters.',
+    requires: u => u.crmSuite && !u.aiPricing,
+    apply: s => { s.upgrades.aiPricing = true; },
+  },
+  {
+    id: 'luxuryLounge', name: 'Luxury Client Lounge', icon: '🥂', category: 'Marketing', cost: 180000,
+    desc: 'Attracts high-value buyers for premium inventory and supercars.',
+    requires: u => !u.luxuryLounge,
+    apply: s => { s.upgrades.luxuryLounge = true; },
+  },
 ];
 
 // ============================================================
@@ -170,6 +218,37 @@ const lerp        = (a, b, t) => a + (b - a) * t;
 const randomFrom  = arr => arr[Math.floor(Math.random() * arr.length)];
 const formatCurrency = n => '$' + Math.round(n).toLocaleString();
 const generateId  = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+let factorySelection = { make: null, model: null };
+
+function getBrandWordmarkStyle(make) {
+  return BRAND_WORDMARK_STYLES[make] || BRAND_WORDMARK_STYLES.default;
+}
+
+function renderBrandWordmark(make) {
+  const style = getBrandWordmarkStyle(make);
+  return `<span class="brand-wordmark"
+    style="font-family:${style.family};font-weight:${style.weight};letter-spacing:${style.spacing};color:${style.color}"
+    title="${make}">${make}</span>`;
+}
+
+function ensureStaffCandidates() {
+  if (!state.upgrades.staffOffice) return;
+  if (!state.staffCandidates) state.staffCandidates = [];
+  while (state.staffCandidates.length < 4) {
+    const negotiation = randomInt(45, 95);
+    const selling     = randomInt(45, 95);
+    const speed       = randomInt(1, 3);
+    const wage        = 220 + Math.round((negotiation + selling) * 2.4 + speed * 65);
+    state.staffCandidates.push({
+      id: generateId(),
+      name: randomFrom(STAFF_NAMES),
+      negotiation,
+      selling,
+      speed,
+      wage,
+    });
+  }
+}
 
 // ============================================================
 // PERSISTENCE
@@ -194,11 +273,18 @@ function loadState() {
       }
       if (!loaded.tradeInRequests) loaded.tradeInRequests = [];
       if (!loaded.customerOffers)  loaded.customerOffers  = [];
+      if (!loaded.staff) loaded.staff = [];
+      if (!loaded.staffCandidates) loaded.staffCandidates = [];
+      if (!loaded.staffActivity) loaded.staffActivity = [];
       // Migrate upgrade keys
       if (!loaded.upgrades) loaded.upgrades = {};
       if (loaded.upgrades.serviceBay          === undefined) loaded.upgrades.serviceBay = false;
       if (loaded.upgrades.performanceShop     === undefined) loaded.upgrades.performanceShop = false;
       if (loaded.upgrades.negotiationTraining === undefined) loaded.upgrades.negotiationTraining = false;
+      if (loaded.upgrades.staffOffice         === undefined) loaded.upgrades.staffOffice = false;
+      if (loaded.upgrades.crmSuite            === undefined) loaded.upgrades.crmSuite = false;
+      if (loaded.upgrades.aiPricing           === undefined) loaded.upgrades.aiPricing = false;
+      if (loaded.upgrades.luxuryLounge        === undefined) loaded.upgrades.luxuryLounge = false;
       // v2 migration: add market indices + save version
       if (!loaded.saveVersion || loaded.saveVersion < 2) {
         loaded.saveVersion    = 2;
@@ -211,6 +297,18 @@ function loadState() {
         }
         if ((loaded.notifications || []).length === 0)
           loaded.notifications = [{ message: '📋 Save upgraded to v2 — overhead, market volatility & new car data added!', type: 'info', day: loaded.day ?? 1 }];
+      }
+      if (loaded.saveVersion < 3) {
+        loaded.saveVersion = 3;
+        if (!loaded.staff) loaded.staff = [];
+        if (!loaded.staffCandidates) loaded.staffCandidates = [];
+        if (!loaded.staffActivity) loaded.staffActivity = [];
+        loaded.notifications = loaded.notifications || [];
+        loaded.notifications.unshift({
+          message: '🧾 Save upgraded to v3 — staff mode, sound settings, factory browser, and brand wordmarks enabled.',
+          type: 'info',
+          day: loaded.day ?? 1,
+        });
       }
       // Migrate car objects
       for (const car of loaded.garage || []) migrateCar(car);
@@ -300,11 +398,28 @@ function buildCar(entry, condition, source, inspected = false) {
 }
 
 /** Generate a fresh batch of Used Market offers (cars available to buy). */
+function pickCatalogEntryForUsed() {
+  const rep = state.reputation || 1;
+  const weighted = CAR_CATALOG.map(entry => {
+    const expensive = entry.marketValue >= 180000 ? 0.08 : entry.marketValue >= 90000 ? 0.35 : 1.0;
+    const repBoost  = entry.marketValue >= 90000 ? clamp(0.5 + rep * 0.6, 0.5, 1.6) : 1.0;
+    const weight    = (entry.usedWeight ?? 1) * expensive * repBoost;
+    return { entry, weight };
+  });
+  const total = weighted.reduce((s, it) => s + it.weight, 0);
+  let roll = Math.random() * total;
+  for (const it of weighted) {
+    roll -= it.weight;
+    if (roll <= 0) return it.entry;
+  }
+  return randomFrom(CAR_CATALOG);
+}
+
 function generateUsedMarket() {
   const count = randomInt(4, 7);
   const offers = [];
   for (let i = 0; i < count; i++) {
-    const entry     = randomFrom(CAR_CATALOG);
+    const entry     = pickCatalogEntryForUsed();
     const condition = pickCondition([0.08, 0.28, 0.37, 0.27]);
     const car       = buildCar(entry, condition, 'used', false);
     const ownerAwareOfIssues = Math.random() < 0.4;
@@ -332,7 +447,7 @@ function generateTradeInRequests() {
   const numRequests = randomInt(0, Math.min(2, listed.length));
   for (let i = 0; i < numRequests; i++) {
     const targetCar   = randomFrom(listed);
-    const entry       = randomFrom(CAR_CATALOG);
+    const entry       = pickCatalogEntryForUsed();
     const condition   = pickCondition([0.05, 0.25, 0.40, 0.30]);
     const customerCar = buildCar(entry, condition, 'used', false);
     customerCar.purchasePrice = 0;
@@ -364,8 +479,9 @@ function generateCustomerOffers() {
     if (!car.isForSale || car.listPrice <= 0 || car.inServiceUntilDay) continue;
     if (existing.has(car.id)) continue; // already has a pending offer
     const chance = computeSaleChance(car);
+    const luxuryBoost = state.upgrades.luxuryLounge && car.marketValue >= 90000 ? 0.14 : 0;
     // Offer probability is 1.5× sale chance (buyer haggles rather than pays full)
-    if (Math.random() < Math.min(chance * 1.5, 0.75)) {
+    if (Math.random() < Math.min(chance * 1.5 + luxuryBoost, 0.85)) {
       // Buyer has a hidden maximum they're willing to stretch to
       const buyerMax     = Math.round(car.listPrice * randomFloat(0.86, 0.99));
       // Initial offer is below their max (they start low to leave room)
@@ -377,7 +493,7 @@ function generateCustomerOffers() {
         carId: car.id,
         offeredPrice,
         buyerMax,
-        patience: randomInt(1, 3),  // how many counter-rounds buyer will tolerate
+        patience: randomInt(1, 3) + (state.upgrades.crmSuite ? 1 : 0),  // how many counter-rounds buyer will tolerate
         state: 'pending',
         playerCounter: null,
         expiresDay: state.day + 1,
@@ -440,10 +556,11 @@ function getBuyerTone(offeredPrice, listPrice, patience) {
 function processOverhead() {
   const baseOverhead    = OVERHEAD_BY_LEVEL[state.upgrades.garageLevel] ?? 300;
   const diffMult        = (settings.difficulty === 'hard') ? 1.5 : 1.0;
-  const total           = Math.round(baseOverhead * diffMult);
+  const staffWages      = (state.staff || []).reduce((sum, s) => sum + s.wage, 0);
+  const total           = Math.round(baseOverhead * diffMult) + staffWages;
   state.cash           -= total;
   if (state.cash < 0) state.cash = 0;
-  addNote(`🏢 Overhead: −${formatCurrency(total)} (lot rent, utilities, staff)`, 'warning');
+  addNote(`🏢 Overhead: −${formatCurrency(total)} (lot rent/utilities ${formatCurrency(Math.round(baseOverhead * diffMult))}${staffWages ? ` + wages ${formatCurrency(staffWages)}` : ''})`, 'warning');
 }
 
 /** Shift per-segment market indices and occasionally fire a market event. */
@@ -491,6 +608,36 @@ function processMarketDepreciation() {
       const rate = car.daysInLot > 14 ? 0.003 : 0.002;
       car.marketValue = Math.max(1000, Math.round(car.marketValue * (1 - rate)));
     }
+  }
+}
+
+function addStaffActivity(message) {
+  state.staffActivity.unshift({ day: state.day, message });
+  if (state.staffActivity.length > 120) state.staffActivity.pop();
+}
+
+function processStaffMode2Recommendations() {
+  if (!state.staff?.length) return;
+  const pending = state.customerOffers.filter(o => o.state === 'pending');
+  if (!pending.length) return;
+  const capacity = state.staff.reduce((sum, s) => sum + s.speed, 0);
+  const maxActions = Math.min(pending.length, Math.max(1, capacity));
+  for (let i = 0; i < maxActions; i++) {
+    const offer = pending[i];
+    const car = state.garage.find(c => c.id === offer.carId);
+    if (!car) continue;
+    const staffer = state.staff[i % state.staff.length];
+    const closeRatio = clamp((staffer.negotiation / 100) * 0.55 + (staffer.selling / 100) * 0.30, 0.45, 0.90);
+    const target = Math.round(lerp(offer.offeredPrice, car.listPrice, closeRatio));
+    const recommend = Math.min(car.listPrice, Math.max(offer.offeredPrice, target));
+    const confidence = recommend <= (offer.buyerMax ?? car.listPrice) ? 'High' : recommend <= (offer.buyerMax ?? car.listPrice) * 1.05 ? 'Medium' : 'Low';
+    offer.staffSuggestion = {
+      by: staffer.name,
+      counterPrice: recommend,
+      confidence,
+      note: offer.patience <= 1 ? 'Buyer patience is low — act soon.' : 'Likely to move closer tomorrow if rejected.',
+    };
+    addStaffActivity(`🧑‍💼 ${staffer.name} reviewed ${car.year} ${car.make} ${car.model}: suggest counter ${formatCurrency(recommend)} (${confidence} confidence).`);
   }
 }
 
@@ -589,9 +736,10 @@ function resolveCustomerOfferCounters() {
     const counter  = offer.playerCounter;
     const buyerMax = offer.buyerMax ?? Math.round(car.listPrice * 0.93);
     const negBonus = state.upgrades.negotiationTraining ? 0.06 : 0;
+    const aiBonus  = state.upgrades.aiPricing ? 0.04 : 0;
     const ratio    = counter / buyerMax;
 
-    if (ratio <= 1.0 + negBonus) {
+    if (ratio <= 1.0 + negBonus + aiBonus) {
       // Buyer accepts counter
       executeSale(offer, car, counter);
       addNote(`🤝 Counter accepted! ${car.year} ${car.make} ${car.model} sold for ${formatCurrency(counter)}.`, 'success');
@@ -699,6 +847,8 @@ function nextDay() {
   state.tradeInRequests = [...state.tradeInRequests, ...newTIR];
   const newOffers = generateCustomerOffers();
   state.customerOffers = [...state.customerOffers, ...newOffers];
+  processStaffMode2Recommendations();
+  ensureStaffCandidates();
   saveState();
   renderAll();
   const offerAlert = newOffers.length ? ` ${newOffers.length} offer(s) on your cars!` : '';
@@ -709,6 +859,17 @@ function nextDay() {
 // ============================================================
 // PLAYER ACTIONS — Factory
 // ============================================================
+function setFactoryMake(make) {
+  factorySelection.make = make;
+  factorySelection.model = null;
+  renderFactory();
+}
+
+function setFactoryModel(model) {
+  factorySelection.model = model;
+  renderFactory();
+}
+
 function buyFromFactory(catalogIdx) {
   const entry = CAR_CATALOG[catalogIdx];
   if (!entry) return;
@@ -933,6 +1094,35 @@ function counterCustomerOffer(offerId, rawPrice) {
   showToast(`Counter sent: ${formatCurrency(price)}. Customer responds next day.`, 'info');
 }
 
+function applyStaffSuggestion(offerId) {
+  const offer = state.customerOffers.find(o => o.id === offerId);
+  if (!offer?.staffSuggestion) return;
+  counterCustomerOffer(offerId, offer.staffSuggestion.counterPrice);
+  addStaffActivity(`📝 You approved ${offer.staffSuggestion.by}'s counter recommendation on offer ${offerId.slice(-4)}.`);
+}
+
+function hireStaff(candidateId) {
+  if (!state.upgrades.staffOffice) { showToast('Buy Staff Office first.', 'error'); return; }
+  const candidate = state.staffCandidates.find(c => c.id === candidateId);
+  if (!candidate) return;
+  const maxStaff = state.upgrades.crmSuite ? 8 : 4;
+  if (state.staff.length >= maxStaff) { showToast(`Staff cap reached (${maxStaff}).`, 'error'); return; }
+  state.staff.push(candidate);
+  state.staffCandidates = state.staffCandidates.filter(c => c.id !== candidateId);
+  addStaffActivity(`✅ Hired ${candidate.name} (Neg ${candidate.negotiation}, Sell ${candidate.selling}, Wage ${formatCurrency(candidate.wage)}/day).`);
+  ensureStaffCandidates();
+  saveState();
+  renderAll();
+  showToast(`${candidate.name} hired!`, 'success');
+}
+
+function dismissCandidate(candidateId) {
+  state.staffCandidates = state.staffCandidates.filter(c => c.id !== candidateId);
+  ensureStaffCandidates();
+  saveState();
+  renderUpgrades();
+}
+
 // ============================================================
 // PLAYER ACTIONS — Listing / Pricing
 // ============================================================
@@ -967,6 +1157,46 @@ function setListPriceMultiplier(carId, mult) {
   renderForSale();
 }
 
+function markAllForSale() {
+  let changed = 0;
+  for (const car of state.garage) {
+    if (car.inServiceUntilDay || car.isForSale) continue;
+    car.isForSale = true;
+    if (!car.listPrice) car.listPrice = car.marketValue;
+    changed++;
+  }
+  saveState();
+  renderAll();
+  showToast(`Listed ${changed} car(s).`, 'success');
+}
+
+function unlistAllCars() {
+  let changed = 0;
+  for (const car of state.garage) {
+    if (!car.isForSale) continue;
+    car.isForSale = false;
+    car.daysInLot = 0;
+    changed++;
+  }
+  state.customerOffers = [];
+  state.tradeInRequests = state.tradeInRequests.filter(r => r.state === 'countered');
+  saveState();
+  renderAll();
+  showToast(`Unlisted ${changed} car(s).`, 'warning');
+}
+
+function bulkSetListing(mult) {
+  let changed = 0;
+  for (const car of state.garage) {
+    if (!car.isForSale) continue;
+    car.listPrice = Math.round(car.marketValue * mult);
+    changed++;
+  }
+  saveState();
+  renderForSale();
+  showToast(`Updated ${changed} listing price(s).`, 'success');
+}
+
 // ============================================================
 // PLAYER ACTIONS — Upgrades
 // ============================================================
@@ -977,6 +1207,7 @@ function buyUpgrade(upgradeId) {
   if (state.cash < upg.cost)         { showToast('Not enough cash!', 'error'); return; }
   state.cash -= upg.cost;
   upg.apply(state);
+  if (upgradeId === 'staffOffice') ensureStaffCandidates();
   addNote(`⬆️ Purchased: ${upg.name}`, 'success');
   saveState();
   renderAll();
@@ -1132,6 +1363,7 @@ function renderDashboard() {
   const inService     = state.garage.filter(c => c.inServiceUntilDay).length;
   const overhead      = OVERHEAD_BY_LEVEL[state.upgrades.garageLevel] ?? 300;
   const diffMult      = (settings.difficulty === 'hard') ? 1.5 : 1.0;
+  const wageTotal     = (state.staff || []).reduce((sum, s) => sum + s.wage, 0);
 
   const deliveryRows = state.deliveries.length
     ? state.deliveries.map(d => `
@@ -1159,6 +1391,13 @@ function renderDashboard() {
           <span>${n.message}</span>
         </div>`).join('')
     : '<p class="empty-msg">No events yet — press Next Day to begin!</p>';
+  const staffLogs = (state.staffActivity || []).length
+    ? state.staffActivity.slice(0, 10).map(n => `
+        <div class="notif-item notif-info">
+          <span class="notif-day">Day ${n.day}</span>
+          <span>${n.message}</span>
+        </div>`).join('')
+    : '<p class="empty-msg">No staff activity yet.</p>';
 
   // Market indices display
   const marketRows = Object.entries(state.marketIndices || {}).map(([seg, idx]) => {
@@ -1180,6 +1419,8 @@ function renderDashboard() {
         <div class="stat-row"><span>Garage</span><strong>${state.garage.length} / ${state.garageSlots} slots</strong></div>
         <div class="stat-row"><span>Daily Overhead</span>
           <strong class="text-red">−${formatCurrency(Math.round(overhead * diffMult))}/day</strong></div>
+        <div class="stat-row"><span>Daily Wages</span><strong class="text-red">−${formatCurrency(wageTotal)}/day</strong></div>
+        <div class="stat-row"><span>Hired Staff</span><strong>${state.staff?.length || 0}</strong></div>
         <div class="stat-row"><span>Listed for Sale</span><strong>${forSaleCount}</strong></div>
         <div class="stat-row"><span>In Service</span><strong>${inService}</strong></div>
         <div class="stat-row"><span>Pending Deliveries</span><strong>${state.deliveries.length}</strong></div>
@@ -1214,6 +1455,11 @@ function renderDashboard() {
         ${logs}
       </div>
 
+      <div class="dash-card dash-card-wide">
+        <h3>🧑‍💼 Staff Negotiation Feed (Mode 2 Suggestions)</h3>
+        ${staffLogs}
+      </div>
+
     </div>
 
     <div class="save-controls">
@@ -1227,55 +1473,65 @@ function renderDashboard() {
 // RENDER — Factory
 // ============================================================
 function renderFactory() {
-  const CATEGORY_ICONS = { Economy: '🏙️', Sedan: '🚗', SUV: '🚙', Truck: '🛻', Sports: '🏎️', Luxury: '💎' };
-  const grouped = {};
+  const groupedByMake = {};
   CAR_CATALOG.forEach((entry, idx) => {
-    (grouped[entry.category] = grouped[entry.category] || []).push({ ...entry, idx });
+    (groupedByMake[entry.make] = groupedByMake[entry.make] || []).push({ ...entry, idx });
   });
-
+  const makes = Object.keys(groupedByMake).sort((a, b) => a.localeCompare(b));
+  if (!factorySelection.make || !groupedByMake[factorySelection.make]) {
+    factorySelection = { make: makes[0] || null, model: null };
+  }
+  const makeEntries = groupedByMake[factorySelection.make] || [];
+  const modelNames = [...new Set(makeEntries.map(c => c.model))].sort((a, b) => a.localeCompare(b));
+  if (!factorySelection.model || !modelNames.includes(factorySelection.model)) {
+    factorySelection.model = modelNames[0] || null;
+  }
+  const trims = makeEntries.filter(c => c.model === factorySelection.model);
   const garageFull = state.garage.length + state.deliveries.length >= state.garageSlots;
 
-  let html = `<div class="tab-info">🏭 Factory sells 2026 model year cars at fixed invoice prices — no negotiation. Arrives in a few days with 5–50 miles.</div>`;
-  for (const [cat, cars] of Object.entries(grouped)) {
-    html += `<div class="category-section">
-      <h3>${CATEGORY_ICONS[cat] || ''} ${cat}</h3>
-      <div class="card-grid">`;
-
-    for (const car of cars) {
-      const delivDays  = state.upgrades.expressDelivery ? Math.max(1, car.deliveryDays - 1) : car.deliveryDays;
-      const margin     = car.marketValue - car.basePrice;
-      const marketIdx  = (state.marketIndices || {})[cat] ?? 1.0;
-      const adjMarket  = Math.round(car.marketValue * marketIdx);
-      const adjMargin  = adjMarket - car.basePrice;
-      const canBuy     = !garageFull && state.cash >= car.basePrice;
-      const stars      = '⭐'.repeat(Math.round(car.demandFactor * 2));
-      const idxPct     = ((marketIdx - 1) * 100).toFixed(0);
-      const idxCls     = marketIdx >= 1.02 ? 'text-green' : marketIdx <= 0.98 ? 'text-red' : 'text-muted';
-
-      html += `
-        <div class="car-card factory-card">
-          <div class="car-card-header">
+  const makeButtons = makes.map(make => `
+    <button class="btn btn-sm ${factorySelection.make === make ? 'btn-primary' : 'btn-secondary'}" onclick="setFactoryMake('${make}')">
+      ${settings.showWordmarks ? renderBrandWordmark(make) : make}
+    </button>`).join('');
+  const modelButtons = modelNames.map(model => `
+    <button class="btn btn-sm ${factorySelection.model === model ? 'btn-primary' : 'btn-secondary'}" onclick="setFactoryModel('${model}')">
+      ${model}
+    </button>`).join('');
+  let html = `<div class="tab-info">🏭 Factory sells 2026 model year cars at fixed invoice prices — no negotiation. Pick <strong>make → model → trim</strong> to keep browsing compact.</div>
+    <div class="factory-browser">
+      <div class="factory-stage"><h4>1) Make</h4><div class="make-pill-row">${makeButtons}</div></div>
+      <div class="factory-stage"><h4>2) Model</h4><div class="make-pill-row">${modelButtons || '<span class="text-muted">No models</span>'}</div></div>
+      <div class="factory-stage"><h4>3) Trim</h4></div>
+    </div>
+    <div class="card-grid">`;
+  for (const car of trims) {
+    const delivDays  = state.upgrades.expressDelivery ? Math.max(1, car.deliveryDays - 1) : car.deliveryDays;
+    const marketIdx  = (state.marketIndices || {})[car.category] ?? 1.0;
+    const adjMarket  = Math.round(car.marketValue * marketIdx);
+    const adjMargin  = adjMarket - car.basePrice;
+    const canBuy     = !garageFull && state.cash >= car.basePrice;
+    html += `
+      <div class="car-card factory-card">
+        <div class="car-card-header">
+          <div>
+            ${settings.showWordmarks ? renderBrandWordmark(car.make) : ''}
             <span class="car-name">2026 ${car.make} ${car.model}</span>
-            <span class="badge badge-gray">${cat}</span>
           </div>
-          <div class="car-details">
-            <div class="detail-row"><span>Trim</span><span style="font-weight:600">${car.trim || '—'}</span></div>
-            <div class="detail-row"><span>Invoice Price</span><span class="text-blue">${formatCurrency(car.basePrice)}</span></div>
-            <div class="detail-row"><span>Market Value</span><span class="text-green">${formatCurrency(adjMarket)}</span></div>
-            <div class="detail-row"><span>Est. Margin</span>
-              <span class="${adjMargin >= 0 ? 'text-green' : 'text-red'}">${adjMargin >= 0 ? '+' : ''}${formatCurrency(adjMargin)}</span></div>
-            <div class="detail-row"><span>Market Index</span>
-              <span class="${idxCls}">${(marketIdx * 100).toFixed(1)}% (${idxPct >= 0 ? '+' : ''}${idxPct}%)</span></div>
-            <div class="detail-row"><span>Delivery</span><span>${delivDays} day${delivDays !== 1 ? 's' : ''}</span></div>
-            <div class="detail-row"><span>Demand</span><span title="${car.demandFactor}">${stars}</span></div>
-          </div>
-          <button class="btn btn-primary btn-full" onclick="buyFromFactory(${car.idx})" ${canBuy ? '' : 'disabled'}>
-            ${garageFull ? '🚫 Garage Full' : state.cash < car.basePrice ? `💸 Need ${formatCurrency(car.basePrice - state.cash)} more` : `Order — ${formatCurrency(car.basePrice)}`}
-          </button>
-        </div>`;
-    }
-    html += `</div></div>`;
+          <span class="badge badge-gray">${car.category}</span>
+        </div>
+        <div class="car-details">
+          <div class="detail-row"><span>Trim</span><span style="font-weight:600">${car.trim || '—'}</span></div>
+          <div class="detail-row"><span>Invoice Price</span><span class="text-blue">${formatCurrency(car.basePrice)}</span></div>
+          <div class="detail-row"><span>Market Value</span><span class="text-green">${formatCurrency(adjMarket)}</span></div>
+          <div class="detail-row"><span>Est. Margin</span><span class="${adjMargin >= 0 ? 'text-green' : 'text-red'}">${adjMargin >= 0 ? '+' : ''}${formatCurrency(adjMargin)}</span></div>
+          <div class="detail-row"><span>Delivery</span><span>${delivDays} day${delivDays !== 1 ? 's' : ''}</span></div>
+        </div>
+        <button class="btn btn-primary btn-full" onclick="buyFromFactory(${car.idx})" ${canBuy ? '' : 'disabled'}>
+          ${garageFull ? '🚫 Garage Full' : state.cash < car.basePrice ? `💸 Need ${formatCurrency(car.basePrice - state.cash)} more` : `Order — ${formatCurrency(car.basePrice)}`}
+        </button>
+      </div>`;
   }
+  html += `</div>`;
   document.getElementById('tab-factory').innerHTML = html;
 }
 
@@ -1349,11 +1605,14 @@ function renderUsedMarket() {
     }
 
     return `
-      <div class="car-card tradein-card">
-        <div class="car-card-header">
-          <span class="car-name">${offer.year} ${offer.make} ${offer.model}${offer.trim ? ' ' + offer.trim : ''}</span>
-          ${condBadge(offer.condition)}
-        </div>
+        <div class="car-card tradein-card">
+          <div class="car-card-header">
+            <div>
+              ${settings.showWordmarks ? renderBrandWordmark(offer.make) : ''}
+              <span class="car-name">${offer.year} ${offer.make} ${offer.model}${offer.trim ? ' ' + offer.trim : ''}</span>
+            </div>
+            ${condBadge(offer.condition)}
+          </div>
         <div class="car-details">
           <div class="detail-row"><span>Category</span><span>${offer.category}</span></div>
           <div class="detail-row"><span>Mileage</span><span>${offer.mileage.toLocaleString()} mi</span></div>
@@ -1435,14 +1694,14 @@ function renderTradeInRequests() {
         <div class="tradein-split">
           <div class="tradein-half">
             <h5>🚗 Their Car</h5>
-            <div class="detail-row"><span>Car</span><span>${req.customerCar.year} ${req.customerCar.make} ${req.customerCar.model}</span></div>
+            <div class="detail-row"><span>Car</span><span>${settings.showWordmarks ? `${renderBrandWordmark(req.customerCar.make)} ` : ''}${req.customerCar.year} ${req.customerCar.make} ${req.customerCar.model}</span></div>
             <div class="detail-row"><span>Condition</span>${condBadge(req.customerCar.condition)}</div>
             <div class="detail-row"><span>Mileage</span><span>${req.customerCar.mileage.toLocaleString()} mi</span></div>
             <div class="detail-row"><span>Their Car Value</span><span class="text-green">${formatCurrency(req.customerCarValue)}</span></div>
           </div>
           <div class="tradein-half">
             <h5>🏷️ Your Car</h5>
-            <div class="detail-row"><span>Car</span><span>${targetCar.year} ${targetCar.make} ${targetCar.model}</span></div>
+            <div class="detail-row"><span>Car</span><span>${settings.showWordmarks ? `${renderBrandWordmark(targetCar.make)} ` : ''}${targetCar.year} ${targetCar.make} ${targetCar.model}</span></div>
             <div class="detail-row"><span>Listed Price</span><span class="text-blue">${formatCurrency(targetCar.listPrice)}</span></div>
           </div>
         </div>
@@ -1549,11 +1808,14 @@ function renderGarage() {
     }
 
     return `
-      <div class="car-card garage-card ${car.isForSale ? 'for-sale' : ''} ${inService ? 'in-service' : ''}">
-        <div class="car-card-header">
-          <span class="car-name">${car.year} ${car.make} ${car.model}${car.trim ? ' ' + car.trim : ''}</span>
-          ${condBadge(car.condition)}
-        </div>
+        <div class="car-card garage-card ${car.isForSale ? 'for-sale' : ''} ${inService ? 'in-service' : ''}">
+          <div class="car-card-header">
+            <div>
+              ${settings.showWordmarks ? renderBrandWordmark(car.make) : ''}
+              <span class="car-name">${car.year} ${car.make} ${car.model}${car.trim ? ' ' + car.trim : ''}</span>
+            </div>
+            ${condBadge(car.condition)}
+          </div>
         ${inService ? `<div class="service-banner">🔧 IN SERVICE — Ready Day ${car.inServiceUntilDay} (${car.pendingService?.type === 'repair' ? 'Basic Repair' : 'Parts Upgrade'})</div>` : ''}
         ${car.isForSale ? '<div class="for-sale-banner">🏷️ LISTED FOR SALE</div>' : ''}
         ${car.washBoostDays > 0 ? `<div class="wash-banner">🚿 Wash boost active (${car.washBoostDays} days left)</div>` : ''}
@@ -1589,7 +1851,13 @@ function renderGarage() {
       🏠 Garage: ${state.garage.length}/${state.garageSlots} slots.
       ${state.garage.filter(c => c.isForSale).length} listed for sale.
       ${state.garage.filter(c => c.inServiceUntilDay).length ? `🔧 ${state.garage.filter(c => c.inServiceUntilDay).length} in service.` : ''}
+      ${state.upgrades.crmSuite ? '<br>💼 High-volume tools active: bulk list/unlist available.' : ''}
     </div>
+    ${state.upgrades.crmSuite ? `
+      <div class="bulk-row">
+        <button class="btn btn-sm btn-secondary" onclick="markAllForSale()">List All Ready Cars</button>
+        <button class="btn btn-sm btn-warning" onclick="unlistAllCars()">Unlist All</button>
+      </div>` : ''}
     <div class="card-grid">${cards}</div>`;
 }
 
@@ -1613,11 +1881,15 @@ function renderForSale() {
       const estProfit   = offer.offeredPrice - Math.round(offer.offeredPrice * TRANSACTION_FEE) - car.purchasePrice;
       const tone        = getBuyerTone(offer.offeredPrice, car.listPrice, offer.patience ?? 1);
       const pat         = offer.patience ?? 1;
+      const suggestion  = offer.staffSuggestion;
 
       return `
         <div class="car-card offer-card ${isCountered ? 'countered-card' : ''}">
           <div class="car-card-header">
-            <span class="car-name">${car.year} ${car.make} ${car.model}${car.trim ? ' ' + car.trim : ''}</span>
+            <div>
+              ${settings.showWordmarks ? renderBrandWordmark(car.make) : ''}
+              <span class="car-name">${car.year} ${car.make} ${car.model}${car.trim ? ' ' + car.trim : ''}</span>
+            </div>
             <span class="badge ${isCountered ? 'badge-yellow' : 'badge-blue'}">${isCountered ? 'Countered' : 'Offer'}</span>
           </div>
           <div class="car-details">
@@ -1632,7 +1904,9 @@ function renderForSale() {
             <div class="detail-row"><span>Rounds Left</span>
               <span class="${pat === 0 ? 'text-red' : 'text-muted'}">${pat}</span></div>
             ${isCountered ? `<div class="detail-row"><span>Your Counter</span><span>${formatCurrency(offer.playerCounter)}</span></div>` : ''}
+            ${suggestion ? `<div class="detail-row"><span>Staff Suggestion</span><span>${formatCurrency(suggestion.counterPrice)} (${suggestion.confidence})</span></div>` : ''}
           </div>
+          ${suggestion ? `<p class="text-muted" style="font-size:.78rem;margin-top:2px">🧑‍💼 ${suggestion.by}: ${suggestion.note}</p>` : ''}
           ${isCountered
             ? `<p class="text-muted" style="font-size:.8rem;margin-top:4px">⏳ Waiting for customer response — resolves next day.</p>`
             : `<div class="neg-input-row" style="margin-top:6px">
@@ -1641,6 +1915,7 @@ function renderForSale() {
                 <button class="btn btn-warning" onclick="counterCustomerOffer('${offer.id}', document.getElementById('cof-${offer.id}').value)">
                   Counter
                 </button>
+                ${suggestion ? `<button class="btn btn-secondary" onclick="applyStaffSuggestion('${offer.id}')">Use Staff</button>` : ''}
               </div>
               <div class="car-actions" style="margin-top:8px">
                 <button class="btn btn-success" onclick="acceptCustomerOffer('${offer.id}')">✅ Accept</button>
@@ -1680,7 +1955,10 @@ function renderForSale() {
     return `
       <div class="car-card forsale-card ${hasOffer ? 'has-offer' : ''}">
         <div class="car-card-header">
-          <span class="car-name">${car.year} ${car.make} ${car.model}${car.trim ? ' ' + car.trim : ''}</span>
+          <div>
+            ${settings.showWordmarks ? renderBrandWordmark(car.make) : ''}
+            <span class="car-name">${car.year} ${car.make} ${car.model}${car.trim ? ' ' + car.trim : ''}</span>
+          </div>
           ${condBadge(car.condition)}
         </div>
         ${hasOffer ? '<div class="offer-banner">📬 Customer offer waiting (see above)</div>' : ''}
@@ -1721,6 +1999,12 @@ function renderForSale() {
       <div class="tab-info">
         Press <strong>Next Day</strong> to simulate customer visits. Auto-sales happen at list price; below-list offers appear above.
       </div>
+      ${state.upgrades.crmSuite ? `
+        <div class="bulk-row">
+          <button class="btn btn-sm btn-secondary" onclick="bulkSetListing(1.0)">Set All to Market</button>
+          <button class="btn btn-sm btn-secondary" onclick="bulkSetListing(1.1)">Set All +10%</button>
+          <button class="btn btn-sm btn-warning" onclick="bulkSetListing(0.9)">Set All −10%</button>
+        </div>` : ''}
       <div class="card-grid">${cards}</div>
     </div>`;
 }
@@ -1760,6 +2044,30 @@ function renderUpgrades() {
     }
     html += `</div></div>`;
   }
+  if (state.upgrades.staffOffice) {
+    ensureStaffCandidates();
+    const staffCards = (state.staff || []).map(s => `
+      <div class="car-card upgrade-card">
+        <div class="upgrade-icon">🧑‍💼</div>
+        <h4>${s.name}</h4>
+        <p class="upgrade-desc">Negotiation ${s.negotiation} · Selling ${s.selling} · Speed ${s.speed}/day</p>
+        <p class="upgrade-cost text-red">${formatCurrency(s.wage)}/day wage</p>
+      </div>`).join('') || '<p class="text-muted">No staff hired yet.</p>';
+    const candidateCards = (state.staffCandidates || []).map(s => `
+      <div class="car-card upgrade-card">
+        <div class="upgrade-icon">🧾</div>
+        <h4>${s.name}</h4>
+        <p class="upgrade-desc">Negotiation ${s.negotiation} · Selling ${s.selling} · Speed ${s.speed}/day</p>
+        <p class="upgrade-cost">${formatCurrency(s.wage)}/day</p>
+        <div class="car-actions">
+          <button class="btn btn-primary btn-sm" onclick="hireStaff('${s.id}')">Hire</button>
+          <button class="btn btn-secondary btn-sm" onclick="dismissCandidate('${s.id}')">Skip</button>
+        </div>
+      </div>`).join('');
+    html += `
+      <div class="category-section"><h3>🧑‍💼 Hired Staff</h3><div class="card-grid">${staffCards}</div></div>
+      <div class="category-section"><h3>📝 Hiring Candidates</h3><div class="card-grid">${candidateCards}</div></div>`;
+  }
   document.getElementById('tab-upgrades').innerHTML = html;
 }
 
@@ -1769,6 +2077,7 @@ function renderUpgrades() {
 function renderSettings() {
   const isDark = settings.darkMode;
   const isHard = settings.difficulty === 'hard';
+  const sfxMuted = !!settings.sfxMuted;
   const overhead = OVERHEAD_BY_LEVEL[state.upgrades.garageLevel] ?? 300;
 
   document.getElementById('tab-settings').innerHTML = `
@@ -1783,6 +2092,36 @@ function renderSettings() {
           <button class="toggle-btn ${isDark ? 'active' : ''}" onclick="toggleDarkMode()" aria-label="Toggle dark mode">
             <span class="toggle-thumb"></span>
           </button>
+        </div>
+        <div class="setting-row" style="margin-top:10px">
+          <div>
+            <div class="setting-label">Show Brand Wordmarks</div>
+            <div class="setting-desc">Show per-make text wordmarks on vehicle cards.</div>
+          </div>
+          <button class="toggle-btn ${settings.showWordmarks ? 'active' : ''}" onclick="toggleWordmarks()" aria-label="Toggle brand wordmarks">
+            <span class="toggle-thumb"></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="dash-card settings-card">
+        <h3>🔊 Sound</h3>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">SFX</div>
+            <div class="setting-desc">Subtle cozy interaction sounds for clicks, deals, and alerts.</div>
+          </div>
+          <button class="toggle-btn ${!sfxMuted ? 'active' : ''}" onclick="toggleSfxMuted()" aria-label="Toggle sound effects">
+            <span class="toggle-thumb"></span>
+          </button>
+        </div>
+        <div class="setting-row" style="margin-top:10px">
+          <div>
+            <div class="setting-label">Volume</div>
+            <div class="setting-desc">${Math.round((settings.sfxVolume ?? 0.22) * 100)}%</div>
+          </div>
+          <input type="range" min="0" max="1" step="0.01" value="${settings.sfxVolume ?? 0.22}"
+            onchange="setSfxVolume(this.value)" style="width:180px" ${sfxMuted ? 'disabled' : ''}>
         </div>
       </div>
 
@@ -1817,6 +2156,10 @@ function renderSettings() {
         <div class="stat-row">
           <span>Daily Overhead</span>
           <strong class="text-red">−${formatCurrency(Math.round(overhead * (isHard ? 1.5 : 1.0)))}/day</strong>
+        </div>
+        <div class="stat-row">
+          <span>Daily Wages</span>
+          <strong class="text-red">−${formatCurrency((state.staff || []).reduce((s, st) => s + st.wage, 0))}/day</strong>
         </div>
         <div class="stat-row">
           <span>Garage Level</span>
@@ -1864,6 +2207,7 @@ function switchTab(name) {
     case 'upgrades':    renderUpgrades();        break;
     case 'settings':    renderSettings();        break;
   }
+  playSfx('click');
 }
 
 // ============================================================
@@ -1880,6 +2224,10 @@ function showToast(message, type = 'info') {
     el.classList.remove('show');
     setTimeout(() => el.remove(), 300);
   }, 3200);
+  if (type === 'success') playSfx('success');
+  else if (type === 'warning') playSfx('warning');
+  else if (type === 'error') playSfx('error');
+  else playSfx('click');
 }
 
 // ============================================================
@@ -1896,7 +2244,15 @@ function closeModal() { document.getElementById('modal').classList.add('hidden')
 // ============================================================
 // SETTINGS (dark mode, difficulty)  — separate localStorage key
 // ============================================================
-let settings = { darkMode: false, difficulty: 'normal' };
+let settings = { darkMode: false, difficulty: 'normal', sfxMuted: false, sfxVolume: 0.22, showWordmarks: true };
+let audioCtx = null;
+const SFX = {
+  click:   [420, 0.03, 'triangle'],
+  success: [660, 0.06, 'sine'],
+  warning: [280, 0.08, 'sawtooth'],
+  error:   [190, 0.09, 'square'],
+  cash:    [520, 0.05, 'triangle'],
+};
 
 function loadSettings() {
   try {
@@ -1919,6 +2275,7 @@ function toggleDarkMode() {
   applyDarkMode();
   saveSettings();
   renderSettings();
+  playSfx('click');
 }
 
 function setDifficulty(level) {
@@ -1926,6 +2283,48 @@ function setDifficulty(level) {
   saveSettings();
   renderSettings();
   showToast(`Difficulty set to ${level === 'hard' ? 'Hard 💪' : 'Normal'}.`);
+  playSfx('click');
+}
+
+function toggleSfxMuted() {
+  settings.sfxMuted = !settings.sfxMuted;
+  saveSettings();
+  renderSettings();
+}
+
+function setSfxVolume(raw) {
+  const vol = clamp(parseFloat(raw), 0, 1);
+  settings.sfxVolume = isNaN(vol) ? 0.22 : vol;
+  saveSettings();
+}
+
+function toggleWordmarks() {
+  settings.showWordmarks = !settings.showWordmarks;
+  saveSettings();
+  renderAll();
+}
+
+function playSfx(kind = 'click') {
+  if (settings.sfxMuted) return;
+  const config = SFX[kind];
+  if (!config) return;
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const [freq, dur, type] = config;
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, now);
+    osc.frequency.exponentialRampToValueAtTime(Math.max(120, freq * 0.92), now + dur);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, settings.sfxVolume * 0.28), now + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(now);
+    osc.stop(now + dur);
+  } catch (_) {}
 }
 
 /** Live tone preview as player types in an offer amount on used market cards. */
@@ -1954,6 +2353,7 @@ function init() {
     state.usedMarketOffers = generateUsedMarket();
     saveState();
   }
+  ensureStaffCandidates();
 
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
@@ -1973,13 +2373,14 @@ function init() {
   // Expose functions for inline onclick handlers in dynamically rendered HTML
   Object.assign(window, {
     buyFromFactory,
+    setFactoryMake, setFactoryModel,
     acceptUsedOffer, declineUsedOffer, inspectUsedOffer, submitUsedOffer, updateNegTone,
     acceptTradeInRequest, rejectTradeInRequest, counterTradeInRequest,
-    acceptCustomerOffer, rejectCustomerOffer, counterCustomerOffer,
-    markForSale, updateListPrice, setListPriceMultiplier,
+    acceptCustomerOffer, rejectCustomerOffer, counterCustomerOffer, applyStaffSuggestion,
+    markForSale, updateListPrice, setListPriceMultiplier, markAllForSale, unlistAllCars, bulkSetListing,
     buyUpgrade, detailCar, carWash, basicRepair, partsUpgrade,
-    confirmNewGame, exportSave,
-    toggleDarkMode, setDifficulty,
+    confirmNewGame, exportSave, hireStaff, dismissCandidate,
+    toggleDarkMode, setDifficulty, toggleSfxMuted, setSfxVolume, toggleWordmarks,
     renderGarage, renderForSale, renderUsedMarket, renderTradeInRequests,
   });
 

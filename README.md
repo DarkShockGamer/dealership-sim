@@ -37,10 +37,10 @@ Then open [http://localhost:8080](http://localhost:8080).
 Time only advances when you press **Next Day ▶**. No real-time timers — think through every decision.
 
 ### Dashboard
-Central hub showing: cash, day, reputation, garage usage, **daily overhead**, live **market conditions per segment**, pending deliveries, customer offers, trade-in requests, recent sales, activity log, and save/load controls.
+Central hub showing: cash, day, reputation, garage usage, **daily overhead + wages**, live **market conditions per segment**, pending deliveries, customer offers, trade-in requests, recent sales, activity log, **staff negotiation feed**, and save/load controls.
 
 ### 🏭 Factory
-Browse 2026 model-year cars across 6 categories, with **multiple trim levels** per model (e.g., Corolla LE / SE / XSE). Factory prices are **fixed — no negotiation**. Cars arrive with 5–50 miles and spotless condition. Lower risk, predictable margin.
+Browse using a compact **Make → Model → Trim** flow so large catalogs stay manageable. Factory prices are **fixed — no negotiation**. Cars arrive as **2026 model year** inventory with 5–50 miles and spotless condition.
 
 ### 🚗 Used Market
 4–7 used cars appear each day (model years 2008–2024) with mileage, wear, and potential hidden issues.
@@ -82,6 +82,8 @@ Lists your cars for sale plus a **Customer Offers inbox**:
 - **Dark Mode** toggle — persisted in localStorage. Works beautifully in either theme.
 - **Difficulty** — Normal vs Hard:
   - Hard: 1.5× daily overhead, more frequent market events, larger market swings.
+- **SFX mute + volume slider** for subtle cozy interaction sounds.
+- **Show Brand Wordmarks** toggle for code-only make styling on cards.
 
 ### ⬆️ Upgrades
 
@@ -98,6 +100,10 @@ Lists your cars for sale plus a **Customer Offers inbox**:
 | Performance Shop | $30,000 | Parts Upgrade on Sports/SUV/Truck: +15% value ($1,500/car, 1 day) |
 | Reputation Boost | $10,000 | +15% sale chance multiplier (×3 stackable) |
 | Delivery Express | $7,500 | −1 delivery day from factory |
+| Staff Office | $28,000 | Unlock hiring sales staff (Mode 2: suggest counters, you finalize) |
+| CRM Suite | $60,000 | High-volume management tools + stronger negotiation workflow |
+| AI Pricing Terminal | $120,000 | Better buyer acceptance on close counters |
+| Luxury Client Lounge | $180,000 | Increases premium/supercar buyer activity |
 
 ---
 
@@ -113,7 +119,8 @@ Your lot isn't free. Every Next Day press deducts:
 | Tier 3 (20 slots) | $1,200 |
 | Tier 4 (35 slots) | $2,100 |
 
-Expanding your garage means bigger overhead — only upgrade when your sales can cover it.
+Expanding your garage means bigger overhead — only upgrade when your sales can cover it.  
+If you hire staff, **daily wages** are added to overhead and can seriously hurt profitability.
 
 ### Market Volatility
 Each segment (Economy, Sedan, SUV, Truck, Sports, Luxury) has a **Market Index** that drifts daily ±0–2.5%. The Dashboard shows current values with 📈📉 arrows.
@@ -188,6 +195,18 @@ Capped at **85% per day**.
 2. Check **For Sale** tab — below-list customer offers appear with **Buyer Mood** and **Rounds Left**.
 3. Counter with a high price — buyer walks. Counter reasonably — buyer moves 35–55% toward your price.
 4. Multiple counter rounds are now possible (up to buyer's patience limit).
+5. Hire staff (after **Staff Office**) and press **Next Day** — staff suggestions appear on offers with confidence/tone notes.
+6. Use **Use Staff** to apply the recommended counter, then finalize manually (Mode 2 behavior).
+
+### Factory Browser + Supercars
+1. Open **Factory** and pick a manufacturer, then model, then trim.
+2. Confirm the list stays short while still exposing large catalog options.
+3. Browse premium trims (Corvette, Ferrari, Lamborghini, Bugatti, McLaren, Porsche, etc.) and verify very high pricing.
+
+### Sound Controls
+1. Open **Settings**.
+2. Toggle **SFX** off/on and adjust volume.
+3. Trigger UI actions (tab changes, toasts, deals) and verify subtle feedback.
 
 ### Trade-In Requests
 1. Mark at least one car for sale in **Garage**.
@@ -210,7 +229,7 @@ Capped at **85% per day**.
 
 - Game state saved to `localStorage` under key `dealerSim_v1` (save version tracked internally).
 - Settings (dark mode, difficulty) saved separately under `dealerSim_settings`.
-- Existing saves are **automatically migrated** to v2 — market indices and new fields are added without losing your progress.
+- Existing saves are **automatically migrated** to v3 — market indices, staff system fields, and new UI settings are added without losing your progress.
 - Use **Export Save** / **Import Save** on the Dashboard to back up or transfer saves.
 
 ---
@@ -246,6 +265,5 @@ dealership-sim/
 ├── styles.css       # All styles, CSS custom properties, dark mode
 ├── app.js           # Game logic, state management, render functions
 └── data/
-    └── cars.js      # Car catalog — 70+ entries, multiple trims per model
+    └── cars.js      # Car catalog — expanded with supercars/hypercars and trims
 ```
-

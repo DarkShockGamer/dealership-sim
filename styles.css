@@ -217,6 +217,31 @@ body {
   border-bottom: 2px solid var(--border);
 }
 
+.factory-browser {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.factory-stage h4 {
+  margin-bottom: 8px;
+  font-size: .86rem;
+  color: var(--text-muted);
+}
+
+.make-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bulk-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: -6px 0 14px;
+}
+
 /* ============================================================
    Car Card
    ============================================================ */
@@ -239,6 +264,16 @@ body {
   justify-content: space-between;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.brand-wordmark {
+  display: inline-block;
+  font-size: .72rem;
+  line-height: 1;
+  border-bottom: 2px solid currentColor;
+  padding-bottom: 1px;
+  opacity: .92;
+  margin-bottom: 4px;
 }
 
 .car-name {
