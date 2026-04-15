@@ -1822,26 +1822,30 @@ function renderGarage() {
     if (!inService) {
       reconHtml = `<div class="recon-actions">`;
       // Car Wash
+      const canWash = Number(state.cash) >= 150;
       if (car.washBoostDays <= 0) {
-        reconHtml += `<button class="btn btn-sm btn-secondary" onclick="carWash('${car.id}')"
-          ${state.cash < 150 ? 'disabled' : ''} title="Instant: +3% value, boosted sale chance 3 days">🚿 Wash ($150)</button>`;
+        reconHtml += `<button class="btn btn-sm btn-secondary recon-btn" onclick="carWash('${car.id}')"
+          ${canWash ? '' : 'disabled'} title="Instant: +3% value, boosted sale chance 3 days">🚿 Wash ($150)</button>`;
       } else {
-        reconHtml += `<button class="btn btn-sm btn-secondary" disabled title="Wash boost active for ${car.washBoostDays} more day(s)">🚿 Washed (${car.washBoostDays}d)</button>`;
+        reconHtml += `<button class="btn btn-sm btn-secondary recon-btn" disabled title="Wash boost active for ${car.washBoostDays} more day(s)">🚿 Washed (${car.washBoostDays}d)</button>`;
       }
       // Detailing
+      const canDetail = Number(state.cash) >= 500;
       if (state.upgrades.detailing && car.condition !== 'A') {
-        reconHtml += `<button class="btn btn-sm btn-secondary" onclick="detailCar('${car.id}')"
-          ${state.cash < 500 ? 'disabled' : ''} title="Instant: +1 condition tier, +7% value">✨ Detail ($500)</button>`;
+        reconHtml += `<button class="btn btn-sm btn-secondary recon-btn" onclick="detailCar('${car.id}')"
+          ${canDetail ? '' : 'disabled'} title="Instant: +1 condition tier, +7% value">✨ Detail ($500)</button>`;
       }
       // Basic Repair
+      const canRepair = Number(state.cash) >= 800;
       if (state.upgrades.serviceBay && car.condition !== 'A') {
-        reconHtml += `<button class="btn btn-sm btn-secondary" onclick="basicRepair('${car.id}')"
-          ${state.cash < 800 ? 'disabled' : ''} title="1 day: fixes issues, +1 condition tier, +10% value">🔩 Repair ($800)</button>`;
+        reconHtml += `<button class="btn btn-sm btn-secondary recon-btn" onclick="basicRepair('${car.id}')"
+          ${canRepair ? '' : 'disabled'} title="1 day: fixes issues, +1 condition tier, +10% value">🔩 Repair ($800)</button>`;
       }
       // Parts Upgrade
+      const canPartsUpgrade = Number(state.cash) >= 1500;
       if (state.upgrades.performanceShop && perfEligible && !perfDone) {
-        reconHtml += `<button class="btn btn-sm btn-secondary" onclick="partsUpgrade('${car.id}')"
-          ${state.cash < 1500 ? 'disabled' : ''} title="1 day: +15% market value">🏎️ Parts ($1,500)</button>`;
+        reconHtml += `<button class="btn btn-sm btn-secondary recon-btn" onclick="partsUpgrade('${car.id}')"
+          ${canPartsUpgrade ? '' : 'disabled'} title="1 day: +15% market value">🏎️ Parts ($1,500)</button>`;
       }
       reconHtml += `</div>`;
     }
