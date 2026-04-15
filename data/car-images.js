@@ -207,7 +207,7 @@ function stripHtml(html) {
     const doc = new DOMParser().parseFromString(html, 'text/html');
     return (doc.body.textContent || '').trim();
   } catch {
-    return html.replace(/<[^>]*>?/gm, '').trim();
+    return '';
   }
 }
 
