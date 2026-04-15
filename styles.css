@@ -662,6 +662,18 @@ body {
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 4px;
+  position: relative;
+  z-index: 1;
+}
+
+.garage-card::before,
+.garage-card::after {
+  pointer-events: none;
+}
+
+.recon-actions .recon-btn:not(:disabled) {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .recon-badges {
