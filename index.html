@@ -22,29 +22,31 @@
     <button class="btn btn-next-day" id="btn-next-day">Next Day ▶</button>
   </header>
 
-  <!-- ── Tab Navigation ─────────────────────────────────── -->
-  <nav class="tab-nav" role="tablist">
-    <button class="tab-btn active" data-tab="dashboard"  role="tab">📊 Dashboard</button>
-    <button class="tab-btn"        data-tab="factory"    role="tab">🏭 Factory</button>
-    <button class="tab-btn"        data-tab="usedmarket" role="tab">🚗 Used Market</button>
-    <button class="tab-btn"        data-tab="tradeins"   role="tab">🔄 Trade-Ins</button>
-    <button class="tab-btn"        data-tab="garage"     role="tab">🔑 Garage</button>
-    <button class="tab-btn"        data-tab="forsale"    role="tab">🏷️ For Sale</button>
-    <button class="tab-btn"        data-tab="upgrades"   role="tab">⬆️ Upgrades</button>
-    <button class="tab-btn"        data-tab="settings"   role="tab">⚙️ Settings</button>
-  </nav>
+  <div class="app-shell">
+    <!-- ── Tab Navigation ─────────────────────────────────── -->
+    <nav class="tab-nav" role="tablist">
+      <button class="tab-btn active" id="tab-btn-dashboard" data-tab="dashboard"  role="tab" aria-selected="true" aria-controls="tab-dashboard">📊 Dashboard</button>
+      <button class="tab-btn"        id="tab-btn-factory" data-tab="factory"    role="tab" aria-selected="false" aria-controls="tab-factory">🏭 Factory</button>
+      <button class="tab-btn"        id="tab-btn-usedmarket" data-tab="usedmarket" role="tab" aria-selected="false" aria-controls="tab-usedmarket">🚗 Used Market</button>
+      <button class="tab-btn"        id="tab-btn-tradeins" data-tab="tradeins"   role="tab" aria-selected="false" aria-controls="tab-tradeins">🔄 Trade-Ins</button>
+      <button class="tab-btn"        id="tab-btn-garage" data-tab="garage"     role="tab" aria-selected="false" aria-controls="tab-garage">🔑 Garage</button>
+      <button class="tab-btn"        id="tab-btn-forsale" data-tab="forsale"    role="tab" aria-selected="false" aria-controls="tab-forsale">🏷️ For Sale</button>
+      <button class="tab-btn"        id="tab-btn-upgrades" data-tab="upgrades"   role="tab" aria-selected="false" aria-controls="tab-upgrades">⬆️ Upgrades</button>
+      <button class="tab-btn"        id="tab-btn-settings" data-tab="settings"   role="tab" aria-selected="false" aria-controls="tab-settings">⚙️ Settings</button>
+    </nav>
 
-  <!-- ── Tab Panels ─────────────────────────────────────── -->
-  <main class="app-main">
-    <div id="tab-dashboard"  class="tab-panel active"  role="tabpanel"></div>
-    <div id="tab-factory"    class="tab-panel"         role="tabpanel"></div>
-    <div id="tab-usedmarket" class="tab-panel"         role="tabpanel"></div>
-    <div id="tab-tradeins"   class="tab-panel"         role="tabpanel"></div>
-    <div id="tab-garage"     class="tab-panel"         role="tabpanel"></div>
-    <div id="tab-forsale"    class="tab-panel"         role="tabpanel"></div>
-    <div id="tab-upgrades"   class="tab-panel"         role="tabpanel"></div>
-    <div id="tab-settings"   class="tab-panel"         role="tabpanel"></div>
-  </main>
+    <!-- ── Tab Panels ─────────────────────────────────────── -->
+    <main class="app-main">
+      <div id="tab-dashboard"  class="tab-panel active"  role="tabpanel" aria-labelledby="tab-btn-dashboard"></div>
+      <div id="tab-factory"    class="tab-panel"         role="tabpanel" aria-labelledby="tab-btn-factory"></div>
+      <div id="tab-usedmarket" class="tab-panel"         role="tabpanel" aria-labelledby="tab-btn-usedmarket"></div>
+      <div id="tab-tradeins"   class="tab-panel"         role="tabpanel" aria-labelledby="tab-btn-tradeins"></div>
+      <div id="tab-garage"     class="tab-panel"         role="tabpanel" aria-labelledby="tab-btn-garage"></div>
+      <div id="tab-forsale"    class="tab-panel"         role="tabpanel" aria-labelledby="tab-btn-forsale"></div>
+      <div id="tab-upgrades"   class="tab-panel"         role="tabpanel" aria-labelledby="tab-btn-upgrades"></div>
+      <div id="tab-settings"   class="tab-panel"         role="tabpanel" aria-labelledby="tab-btn-settings"></div>
+    </main>
+  </div>
 
   <!-- ── Toast Container ────────────────────────────────── -->
   <div id="toast-container" aria-live="polite"></div>
