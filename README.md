@@ -233,7 +233,7 @@ Capped at **85% per day**.
       - Hard: immediate Game Over
 
 ### Leasing
-1. In **Garage**, click **Make Lease Available** on one or more cars.
+1. In **Garage**, click **Offer Lease** on one or more cars.
 2. Press **Next Day** until a lease starts (badge changes to `LEASED (Xd left)`).
 3. Confirm while leased:
    - **Mark for Sale** is disabled

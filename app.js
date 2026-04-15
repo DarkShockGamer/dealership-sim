@@ -2404,7 +2404,7 @@ function renderGarage() {
     const leaseActionButtons = [];
     if (car.leaseStatus === 'none') {
       leaseActionButtons.push(
-        `<button class="btn btn-secondary" onclick="makeLeaseAvailable('${car.id}')" ${car.isForSale || inService ? 'disabled' : ''}>📝 Make Lease Available</button>`
+        `<button class="btn btn-secondary" onclick="makeLeaseAvailable('${car.id}')" ${car.isForSale || inService ? 'disabled' : ''}>📝 Offer Lease</button>`
       );
     } else if (car.leaseStatus === 'available') {
       leaseActionButtons.push(`<button class="btn btn-warning" onclick="stopOfferingLease('${car.id}')">⏹️ Stop Offering Lease</button>`);
