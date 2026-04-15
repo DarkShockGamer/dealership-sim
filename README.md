@@ -7,7 +7,7 @@ A fully client-side, single-page car dealership simulator. Buy cars, manage your
 DealerSim now uses a cohesive, blue game-inspired HUD theme:
 - Gradient blue backdrop with glass-style panels/cards
 - Segmented pill tab navigation
-- Consistent badge/chip/button styling across all sections (Dashboard, Factory, Used Market, Trade-Ins, Garage, For Sale, Upgrades, Settings)
+- Consistent badge/chip/button styling across all sections (Dashboard, Factory, Used Market, Trade-Ins, Garage, For Sale, Finance, Upgrades, Achievements, Settings)
 
 ---
 
@@ -47,10 +47,10 @@ Time only advances when you press **Next Day ▶**. No real-time timers — thin
 Central hub showing: cash, day, reputation, garage usage, **daily overhead + wages**, live **market conditions per segment**, pending deliveries, customer offers, trade-in requests, recent sales, activity log, **staff negotiation feed**, and save/load controls.
 
 ### 🏭 Factory
-Browse using a compact **Make → Model → Trim** flow so large catalogs stay manageable. Factory prices are **fixed — no negotiation**. Cars arrive as **2026 model year** inventory with 5–50 miles and spotless condition.
+Browse using a compact **Make → Model → Trim** flow so large catalogs stay manageable. Factory prices are **fixed — no negotiation**. Cars arrive as **2026 model year** inventory with 5–50 miles, spotless condition, and always **Clean title**.
 
 ### 🚗 Used Market
-4–7 used cars appear each day (model years 2008–2024) with mileage, wear, and potential hidden issues.
+4–7 used cars appear each day (model years 2008–2024) with mileage, wear, potential hidden issues, and visible **title status badges** (Clean/Rebuilt/Salvage/Lemon).
 
 - **Inspect** ($150–$300) to reveal hidden issues before buying.
 - **Live offer tone preview**: Type your offer and instantly see the seller's likely reaction (😊 Interested → 😠 Offended → 🤬 Insulted).
@@ -84,6 +84,20 @@ Lists your cars for sale plus a **Customer Offers inbox**:
 - When you counter, buyers move **35–55% toward your price** on their next reply (not just accepting/rejecting).
 - **Accept / Reject / Counter** each offer; counters resolve next day.
 - Auto-sells at list price if buyer offers full price.
+
+### 🏦 Finance
+- Use your dealership **credit line** (draw + pay down) at any time.
+- Interest is charged every **Next Day**.
+- Hard mode applies stricter debt pressure (higher APR and minimum principal due).
+- Delinquency ladder: warning → default (credit freeze + APR increase) → bankruptcy.
+- Bankruptcy behavior by difficulty:
+  - **Normal:** instant same-day liquidation by title-status multipliers, then continue with penalties and a Bankruptcy Report.
+  - **Hard:** bankruptcy is immediate Game Over.
+
+### 🏆 Achievements
+- Includes both **serious** and **funny** achievements.
+- Unlock toast appears immediately.
+- Achievements track title-status outcomes, loans/interest usage, and bankruptcy recovery moments.
 
 ### ⚙️ Settings
 - **Dark Mode** toggle — persisted in localStorage. Works beautifully in either theme.
@@ -185,10 +199,31 @@ Capped at **85% per day**.
 3. Occasionally a toast + activity log entry announces a **market event** (e.g., fuel price spike, construction boom).
 4. After buying a car, if its market segment dips, you'll see market value decline in your Garage.
 
+### Title Status (visible immediately)
+1. Open Factory, Used Market, Garage, and For Sale tabs.
+2. Confirm every car card shows a title badge (Clean/Rebuilt/Salvage/Lemon).
+3. Buy a used Salvage/Lemon car and list it; compare sale chance against a Clean-title car.
+
 ### Overhead Pressure
 1. Start a new game. Each Next Day deducts $300 from cash.
 2. Upgrade to Garage Tier 2 → overhead jumps to $600/day.
 3. Try surviving without making any sales — you'll run out of cash in ~80 days on Normal, ~55 on Hard.
+
+### Loans + Bankruptcy
+1. Open **Finance** tab and draw from the credit line.
+2. Press **Next Day** and verify daily interest is deducted.
+3. Keep spending until cash turns negative repeatedly:
+   - Miss 1 payment: warning
+   - Miss 2 payments: default (credit freeze + APR increase)
+   - Miss 3 payments:
+     - Normal: instant liquidation + Bankruptcy Report, then continue
+     - Hard: immediate Game Over
+
+### Achievements (serious + funny)
+1. Open **Achievements** tab and check locked cards.
+2. Sell a Clean-title car and draw/pay loans to trigger serious unlocks.
+3. Sell Salvage/Lemon outcomes and pay enough interest to trigger funny unlocks.
+4. Confirm unlock toasts appear instantly.
 
 ### Used Market (improved negotiation)
 1. Open **Used Market** tab. Type a lowball offer ($5,000 on a $20,000 car).
@@ -236,7 +271,7 @@ Capped at **85% per day**.
 
 - Game state saved to `localStorage` under key `dealerSim_v1` (save version tracked internally).
 - Settings (dark mode, difficulty) saved separately under `dealerSim_settings`.
-- Existing saves are **automatically migrated** to v3 — market indices, staff system fields, and new UI settings are added without losing your progress.
+- Existing saves are **automatically migrated** to v4 — title status defaults, loan fields, and achievements state are added without losing your progress.
 - Use **Export Save** / **Import Save** on the Dashboard to back up or transfer saves.
 
 ---

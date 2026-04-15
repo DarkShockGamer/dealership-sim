@@ -12,7 +12,7 @@ import { CAR_CATALOG } from './data/cars.js';
 // DEFAULT STATE
 // ============================================================
 const DEFAULT_STATE = {
-  saveVersion: 3,
+  saveVersion: 4,
   cash: 25000,
   day: 1,
   reputation: 1.0,
@@ -48,6 +48,22 @@ const DEFAULT_STATE = {
     Truck: 1.0,   Sports: 1.0, Luxury: 1.0,
   },
   lastMarketEvent: null,
+  loanBalance: 0,
+  loanLimit: 60000,
+  loanApr: 0.12,
+  loanFrozen: false,
+  missedPayments: 0,
+  delinquencyLevel: 0,
+  totalInterestPaid: 0,
+  totalLoanDrawn: 0,
+  totalLoanPaidDown: 0,
+  bankruptcyCount: 0,
+  consecutiveCleanSales: 0,
+  lemonSales: 0,
+  salvageProfitSales: 0,
+  gameOver: false,
+  lastBankruptcyReport: null,
+  achievementsUnlocked: {},
 };
 
 let state = JSON.parse(JSON.stringify(DEFAULT_STATE));
@@ -59,6 +75,11 @@ const CONDITIONS = ['A', 'B', 'C', 'D'];
 const CONDITION_NAMES  = { A: 'Excellent', B: 'Good', C: 'Fair', D: 'Poor' };
 const CONDITION_FACTOR = { A: 1.20, B: 1.00, C: 0.78, D: 0.52 };
 const CONDITION_VALUE  = { A: 1.05, B: 0.92, C: 0.75, D: 0.58 };
+const TITLE_STATUSES = ['clean', 'rebuilt', 'salvage', 'lemon'];
+const TITLE_LABELS = { clean: 'Clean', rebuilt: 'Rebuilt', salvage: 'Salvage', lemon: 'Lemon' };
+const TITLE_VALUE_MULT = { clean: 1.00, rebuilt: 0.85, salvage: 0.67, lemon: 0.56 };
+const TITLE_BUYER_MULT = { clean: 1.00, rebuilt: 0.90, salvage: 0.72, lemon: 0.58 };
+const LIQUIDATION_MULT = { clean: 0.78, rebuilt: 0.68, salvage: 0.55, lemon: 0.45 };
 const TRANSACTION_FEE  = 0.02;
 
 const PERF_ELIGIBLE = ['Sports', 'SUV', 'Truck']; // categories eligible for parts upgrade
@@ -129,6 +150,23 @@ const SFX_MIN_GAIN = 0.0001;
 const SFX_FLOOR_GAIN = 0.0002;
 const SFX_VOLUME_SCALE = 0.28;
 const SFX_ATTACK_SECONDS = 0.01;
+const LOAN_TERMS = {
+  normal: { limit: 60000, apr: 0.12, minPrincipalRate: 0 },
+  hard:   { limit: 45000, apr: 0.18, minPrincipalRate: 0.01 },
+};
+const DELINQUENCY_WARNING_LEVEL = 1;
+const DELINQUENCY_DEFAULT_LEVEL = 2;
+const DELINQUENCY_BANKRUPTCY_LEVEL = 3;
+const ACHIEVEMENTS = [
+  { id: 'title_clean_start', kind: 'serious', name: 'Flawless Paperwork', desc: 'Sell your first clean-title car.', check: s => !!s.achievementsUnlocked.title_clean_start || s.salesHistory.some(h => h.titleStatus === 'clean') },
+  { id: 'title_clean_streak', kind: 'serious', name: 'Clean Sweep', desc: 'Sell 5 clean-title cars in a row.', check: s => (s.consecutiveCleanSales || 0) >= 5 },
+  { id: 'loan_interest_paid', kind: 'serious', name: 'Bank Relationship', desc: 'Pay at least $2,500 in interest.', check: s => (s.totalInterestPaid || 0) >= 2500 },
+  { id: 'loan_debt_free', kind: 'serious', name: 'Debt Free Dealer', desc: 'Use the credit line, then fully pay it off.', check: s => (s.totalLoanDrawn || 0) > 0 && Math.round(s.loanBalance || 0) <= 0 },
+  { id: 'bankruptcy_survivor', kind: 'serious', name: 'Back From The Brink', desc: 'Survive a bankruptcy in normal mode.', check: s => (s.bankruptcyCount || 0) > 0 && !s.gameOver },
+  { id: 'salvage_profit', kind: 'funny', name: 'Salvage? More Like Savings.', desc: 'Make a profit on a salvage-title sale.', check: s => (s.salvageProfitSales || 0) >= 1 },
+  { id: 'lemonade_stand', kind: 'funny', name: 'The Lemonade Stand', desc: 'Sell 3 lemon-title cars.', check: s => (s.lemonSales || 0) >= 3 },
+  { id: 'interest_enthusiast', kind: 'funny', name: 'Interest Enthusiast', desc: 'Pay $10,000 total interest.', check: s => (s.totalInterestPaid || 0) >= 10000 },
+];
 
 const UPGRADES_CONFIG = [
   {
@@ -251,6 +289,39 @@ function formatCarDisplayName(car) {
   return `${car.year} ${makeText}${car.model}${car.trim ? ' ' + car.trim : ''}`;
 }
 
+function getBaseLoanTerms() {
+  return LOAN_TERMS[settings.difficulty === 'hard' ? 'hard' : 'normal'];
+}
+
+function syncLoanTermsToDifficulty() {
+  const terms = getBaseLoanTerms();
+  if (state.loanBalance === undefined) state.loanBalance = 0;
+  if (state.loanLimit === undefined) state.loanLimit = terms.limit;
+  if (state.loanApr === undefined) state.loanApr = terms.apr;
+  if ((state.delinquencyLevel || 0) < DELINQUENCY_DEFAULT_LEVEL) {
+    state.loanLimit = terms.limit;
+    state.loanApr = terms.apr;
+  }
+}
+
+function pickTitleStatus(source, condition, mileage) {
+  if (source === 'factory') return 'clean';
+  const condRisk = { A: 0, B: 1, C: 2, D: 3 }[condition] ?? 1;
+  const mileRisk = mileage > 140000 ? 3 : mileage > 95000 ? 2 : mileage > 60000 ? 1 : 0;
+  const risk = condRisk + mileRisk;
+  const weights = risk >= 5
+    ? [0.52, 0.20, 0.18, 0.10]
+    : risk >= 3
+      ? [0.72, 0.15, 0.09, 0.04]
+      : [0.88, 0.08, 0.03, 0.01];
+  let roll = Math.random();
+  for (let i = 0; i < TITLE_STATUSES.length; i++) {
+    roll -= weights[i];
+    if (roll <= 0) return TITLE_STATUSES[i];
+  }
+  return 'clean';
+}
+
 function ensureStaffCandidates() {
   if (!state.upgrades.staffOffice) return;
   if (!state.staffCandidates) state.staffCandidates = [];
@@ -342,11 +413,55 @@ function loadState() {
           day: loaded.day ?? 1,
         });
       }
+      if (loaded.saveVersion < 4) {
+        loaded.saveVersion = 4;
+        loaded.loanBalance = loaded.loanBalance ?? 0;
+        loaded.loanLimit = loaded.loanLimit ?? LOAN_TERMS.normal.limit;
+        loaded.loanApr = loaded.loanApr ?? LOAN_TERMS.normal.apr;
+        loaded.loanFrozen = !!loaded.loanFrozen;
+        loaded.missedPayments = loaded.missedPayments ?? 0;
+        loaded.delinquencyLevel = loaded.delinquencyLevel ?? 0;
+        loaded.totalInterestPaid = loaded.totalInterestPaid ?? 0;
+        loaded.totalLoanDrawn = loaded.totalLoanDrawn ?? 0;
+        loaded.totalLoanPaidDown = loaded.totalLoanPaidDown ?? 0;
+        loaded.bankruptcyCount = loaded.bankruptcyCount ?? 0;
+        loaded.consecutiveCleanSales = loaded.consecutiveCleanSales ?? 0;
+        loaded.lemonSales = loaded.lemonSales ?? 0;
+        loaded.salvageProfitSales = loaded.salvageProfitSales ?? 0;
+        loaded.gameOver = !!loaded.gameOver;
+        loaded.lastBankruptcyReport = loaded.lastBankruptcyReport ?? null;
+        loaded.achievementsUnlocked = loaded.achievementsUnlocked || {};
+        loaded.notifications = loaded.notifications || [];
+        loaded.notifications.unshift({
+          message: '🏦 Save upgraded to v4 — title status, loans, bankruptcy, and achievements added.',
+          type: 'info',
+          day: loaded.day ?? 1,
+        });
+      }
+      loaded.loanBalance = loaded.loanBalance ?? 0;
+      loaded.loanLimit = loaded.loanLimit ?? getBaseLoanTerms().limit;
+      loaded.loanApr = loaded.loanApr ?? getBaseLoanTerms().apr;
+      loaded.loanFrozen = !!loaded.loanFrozen;
+      loaded.missedPayments = loaded.missedPayments ?? 0;
+      loaded.delinquencyLevel = loaded.delinquencyLevel ?? 0;
+      loaded.totalInterestPaid = loaded.totalInterestPaid ?? 0;
+      loaded.totalLoanDrawn = loaded.totalLoanDrawn ?? 0;
+      loaded.totalLoanPaidDown = loaded.totalLoanPaidDown ?? 0;
+      loaded.bankruptcyCount = loaded.bankruptcyCount ?? 0;
+      loaded.consecutiveCleanSales = loaded.consecutiveCleanSales ?? 0;
+      loaded.lemonSales = loaded.lemonSales ?? 0;
+      loaded.salvageProfitSales = loaded.salvageProfitSales ?? 0;
+      loaded.gameOver = !!loaded.gameOver;
+      loaded.lastBankruptcyReport = loaded.lastBankruptcyReport ?? null;
+      loaded.achievementsUnlocked = loaded.achievementsUnlocked || {};
       // Migrate car objects
       for (const car of loaded.garage || []) migrateCar(car);
       for (const d of loaded.deliveries || []) migrateCar(d.car);
       for (const o of loaded.usedMarketOffers || []) migrateCar(o);
+      for (const req of loaded.tradeInRequests || []) migrateCar(req.customerCar);
+      for (const sold of loaded.salesHistory || []) migrateCar(sold);
       state = loaded;
+      syncLoanTermsToDifficulty();
       return true;
     }
   } catch (_) {}
@@ -360,6 +475,7 @@ function migrateCar(car) {
   if (car.reconditionLog    === undefined) car.reconditionLog    = [];
   if (car.washBoostDays     === undefined) car.washBoostDays     = 0;
   if (car.trim              === undefined) car.trim              = '';
+  if (!TITLE_STATUSES.includes(car.titleStatus)) car.titleStatus = 'clean';
   // Old offers had 'tradein' source — normalise
   if (car.source === 'tradein') car.source = 'used';
 }
@@ -400,17 +516,19 @@ function buildCar(entry, condition, source, inspected = false) {
   // Factory cars are always 2026 with near-zero miles
   const year    = source === 'factory' ? 2026 : randomInt(entry.yearRange[0], entry.yearRange[1]);
   const mileage = source === 'factory' ? randomInt(5, 50) : randomInt(entry.baseMileage[0], entry.baseMileage[1]);
+  const titleStatus = pickTitleStatus(source, condition, mileage);
   const issues  = inspected || source === 'factory' ? [] : genHiddenIssues(condition);
   const repairCost = issues.reduce((s, i) => s + i.cost, 0);
   // Apply current market index to base market value
   const marketIdx   = (state.marketIndices || {})[entry.category] ?? 1.0;
   const marketValue = Math.round(
-    entry.marketValue * CONDITION_VALUE[condition] * (1 - mileage / 700000) * marketIdx
+    entry.marketValue * CONDITION_VALUE[condition] * TITLE_VALUE_MULT[titleStatus] * (1 - mileage / 700000) * marketIdx
   );
   return {
     id: generateId(),
     make: entry.make, model: entry.model, trim: entry.trim || '', year, category: entry.category,
     mileage, condition,
+    titleStatus,
     hiddenIssues: issues,
     inspected,
     purchasePrice: 0,
@@ -510,12 +628,14 @@ function generateCustomerOffers() {
   for (const car of state.garage) {
     if (!car.isForSale || car.listPrice <= 0 || car.inServiceUntilDay) continue;
     if (existing.has(car.id)) continue; // already has a pending offer
+    const titleBuyerMult = TITLE_BUYER_MULT[car.titleStatus] || 1.0;
+    if (car.marketValue >= 90000 && (car.titleStatus === 'salvage' || car.titleStatus === 'lemon') && Math.random() < 0.75) continue;
     const chance = computeSaleChance(car);
     const luxuryBoost = state.upgrades.luxuryLounge && car.marketValue >= 90000 ? 0.14 : 0;
     // Offer probability is 1.5× sale chance (buyer haggles rather than pays full)
     if (Math.random() < Math.min(chance * 1.5 + luxuryBoost, 0.85)) {
       // Buyer has a hidden maximum they're willing to stretch to
-      const buyerMax     = Math.round(car.listPrice * randomFloat(0.86, 0.99));
+      const buyerMax     = Math.round(car.listPrice * randomFloat(0.86, 0.99) * clamp(titleBuyerMult + 0.1, 0.65, 1.05));
       // Initial offer is below their max (they start low to leave room)
       const mult         = randomFloat(0.72, 0.97);
       const offeredPrice = Math.round(Math.min(buyerMax * 0.98, car.listPrice * mult));
@@ -551,9 +671,10 @@ function computeSaleChance(car) {
   const repFactor       = state.reputation;
   const demandFactor    = car.demandFactor || 1;
   const washBonus       = car.washBoostDays > 0 ? 1.08 : 1.0;
+  const titleFactor     = TITLE_BUYER_MULT[car.titleStatus] || 1.0;
 
   chance = chance * priceAtt * condFactor * lotFactor * marketingFactor * repFactor
-         * repBoostFactor * demandFactor * washBonus;
+         * repBoostFactor * demandFactor * washBonus * titleFactor;
   return clamp(chance, 0.01, 0.85);
 }
 
@@ -591,8 +712,146 @@ function processOverhead() {
   const staffWages      = getTotalStaffWages();
   const total           = Math.round(baseOverhead * diffMult) + staffWages;
   state.cash           -= total;
-  if (state.cash < 0) state.cash = 0;
   addNote(`🏢 Overhead: −${formatCurrency(total)} (lot rent/utilities ${formatCurrency(Math.round(baseOverhead * diffMult))}${staffWages ? ` + wages ${formatCurrency(staffWages)}` : ''})`, 'warning');
+}
+
+function drawLoan(rawAmount) {
+  if (state.gameOver) return;
+  if (state.loanFrozen) { showToast('Credit line is frozen after default.', 'error'); return; }
+  const amount = Math.round(parseFloat(rawAmount));
+  if (isNaN(amount) || amount <= 0) { showToast('Enter a valid draw amount.', 'error'); return; }
+  const available = Math.max(0, state.loanLimit - state.loanBalance);
+  if (amount > available) { showToast(`Only ${formatCurrency(available)} available.`, 'error'); return; }
+  state.loanBalance += amount;
+  state.totalLoanDrawn += amount;
+  state.cash += amount;
+  addNote(`🏦 Drew ${formatCurrency(amount)} from credit line.`, 'info');
+  runAchievementChecks();
+  saveState();
+  renderAll();
+  showToast(`Loan draw: +${formatCurrency(amount)} cash.`, 'success');
+}
+
+function payDownLoan(rawAmount) {
+  if (state.gameOver) return;
+  if (state.loanBalance <= 0) { showToast('No outstanding balance.', 'error'); return; }
+  const amount = Math.round(parseFloat(rawAmount));
+  if (isNaN(amount) || amount <= 0) { showToast('Enter a valid payment amount.', 'error'); return; }
+  if (state.cash < amount) { showToast('Not enough cash for that payment.', 'error'); return; }
+  const paid = Math.min(amount, state.loanBalance);
+  state.cash -= paid;
+  state.loanBalance -= paid;
+  state.totalLoanPaidDown += paid;
+  if (state.loanBalance <= 0 && state.loanFrozen && state.delinquencyLevel < DELINQUENCY_DEFAULT_LEVEL) state.loanFrozen = false;
+  addNote(`💳 Loan payment made: ${formatCurrency(paid)}.`, 'success');
+  runAchievementChecks();
+  saveState();
+  renderAll();
+}
+
+function recordSaleStats(car, profit) {
+  if (!car) return;
+  const status = car.titleStatus || 'clean';
+  if (status === 'clean') state.consecutiveCleanSales = (state.consecutiveCleanSales || 0) + 1;
+  else state.consecutiveCleanSales = 0;
+  if (status === 'lemon') state.lemonSales = (state.lemonSales || 0) + 1;
+  if (status === 'salvage' && profit > 0) state.salvageProfitSales = (state.salvageProfitSales || 0) + 1;
+}
+
+function getLiquidationMultiplier(car) {
+  return LIQUIDATION_MULT[car?.titleStatus] || LIQUIDATION_MULT.clean;
+}
+
+function processLoanAndDelinquency() {
+  const terms = getBaseLoanTerms();
+  let due = 0;
+  if (state.loanBalance > 0) {
+    const interest = Math.max(1, Math.round(state.loanBalance * state.loanApr / 365));
+    state.cash -= interest;
+    state.totalInterestPaid += interest;
+    due += interest;
+    addNote(`🏦 Loan interest charged: ${formatCurrency(interest)} at ${(state.loanApr * 100).toFixed(1)}% APR.`, 'warning');
+    if (terms.minPrincipalRate > 0) {
+      const principalDue = Math.max(250, Math.round(state.loanBalance * terms.minPrincipalRate));
+      const paid = Math.max(0, Math.min(principalDue, state.cash >= 0 ? state.cash : 0, state.loanBalance));
+      state.loanBalance -= paid;
+      state.cash -= paid;
+      due += principalDue;
+      if (paid < principalDue) addNote(`⚠️ Minimum principal due ${formatCurrency(principalDue)} but only ${formatCurrency(paid)} was paid.`, 'warning');
+      else addNote(`💳 Minimum principal paid: ${formatCurrency(paid)}.`, 'info');
+    }
+  }
+
+  if (state.cash < 0 || (due > 0 && state.loanBalance > 0 && settings.difficulty === 'hard' && state.cash < 250)) {
+    state.missedPayments = (state.missedPayments || 0) + 1;
+    state.delinquencyLevel = Math.max(state.delinquencyLevel || 0, state.missedPayments);
+    if (state.missedPayments === DELINQUENCY_WARNING_LEVEL) {
+      addNote('⚠️ Delinquency warning: cash is negative after obligations.', 'warning');
+      showToast('⚠️ Missed payment warning.', 'warning');
+    } else if (state.missedPayments === DELINQUENCY_DEFAULT_LEVEL) {
+      state.loanFrozen = true;
+      state.loanApr += settings.difficulty === 'hard' ? 0.08 : 0.05;
+      addNote(`🚫 Loan default: credit line frozen. APR raised to ${(state.loanApr * 100).toFixed(1)}%.`, 'error');
+      showToast('🚫 Loan default. Credit line frozen.', 'error');
+    } else if (state.missedPayments >= DELINQUENCY_BANKRUPTCY_LEVEL) {
+      triggerBankruptcy();
+    }
+  } else if (state.missedPayments > 0) {
+    state.missedPayments = 0;
+    if (state.delinquencyLevel < DELINQUENCY_DEFAULT_LEVEL) state.loanFrozen = false;
+    addNote('✅ Delinquency cleared — account back in good standing.', 'success');
+  }
+}
+
+function triggerBankruptcy() {
+  state.delinquencyLevel = DELINQUENCY_BANKRUPTCY_LEVEL;
+  if (settings.difficulty === 'hard') {
+    state.gameOver = true;
+    addNote('💥 Bankruptcy on Hard mode. Game Over.', 'error');
+    showModal('Game Over — Bankruptcy', 'Hard mode bankruptcy ends the run immediately.', () => {
+      state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+      syncLoanTermsToDifficulty();
+      state.usedMarketOffers = generateUsedMarket();
+      saveState();
+      renderAll();
+      showToast('New game started after bankruptcy.', 'warning');
+    });
+    return;
+  }
+
+  const liquidationLog = [];
+  const sortedCars = [...state.garage].sort((a, b) => b.marketValue - a.marketValue);
+  for (const car of sortedCars) {
+    if (state.cash >= 0) break;
+    const salePrice = Math.max(500, Math.round(car.marketValue * getLiquidationMultiplier(car)));
+    state.cash += salePrice;
+    liquidationLog.push({
+      carLabel: `${car.year} ${car.make} ${car.model}${car.trim ? ` ${car.trim}` : ''}`,
+      titleStatus: car.titleStatus || 'clean',
+      marketValue: car.marketValue,
+      salePrice,
+    });
+    state.garage = state.garage.filter(c => c.id !== car.id);
+    state.customerOffers = state.customerOffers.filter(o => o.carId !== car.id);
+    state.tradeInRequests = state.tradeInRequests.filter(r => r.targetCarId !== car.id);
+  }
+
+  state.bankruptcyCount = (state.bankruptcyCount || 0) + 1;
+  state.loanFrozen = true;
+  state.loanLimit = Math.max(15000, Math.round(state.loanLimit * 0.75));
+  state.loanApr = Math.max(state.loanApr, getBaseLoanTerms().apr + 0.06);
+  state.reputation = Math.max(0.1, state.reputation - 0.2);
+  state.lastBankruptcyReport = {
+    day: state.day,
+    cashAfter: state.cash,
+    liquidated: liquidationLog,
+    loanLimit: state.loanLimit,
+    loanApr: state.loanApr,
+  };
+  state.missedPayments = 0;
+  addNote(`💸 Bankruptcy liquidation executed: sold ${liquidationLog.length} car(s). Cash now ${formatCurrency(state.cash)}.`, 'error');
+  showToast('💸 Bankruptcy liquidation completed. See Finance tab.', 'warning');
+  runAchievementChecks();
 }
 
 /** Shift per-segment market indices and occasionally fire a market event. */
@@ -745,9 +1004,11 @@ function processForSale() {
       state.reputation = profit > 0
         ? Math.min(state.reputation + 0.02, 2.0)
         : Math.max(state.reputation - 0.01, 0.1);
+      recordSaleStats(car, profit);
       state.salesHistory.unshift({
         ...car, soldDay: state.day, salePrice: car.listPrice, fee, profit,
       });
+      runAchievementChecks();
       addNote(
         `🎉 SOLD: ${car.year} ${car.make} ${car.model} for ${formatCurrency(car.listPrice)}! ` +
         `Profit: ${profit >= 0 ? '+' : ''}${formatCurrency(profit)}`,
@@ -814,7 +1075,9 @@ function executeSale(offer, car, salePrice) {
   state.reputation = profit > 0
     ? Math.min(state.reputation + 0.015, 2.0)
     : Math.max(state.reputation - 0.01, 0.1);
+  recordSaleStats(car, profit);
   state.salesHistory.unshift({ ...car, soldDay: state.day, salePrice, fee, profit });
+  runAchievementChecks();
   state.garage          = state.garage.filter(c => c.id !== car.id);
   state.tradeInRequests = state.tradeInRequests.filter(r => r.targetCarId !== car.id);
   state.customerOffers  = state.customerOffers.filter(o => o.carId !== car.id);
@@ -864,14 +1127,28 @@ function addNote(message, type = 'info') {
   if (state.notifications.length > 60) state.notifications.pop();
 }
 
+function runAchievementChecks() {
+  if (!state.achievementsUnlocked) state.achievementsUnlocked = {};
+  for (const ach of ACHIEVEMENTS) {
+    if (state.achievementsUnlocked[ach.id]) continue;
+    if (!ach.check(state)) continue;
+    state.achievementsUnlocked[ach.id] = state.day;
+    addNote(`🏆 Achievement unlocked: ${ach.name}`, 'success');
+    showToast(`🏆 ${ach.name}`, 'success');
+  }
+}
+
 // ============================================================
 // NEXT DAY — main entry
 // ============================================================
 function nextDay() {
+  if (state.gameOver) { showToast('Game over — start a new game to continue.', 'error'); return; }
   state.day++;
   processDeliveries();
   processService();
+  syncLoanTermsToDifficulty();
   processOverhead();          // daily lot/garage/staff costs
+  processLoanAndDelinquency();// daily debt service and delinquency ladder
   processMarketVolatility();  // segment index drift + random events
   processMarketDepreciation();// value changes on inventory
   resolveCustomerOfferCounters();
@@ -887,6 +1164,7 @@ function nextDay() {
   state.customerOffers = [...state.customerOffers, ...newOffers];
   processStaffMode2Recommendations();
   ensureStaffCandidates();
+  runAchievementChecks();
   saveState();
   renderAll();
   const offerAlert = newOffers.length ? ` ${newOffers.length} offer(s) on your cars!` : '';
@@ -1063,17 +1341,18 @@ function executeTradeIn(req, cashDelta) {
 
   // Apply cash delta: positive = customer pays us, negative = we pay customer
   state.cash += cashDelta;
-  if (state.cash < 0) state.cash = 0; // safety guard (shouldn't happen with UI validation)
 
   // Record the sale
   const salePrice = req.customerCarValue + cashDelta;
   const fee       = Math.round(Math.abs(salePrice) * TRANSACTION_FEE);
   state.cash -= fee;
   const profit    = salePrice - fee - targetCar.purchasePrice;
+  recordSaleStats(targetCar, profit);
   state.salesHistory.unshift({
     ...targetCar, soldDay: state.day, salePrice, fee, profit,
     note: `Trade-in — received ${req.customerCar.year} ${req.customerCar.make} ${req.customerCar.model}`,
   });
+  runAchievementChecks();
 
   // Remove sold car from garage + any pending offers
   state.garage = state.garage.filter(c => c.id !== req.targetCarId);
@@ -1339,6 +1618,7 @@ function confirmNewGame() {
     'All progress will be lost. Are you sure?',
     () => {
       state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+      syncLoanTermsToDifficulty();
       state.usedMarketOffers = generateUsedMarket();
       saveState();
       renderAll();
@@ -1364,7 +1644,7 @@ function importSave(file) {
     try {
       const loaded = JSON.parse(e.target.result);
       // Run migration on import too
-      state = loaded;
+      localStorage.setItem('dealerSim_v1', JSON.stringify(loaded));
       loadState(); // re-runs migration logic via the same code path
       saveState();
       renderAll();
@@ -1384,11 +1664,23 @@ function condBadge(c) {
   return `<span class="badge ${cls[c] || ''}">${c} – ${CONDITION_NAMES[c]}</span>`;
 }
 
+function titleBadge(status) {
+  const cls = {
+    clean: 'badge-green',
+    rebuilt: 'badge-blue',
+    salvage: 'badge-yellow',
+    lemon: 'badge-red',
+  };
+  return `<span class="badge ${cls[status] || 'badge-gray'}">${TITLE_LABELS[status] || 'Unknown'} Title</span>`;
+}
+
 function renderStats() {
   document.getElementById('stat-cash').textContent   = `💵 ${formatCurrency(state.cash)}`;
   document.getElementById('stat-day').textContent    = `📅 Day ${state.day}`;
   document.getElementById('stat-rep').textContent    = `⭐ Rep ${state.reputation.toFixed(2)}`;
   document.getElementById('stat-garage').textContent = `🏠 ${state.garage.length} / ${state.garageSlots}`;
+  const debtChip = document.getElementById('stat-debt');
+  if (debtChip) debtChip.textContent = `🏦 Debt ${formatCurrency(state.loanBalance || 0)}`;
 }
 
 // ============================================================
@@ -1459,6 +1751,9 @@ function renderDashboard() {
         <div class="stat-row"><span>Daily Overhead</span>
           <strong class="text-red">−${formatCurrency(Math.round(overhead * diffMult))}/day</strong></div>
         <div class="stat-row"><span>Daily Wages</span><strong class="text-red">−${formatCurrency(wageTotal)}/day</strong></div>
+        <div class="stat-row"><span>Credit Line Balance</span><strong class="${state.loanBalance > 0 ? 'text-red' : 'text-green'}">${formatCurrency(state.loanBalance)}</strong></div>
+        <div class="stat-row"><span>Loan APR</span><strong>${(state.loanApr * 100).toFixed(1)}%</strong></div>
+        <div class="stat-row"><span>Delinquency</span><strong class="${state.delinquencyLevel > 0 ? 'text-red' : 'text-green'}">Level ${state.delinquencyLevel || 0}</strong></div>
         <div class="stat-row"><span>Hired Staff</span><strong>${state.staff?.length || 0}</strong></div>
         <div class="stat-row"><span>Listed for Sale</span><strong>${forSaleCount}</strong></div>
         <div class="stat-row"><span>In Service</span><strong>${inService}</strong></div>
@@ -1477,6 +1772,7 @@ function renderDashboard() {
         <h3>📈 Market Conditions</h3>
         ${marketRows}
         ${state.lastMarketEvent ? `<div class="tab-info" style="margin-top:10px;font-size:.8rem">${state.lastMarketEvent}</div>` : ''}
+        ${state.delinquencyLevel > 0 ? `<div class="tab-info" style="margin-top:10px;font-size:.8rem;border-color:rgba(255,122,133,.5);background:rgba(255,122,133,.12)">⚠️ Delinquency level ${state.delinquencyLevel}: ${state.loanFrozen ? 'credit line is frozen.' : 'stay solvent to avoid default.'}</div>` : ''}
       </div>
 
       <div class="dash-card">
@@ -1556,10 +1852,14 @@ function renderFactory() {
             ${settings.showWordmarks ? renderBrandWordmark(car.make) : ''}
             <span class="car-name">2026 ${settings.showWordmarks ? '' : `${car.make} `}${car.model}</span>
           </div>
-          <span class="badge badge-gray">${car.category}</span>
+          <div class="badge-stack">
+            <span class="badge badge-gray">${car.category}</span>
+            ${titleBadge('clean')}
+          </div>
         </div>
         <div class="car-details">
           <div class="detail-row"><span>Trim</span><span style="font-weight:600">${car.trim || '—'}</span></div>
+          <div class="detail-row"><span>Title Status</span><span>Clean</span></div>
           <div class="detail-row"><span>Invoice Price</span><span class="text-blue">${formatCurrency(car.basePrice)}</span></div>
           <div class="detail-row"><span>Market Value</span><span class="text-green">${formatCurrency(adjMarket)}</span></div>
           <div class="detail-row"><span>Est. Margin</span><span class="${adjMargin >= 0 ? 'text-green' : 'text-red'}">${adjMargin >= 0 ? '+' : ''}${formatCurrency(adjMargin)}</span></div>
@@ -1650,10 +1950,14 @@ function renderUsedMarket() {
               ${settings.showWordmarks ? renderBrandWordmark(offer.make) : ''}
               <span class="car-name">${formatCarDisplayName(offer)}</span>
             </div>
-            ${condBadge(offer.condition)}
+            <div class="badge-stack">
+              ${condBadge(offer.condition)}
+              ${titleBadge(offer.titleStatus)}
+            </div>
           </div>
         <div class="car-details">
           <div class="detail-row"><span>Category</span><span>${offer.category}</span></div>
+          <div class="detail-row"><span>Title Status</span><span>${TITLE_LABELS[offer.titleStatus] || 'Clean'}</span></div>
           <div class="detail-row"><span>Mileage</span><span>${offer.mileage.toLocaleString()} mi</span></div>
           <div class="detail-row"><span>Asking Price</span><span class="text-blue">${formatCurrency(asking)}</span></div>
           <div class="detail-row"><span>Est. Market Value</span>
@@ -1735,6 +2039,7 @@ function renderTradeInRequests() {
             <h5>🚗 Their Car</h5>
             <div class="detail-row"><span>Car</span><span>${settings.showWordmarks ? `${renderBrandWordmark(req.customerCar.make)} ` : ''}${req.customerCar.year} ${req.customerCar.make} ${req.customerCar.model}</span></div>
             <div class="detail-row"><span>Condition</span>${condBadge(req.customerCar.condition)}</div>
+            <div class="detail-row"><span>Title</span><span>${TITLE_LABELS[req.customerCar.titleStatus] || 'Clean'}</span></div>
             <div class="detail-row"><span>Mileage</span><span>${req.customerCar.mileage.toLocaleString()} mi</span></div>
             <div class="detail-row"><span>Their Car Value</span><span class="text-green">${formatCurrency(req.customerCarValue)}</span></div>
           </div>
@@ -1742,6 +2047,7 @@ function renderTradeInRequests() {
             <h5>🏷️ Your Car</h5>
             <div class="detail-row"><span>Car</span><span>${settings.showWordmarks ? `${renderBrandWordmark(targetCar.make)} ` : ''}${targetCar.year} ${targetCar.make} ${targetCar.model}</span></div>
             <div class="detail-row"><span>Listed Price</span><span class="text-blue">${formatCurrency(targetCar.listPrice)}</span></div>
+            <div class="detail-row"><span>Title</span><span>${TITLE_LABELS[targetCar.titleStatus] || 'Clean'}</span></div>
           </div>
         </div>
         <div class="tradein-summary">
@@ -1857,13 +2163,17 @@ function renderGarage() {
               ${settings.showWordmarks ? renderBrandWordmark(car.make) : ''}
               <span class="car-name">${formatCarDisplayName(car)}</span>
             </div>
-            ${condBadge(car.condition)}
+            <div class="badge-stack">
+              ${condBadge(car.condition)}
+              ${titleBadge(car.titleStatus)}
+            </div>
           </div>
         ${inService ? `<div class="service-banner">🔧 IN SERVICE — Ready Day ${car.inServiceUntilDay} (${car.pendingService?.type === 'repair' ? 'Basic Repair' : 'Parts Upgrade'})</div>` : ''}
         ${car.isForSale ? '<div class="for-sale-banner">🏷️ LISTED FOR SALE</div>' : ''}
         ${car.washBoostDays > 0 ? `<div class="wash-banner">🚿 Wash boost active (${car.washBoostDays} days left)</div>` : ''}
         <div class="car-details">
           <div class="detail-row"><span>Category</span><span>${car.category}</span></div>
+          <div class="detail-row"><span>Title Status</span><span>${TITLE_LABELS[car.titleStatus] || 'Clean'}</span></div>
           <div class="detail-row"><span>Mileage</span><span>${car.mileage.toLocaleString()} mi</span></div>
           <div class="detail-row"><span>Purchased For</span><span>${formatCurrency(car.purchasePrice)}</span></div>
           <div class="detail-row"><span>Market Value</span><span class="text-green">${formatCurrency(car.marketValue)}</span></div>
@@ -1933,7 +2243,10 @@ function renderForSale() {
               ${settings.showWordmarks ? renderBrandWordmark(car.make) : ''}
               <span class="car-name">${formatCarDisplayName(car)}</span>
             </div>
-            <span class="badge ${isCountered ? 'badge-yellow' : 'badge-blue'}">${isCountered ? 'Countered' : 'Offer'}</span>
+            <div class="badge-stack">
+              ${titleBadge(car.titleStatus)}
+              <span class="badge ${isCountered ? 'badge-yellow' : 'badge-blue'}">${isCountered ? 'Countered' : 'Offer'}</span>
+            </div>
           </div>
           <div class="car-details">
             <div class="detail-row"><span>Customer Offers</span><span class="text-blue">${formatCurrency(offer.offeredPrice)}</span></div>
@@ -2002,7 +2315,10 @@ function renderForSale() {
             ${settings.showWordmarks ? renderBrandWordmark(car.make) : ''}
             <span class="car-name">${formatCarDisplayName(car)}</span>
           </div>
-          ${condBadge(car.condition)}
+          <div class="badge-stack">
+            ${condBadge(car.condition)}
+            ${titleBadge(car.titleStatus)}
+          </div>
         </div>
         ${hasOffer ? '<div class="offer-banner">📬 Customer offer waiting (see above)</div>' : ''}
         ${hasTIR   ? '<div class="tradein-banner">🔄 Trade-in request waiting (see Trade-Ins tab)</div>' : ''}
@@ -2010,6 +2326,7 @@ function renderForSale() {
         <div class="car-details">
           <div class="detail-row"><span>Purchased For</span><span>${formatCurrency(car.purchasePrice)}</span></div>
           <div class="detail-row"><span>Market Value</span><span class="text-green">${formatCurrency(car.marketValue)}</span></div>
+          <div class="detail-row"><span>Title Status</span><span>${TITLE_LABELS[car.titleStatus] || 'Clean'}</span></div>
           <div class="detail-row"><span>Days on Lot</span><span>${car.daysInLot}</span></div>
           <div class="detail-row"><span>Sale Chance / Day</span><span class="${chanceClass}">${chance}%</span></div>
           <div class="detail-row"><span>Transaction Fee (2%)</span><span class="text-red">−${formatCurrency(fee)}</span></div>
@@ -2114,6 +2431,92 @@ function renderUpgrades() {
   document.getElementById('tab-upgrades').innerHTML = html;
 }
 
+function renderFinance() {
+  const available = Math.max(0, state.loanLimit - state.loanBalance);
+  const dailyInterest = state.loanBalance > 0 ? Math.max(1, Math.round(state.loanBalance * state.loanApr / 365)) : 0;
+  const minPrincipal = settings.difficulty === 'hard' && state.loanBalance > 0
+    ? Math.max(250, Math.round(state.loanBalance * LOAN_TERMS.hard.minPrincipalRate))
+    : 0;
+  const report = state.lastBankruptcyReport;
+  const reportRows = report?.liquidated?.length
+    ? report.liquidated.map(item => `
+      <div class="sale-item">
+        <span>${item.carLabel} (${TITLE_LABELS[item.titleStatus] || 'Clean'})</span>
+        <span>${formatCurrency(item.marketValue)}</span>
+        <span class="text-red">${formatCurrency(item.salePrice)}</span>
+      </div>`).join('')
+    : '<p class="empty-msg">No liquidation events yet.</p>';
+
+  document.getElementById('tab-finance').innerHTML = `
+    <div class="dashboard-grid">
+      <div class="dash-card">
+        <h3>🏦 Dealership Credit Line</h3>
+        <div class="stat-row"><span>Balance</span><strong class="${state.loanBalance > 0 ? 'text-red' : 'text-green'}">${formatCurrency(state.loanBalance)}</strong></div>
+        <div class="stat-row"><span>Available</span><strong>${formatCurrency(available)}</strong></div>
+        <div class="stat-row"><span>Limit</span><strong>${formatCurrency(state.loanLimit)}</strong></div>
+        <div class="stat-row"><span>APR</span><strong>${(state.loanApr * 100).toFixed(1)}%</strong></div>
+        <div class="stat-row"><span>Daily Interest</span><strong class="text-red">−${formatCurrency(dailyInterest)}</strong></div>
+        <div class="stat-row"><span>Min Principal (Hard)</span><strong>${minPrincipal ? formatCurrency(minPrincipal) : 'None'}</strong></div>
+        <div class="stat-row"><span>Delinquency</span><strong class="${state.delinquencyLevel > 0 ? 'text-red' : 'text-green'}">Level ${state.delinquencyLevel || 0}</strong></div>
+        <div class="stat-row"><span>Credit Status</span><strong class="${state.loanFrozen ? 'text-red' : 'text-green'}">${state.loanFrozen ? 'Frozen' : 'Open'}</strong></div>
+      </div>
+
+      <div class="dash-card">
+        <h3>💳 Manage Loan</h3>
+        <p class="text-muted" style="font-size:.82rem;margin-bottom:10px">Draw funds for inventory, then pay down as you sell cars. Interest applies every Next Day.</p>
+        <div class="neg-input-row">
+          <input type="number" class="price-input" id="loan-draw-input" min="1" placeholder="Draw amount">
+          <button class="btn btn-primary" onclick="drawLoan(document.getElementById('loan-draw-input').value)" ${state.loanFrozen ? 'disabled' : ''}>Draw</button>
+        </div>
+        <div class="neg-input-row" style="margin-top:10px">
+          <input type="number" class="price-input" id="loan-pay-input" min="1" placeholder="Payment amount">
+          <button class="btn btn-success" onclick="payDownLoan(document.getElementById('loan-pay-input').value)" ${state.loanBalance <= 0 ? 'disabled' : ''}>Pay Down</button>
+        </div>
+        <div class="bulk-row" style="margin-top:10px">
+          <button class="btn btn-sm btn-secondary" onclick="drawLoan(5000)" ${state.loanFrozen ? 'disabled' : ''}>Draw $5,000</button>
+          <button class="btn btn-sm btn-secondary" onclick="drawLoan(10000)" ${state.loanFrozen ? 'disabled' : ''}>Draw $10,000</button>
+          <button class="btn btn-sm btn-secondary" onclick="payDownLoan(${Math.min(state.cash, state.loanBalance)})" ${state.loanBalance <= 0 || state.cash <= 0 ? 'disabled' : ''}>Pay Max</button>
+        </div>
+      </div>
+
+      <div class="dash-card dash-card-wide">
+        <h3>📉 Delinquency & Bankruptcy Ladder</h3>
+        <div class="stat-row"><span>1 Missed Payment</span><strong class="text-yellow">Warning</strong></div>
+        <div class="stat-row"><span>2 Missed Payments</span><strong class="text-red">Default: credit freeze + APR increase</strong></div>
+        <div class="stat-row"><span>3 Missed Payments</span><strong class="text-red">${settings.difficulty === 'hard' ? 'Hard: Game Over' : 'Normal: Instant liquidation then continue'}</strong></div>
+      </div>
+
+      <div class="dash-card dash-card-wide">
+        <h3>🧾 Bankruptcy Report ${report ? `(Day ${report.day})` : ''}</h3>
+        ${report ? `<div class="tab-info">Cash after liquidation: <strong>${formatCurrency(report.cashAfter)}</strong> · New limit: <strong>${formatCurrency(report.loanLimit)}</strong> · New APR: <strong>${(report.loanApr * 100).toFixed(1)}%</strong></div>` : ''}
+        ${reportRows}
+      </div>
+    </div>`;
+}
+
+function renderAchievements() {
+  const unlocked = state.achievementsUnlocked || {};
+  const renderGroup = kind => ACHIEVEMENTS.filter(a => a.kind === kind).map(a => {
+    const day = unlocked[a.id];
+    return `<div class="car-card achievement-card ${day ? 'achievement-unlocked' : 'achievement-locked'}">
+      <div class="car-card-header">
+        <span class="car-name">${a.name}</span>
+        <span class="badge ${day ? 'badge-green' : 'badge-gray'}">${day ? `Unlocked Day ${day}` : 'Locked'}</span>
+      </div>
+      <p class="upgrade-desc">${a.desc}</p>
+    </div>`;
+  }).join('');
+  document.getElementById('tab-achievements').innerHTML = `
+    <div class="category-section">
+      <h3>🎯 Serious Achievements</h3>
+      <div class="card-grid">${renderGroup('serious')}</div>
+    </div>
+    <div class="category-section">
+      <h3>😄 Funny Achievements</h3>
+      <div class="card-grid">${renderGroup('funny')}</div>
+    </div>`;
+}
+
 // ============================================================
 // RENDER — Settings
 // ============================================================
@@ -2182,7 +2585,7 @@ function renderSettings() {
         <div class="setting-row" style="margin-top:10px">
           <div>
             <div class="setting-label">Hard 💪</div>
-            <div class="setting-desc">1.5× overhead costs, higher market swings & more frequent events. Easy to go broke.</div>
+            <div class="setting-desc">1.5× overhead, higher APR/min principal pressure, and bankruptcy is Game Over.</div>
           </div>
           <button class="btn btn-sm ${isHard ? 'btn-danger' : 'btn-secondary'}" onclick="setDifficulty('hard')">
             ${isHard ? '✔ Selected' : 'Select'}
@@ -2229,7 +2632,9 @@ function renderAll() {
     case 'tradeins':    renderTradeInRequests(); break;
     case 'garage':      renderGarage();          break;
     case 'forsale':     renderForSale();         break;
+    case 'finance':     renderFinance();         break;
     case 'upgrades':    renderUpgrades();        break;
+    case 'achievements':renderAchievements();    break;
     case 'settings':    renderSettings();        break;
   }
 }
@@ -2251,7 +2656,9 @@ function switchTab(name) {
     case 'tradeins':    renderTradeInRequests(); break;
     case 'garage':      renderGarage();          break;
     case 'forsale':     renderForSale();         break;
+    case 'finance':     renderFinance();         break;
     case 'upgrades':    renderUpgrades();        break;
+    case 'achievements':renderAchievements();    break;
     case 'settings':    renderSettings();        break;
   }
   playSfx('click');
@@ -2327,8 +2734,9 @@ function toggleDarkMode() {
 
 function setDifficulty(level) {
   settings.difficulty = level;
+  syncLoanTermsToDifficulty();
   saveSettings();
-  renderSettings();
+  renderAll();
   showToast(`Difficulty set to ${level === 'hard' ? 'Hard 💪' : 'Normal'}.`);
   playSfx('click');
 }
@@ -2399,8 +2807,11 @@ function init() {
   loadSettings(); // must be before any render so dark mode applies
   if (!loadState()) {
     state.usedMarketOffers = generateUsedMarket();
+    syncLoanTermsToDifficulty();
     saveState();
   }
+  syncLoanTermsToDifficulty();
+  runAchievementChecks();
   ensureStaffCandidates();
 
   document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -2427,9 +2838,10 @@ function init() {
     acceptCustomerOffer, rejectCustomerOffer, counterCustomerOffer, applyStaffSuggestion,
     markForSale, updateListPrice, setListPriceMultiplier, markAllForSale, unlistAllCars, bulkSetListing,
     buyUpgrade, detailCar, carWash, basicRepair, partsUpgrade,
+    drawLoan, payDownLoan,
     confirmNewGame, exportSave, hireStaff, dismissCandidate,
     toggleDarkMode, setDifficulty, toggleSfxMuted, setSfxVolume, toggleWordmarks,
-    renderGarage, renderForSale, renderUsedMarket, renderTradeInRequests,
+    renderGarage, renderForSale, renderUsedMarket, renderTradeInRequests, renderFinance, renderAchievements,
   });
 
   renderAll();

@@ -428,6 +428,12 @@ body {
 
 /* Condition in car-card-header */
 .car-card-header .badge { margin-top: 2px; }
+.badge-stack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
 
 /* ============================================================
    Upgrade Cards
@@ -441,6 +447,9 @@ body {
 .upgrade-desc { font-size: .82rem; color: var(--text-muted); line-height: 1.4; }
 .upgrade-cost { font-size: 1.1rem; font-weight: 700; color: var(--primary); }
 .disabled-card { opacity: .65; }
+.achievement-card { min-height: 120px; }
+.achievement-locked { opacity: .74; }
+.achievement-unlocked { border-color: rgba(76, 214, 158, .55); }
 
 /* ============================================================
    Dashboard Grid
