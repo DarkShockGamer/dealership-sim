@@ -194,6 +194,25 @@ export function getCommonsTitle(make, model, trim) {
 }
 
 /**
+ * Safely strip HTML tags from a string returned by the Commons API.
+ * Uses DOMParser when available (correct, handles all edge cases), falls back
+ * to a regex that also handles unclosed/malformed tags.
+ *
+ * @param {string} html
+ * @returns {string}
+ */
+function stripHtml(html) {
+  if (!html) return '';
+  try {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    return (doc.body.textContent || '').trim();
+  } catch {
+    return html.replace(/<[^>]*>?/gm, '').trim();
+  }
+}
+
+
+/**
  * Fetch image metadata from Wikimedia Commons for a given file title.
  * Results are cached in-memory; duplicate in-flight requests are deduplicated.
  *
@@ -233,8 +252,8 @@ export async function fetchCommonsImageInfo(commonsTitle) {
         url:     ii.url,
         descUrl: ii.descriptionurl
           || `https://commons.wikimedia.org/wiki/File:${encodeURIComponent(commonsTitle)}`,
-        license: (meta.LicenseShortName?.value || meta.License?.value || '').replace(/<[^>]+>/g, '').trim(),
-        author:  (meta.Artist?.value || '').replace(/<[^>]+>/g, '').trim(),
+        license: stripHtml(meta.LicenseShortName?.value || meta.License?.value || ''),
+        author:  stripHtml(meta.Artist?.value || ''),
       };
       _imageCache.set(commonsTitle, info);
       return info;

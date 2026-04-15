@@ -3264,20 +3264,25 @@ const CAR_PLACEHOLDER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 
  * Return the thumbnail HTML for a car card. Shows a placeholder immediately;
  * the async image update replaces it once the Wikimedia API responds.
  * Clicking the thumbnail opens the car image details modal.
+ * Car data is stored in data-* attributes to avoid any escaping issues.
  */
 function carThumbHtml(make, model, trim, year, category) {
   if (!settings.showCarImages) return '';
   const title = getCommonsTitle(make, model, trim);
   const commonsAttr = title ? ` data-commons="${title.replace(/"/g, '&quot;')}"` : '';
   const altText = `${year || ''} ${make} ${model}${trim ? ' ' + trim : ''}`.trim();
-  const mk = (make   || '').replace(/'/g, '\\\'');
-  const mo = (model  || '').replace(/'/g, '\\\'');
-  const tr = (trim   || '').replace(/'/g, '\\\'');
-  const yr = year   || '';
-  const ct = (category || '').replace(/'/g, '\\\'');
+
+  // Store car identity as data attributes — browsers handle encoding automatically,
+  // so there is no risk of attribute injection regardless of special characters.
+  function qa(s) { return (s || '').replace(/"/g, '&quot;'); }
   return `<div class="car-thumb"${commonsAttr}
-    data-alt="${altText.replace(/"/g, '&quot;')}"
-    onclick="openCarImageModal('${mk}','${mo}','${tr}','${yr}','${ct}')"
+    data-alt="${qa(altText)}"
+    data-make="${qa(make)}"
+    data-model="${qa(model)}"
+    data-trim="${qa(trim || '')}"
+    data-year="${qa(String(year || ''))}"
+    data-category="${qa(category || '')}"
+    onclick="openCarImageModalFromEl(this)"
     role="button" tabindex="0"
     title="${title ? 'View vehicle photo' : 'No photo available'}">
     ${CAR_PLACEHOLDER_SVG}
@@ -3353,23 +3358,46 @@ async function openCarImageModal(make, model, trim, year, category) {
     return;
   }
 
-  bodyEl.innerHTML = `
-    <img class="car-img-full" src="${info.url}"
-      alt="${carName.replace(/"/g, '&quot;')}"
-      onerror="this.outerHTML='<div class=\\'car-img-placeholder-large\\'><p class=\\'car-img-no-photo\\'>Image failed to load.</p></div>'">
-    <div class="car-img-attribution">
-      Photo via
-      <a href="${info.descUrl}" target="_blank" rel="noopener noreferrer">Wikimedia Commons</a>${
-        info.author  ? ` &middot; <span class="attr-author">${info.author}</span>`  : ''
-      }${
-        info.license ? ` &middot; <span class="attr-license">${info.license}</span>` : ''
-      }
-    </div>`;
+  const imgEl = document.createElement('img');
+  imgEl.className = 'car-img-full';
+  imgEl.alt = carName;
+  imgEl.src = info.url;
+  imgEl.onerror = () => {
+    imgEl.replaceWith(Object.assign(document.createElement('div'), {
+      className: 'car-img-placeholder-large',
+      innerHTML: `${CAR_PLACEHOLDER_SVG}<p class="car-img-no-photo">Image failed to load.</p>`,
+    }));
+  };
+
+  const attrEl = document.createElement('div');
+  attrEl.className = 'car-img-attribution';
+  const commonsLink = document.createElement('a');
+  commonsLink.href   = info.descUrl;
+  commonsLink.target = '_blank';
+  commonsLink.rel    = 'noopener noreferrer';
+  commonsLink.textContent = 'Wikimedia Commons';
+  attrEl.append('Photo via ', commonsLink);
+  if (info.author)  attrEl.append(' · ', Object.assign(document.createElement('span'), { className: 'attr-author',  textContent: info.author  }));
+  if (info.license) attrEl.append(' · ', Object.assign(document.createElement('span'), { className: 'attr-license', textContent: info.license }));
+
+  bodyEl.innerHTML = '';
+  bodyEl.append(imgEl, attrEl);
 }
 
 function closeCarImageModal() {
   const modal = document.getElementById('car-img-modal');
   if (modal) modal.classList.add('hidden');
+}
+
+/** Convenience wrapper called from thumbnail onclick — reads car data from element attributes. */
+function openCarImageModalFromEl(el) {
+  openCarImageModal(
+    el.dataset.make     || '',
+    el.dataset.model    || '',
+    el.dataset.trim     || '',
+    el.dataset.year     || '',
+    el.dataset.category || '',
+  );
 }
 
 function toggleCarImages() {
@@ -3477,7 +3505,7 @@ function init() {
     drawLoan, payDownLoan,
     confirmNewGame, exportSave, hireStaff, dismissCandidate,
     toggleDarkMode, setDifficulty, toggleSfxMuted, setSfxVolume, toggleWordmarks, toggleCarImages,
-    openCarImageModal, closeCarImageModal,
+    openCarImageModal, openCarImageModalFromEl, closeCarImageModal,
     renderGarage, renderForSale, renderUsedMarket, renderFinance, renderAchievements,
   });
 
