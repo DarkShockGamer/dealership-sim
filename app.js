@@ -155,7 +155,24 @@ const LOAN_TERMS = {
   normal: { limit: 60000, apr: 0.12, minPrincipalRate: 0 },
   hard:   { limit: 45000, apr: 0.18, minPrincipalRate: 0.01 },
 };
+const LEASE_STATUSES = ['none', 'available', 'active'];
 const LEASE_TERM_DAYS = [60, 120, 180];
+const LEASE_TERM_PROGRESS_CAP = 1.0;
+const LEASE_DAY_TO_FLAVOR_MONTH_MULTIPLIER = 0.3; // Flavor-only mapping for UI text
+const LEASE_CONDITION_DROP_ONE_STEP_MILES = 9000;
+const LEASE_CONDITION_DROP_TWO_STEP_MILES = 18000;
+const LEASE_MILES_VARIANCE_MIN = -8;
+const LEASE_MILES_VARIANCE_MAX = 14;
+const LEASE_DEPRECIATION_DIVISOR = 420000;
+const LEASE_ISSUE_BONUS_HARD_DIFFICULTY = 0.0015;
+const LEASE_ISSUE_BONUS_LEMON = 0.003;
+const LEASE_ISSUE_BONUS_SALVAGE = 0.0015;
+const MAX_LEASE_STARTS_PER_DAY = 2;
+const LEASE_VALUE_SCORE_DIVISOR = 220000;
+const LEASE_START_CHANCE_BASE = 0.05;
+const LEASE_START_CHANCE_FACTOR = 0.16;
+const LEASE_START_CHANCE_MIN = 0.04;
+const LEASE_START_CHANCE_MAX = 0.30;
 const LEASE_RATE_BY_SEGMENT = {
   normal: { Economy: 0.024, Sedan: 0.023, SUV: 0.025, Truck: 0.024, Sports: 0.027, Luxury: 0.021 },
   hard:   { Economy: 0.021, Sedan: 0.020, SUV: 0.022, Truck: 0.021, Sports: 0.024, Luxury: 0.019 },
@@ -454,7 +471,6 @@ function loadState() {
       }
       if (loaded.saveVersion < 5) {
         loaded.saveVersion = 5;
-        loaded.lastLeaseReturnReport = loaded.lastLeaseReturnReport ?? null;
         loaded.notifications = loaded.notifications || [];
         loaded.notifications.unshift({
           message: '📝 Save upgraded to v5 — leasing system enabled.',
@@ -500,7 +516,7 @@ function migrateCar(car) {
   if (car.reconditionLog    === undefined) car.reconditionLog    = [];
   if (car.washBoostDays     === undefined) car.washBoostDays     = 0;
   if (car.leaseStatus       === undefined) car.leaseStatus       = 'none';
-  if (!['none', 'available', 'active'].includes(car.leaseStatus)) car.leaseStatus = 'none';
+  if (!LEASE_STATUSES.includes(car.leaseStatus)) car.leaseStatus = 'none';
   if (car.activeLease       === undefined) car.activeLease       = null;
   if (car.leaseStatus === 'active' && !car.activeLease) car.leaseStatus = 'none';
   if (car.trim              === undefined) car.trim              = '';
@@ -822,14 +838,14 @@ function processLeases() {
     state.cash += lease.paymentPerDay;
     lease.totalPaid = (lease.totalPaid || 0) + lease.paymentPerDay;
 
-    const milesDelta = Math.max(10, lease.milesPerDay + randomInt(-8, 14));
+    const milesDelta = Math.max(10, lease.milesPerDay + randomInt(LEASE_MILES_VARIANCE_MIN, LEASE_MILES_VARIANCE_MAX));
     car.mileage += milesDelta;
     lease.totalMilesAdded = (lease.totalMilesAdded || 0) + milesDelta;
-    car.marketValue = Math.max(1000, Math.round(car.marketValue * (1 - (milesDelta / 420000))));
+    car.marketValue = Math.max(1000, Math.round(car.marketValue * (1 - (milesDelta / LEASE_DEPRECIATION_DIVISOR))));
 
-    const termProgress = clamp((state.day - lease.startDay + 1) / lease.termDays, 0, 1.5);
-    const hardBonus = settings.difficulty === 'hard' ? 0.0015 : 0;
-    const titleBonus = car.titleStatus === 'lemon' ? 0.003 : car.titleStatus === 'salvage' ? 0.0015 : 0;
+    const termProgress = clamp((state.day - lease.startDay) / Math.max(1, lease.termDays), 0, LEASE_TERM_PROGRESS_CAP);
+    const hardBonus = settings.difficulty === 'hard' ? LEASE_ISSUE_BONUS_HARD_DIFFICULTY : 0;
+    const titleBonus = car.titleStatus === 'lemon' ? LEASE_ISSUE_BONUS_LEMON : car.titleStatus === 'salvage' ? LEASE_ISSUE_BONUS_SALVAGE : 0;
     const issueChance = clamp(0.001 + (termProgress * 0.007) + titleBonus + hardBonus, 0, 0.04);
     if (Math.random() < issueChance) {
       const issue = { ...randomFrom(HIDDEN_ISSUES) };
@@ -846,7 +862,9 @@ function processLeases() {
       car.inspected = true;
 
       const before = car.condition;
-      const steps = lease.totalMilesAdded >= 18000 ? 2 : lease.totalMilesAdded >= 9000 ? 1 : 0;
+      const steps = lease.totalMilesAdded >= LEASE_CONDITION_DROP_TWO_STEP_MILES
+        ? 2
+        : lease.totalMilesAdded >= LEASE_CONDITION_DROP_ONE_STEP_MILES ? 1 : 0;
       if (steps > 0) car.condition = downgradeConditionBySteps(car.condition, steps);
 
       const report = {
@@ -875,11 +893,16 @@ function processLeases() {
 
   let startedToday = 0;
   for (const car of state.garage) {
-    if (startedToday >= 2) break;
+    if (startedToday >= MAX_LEASE_STARTS_PER_DAY) break;
     if (car.leaseStatus !== 'available' || car.inServiceUntilDay || car.isForSale) continue;
-    const valueScore = clamp(1 - ((car.marketValue || 0) / 220000), 0.18, 0.95);
+    const valueScore = clamp(1 - ((car.marketValue || 0) / LEASE_VALUE_SCORE_DIVISOR), 0.18, 0.95);
     const demand = clamp(car.demandFactor || 1, 0.7, 1.4);
-    const chance = clamp(0.05 + (0.16 * valueScore * demand), 0.04, 0.30);
+    // Lease lead chance = base + (value-driven factor × demand), then clamped to keep pacing stable.
+    const chance = clamp(
+      LEASE_START_CHANCE_BASE + (LEASE_START_CHANCE_FACTOR * valueScore * demand),
+      LEASE_START_CHANCE_MIN,
+      LEASE_START_CHANCE_MAX
+    );
     if (Math.random() >= chance) continue;
 
     const termDays = randomFrom(LEASE_TERM_DAYS);
@@ -1796,9 +1819,17 @@ function viewLeaseDetails(carId) {
   if (!car || car.leaseStatus !== 'active' || !car.activeLease) return;
   const lease = car.activeLease;
   const daysLeft = Math.max(0, lease.endDay - state.day);
+  const detailLines = [
+    `${car.year} ${car.make} ${car.model}${car.trim ? ` ${car.trim}` : ''}`,
+    `Term: ${lease.termDays} game days (~${Math.round(lease.termDays * LEASE_DAY_TO_FLAVOR_MONTH_MULTIPLIER)} months)`,
+    `Days left: ${daysLeft}`,
+    `Payment/day: ${formatCurrency(lease.paymentPerDay)}`,
+    `Income earned: ${formatCurrency(lease.totalPaid || 0)}`,
+    `Miles added: ${(lease.totalMilesAdded || 0).toLocaleString()} mi`,
+  ];
   showModal(
     'Lease Details',
-    `${car.year} ${car.make} ${car.model}${car.trim ? ` ${car.trim}` : ''}\nTerm: ${lease.termDays} game days (~${Math.round(lease.termDays * 0.3)} months)\nDays left: ${daysLeft}\nPayment/day: ${formatCurrency(lease.paymentPerDay)}\nIncome earned: ${formatCurrency(lease.totalPaid || 0)}\nMiles added: ${(lease.totalMilesAdded || 0).toLocaleString()} mi`,
+    detailLines.join('\n'),
     () => {}
   );
 }
@@ -2339,7 +2370,7 @@ function renderGarage() {
     const perfDone     = car.reconditionLog.some(r => r.type === 'Parts Upgrade');
     let reconHtml = '';
     if (isLeased) {
-      reconHtml = `<div class="tab-info" style="font-size:.75rem;padding:8px 10px;margin-top:4px">🧰 Recon disabled while lease is active.</div>`;
+      reconHtml = `<div class="tab-info recon-disabled-message">🧰 Recon disabled while lease is active.</div>`;
     } else if (!inService) {
       reconHtml = `<div class="recon-actions">`;
       // Car Wash
@@ -2369,6 +2400,16 @@ function renderGarage() {
           ${canPartsUpgrade ? '' : 'disabled'} title="1 day: +15% market value">🏎️ Parts ($1,500)</button>`;
       }
       reconHtml += `</div>`;
+    }
+    const leaseActionButtons = [];
+    if (car.leaseStatus === 'none') {
+      leaseActionButtons.push(
+        `<button class="btn btn-secondary" onclick="makeLeaseAvailable('${car.id}')" ${car.isForSale || inService ? 'disabled' : ''}>📝 Make Lease Available</button>`
+      );
+    } else if (car.leaseStatus === 'available') {
+      leaseActionButtons.push(`<button class="btn btn-warning" onclick="stopOfferingLease('${car.id}')">⏹️ Stop Offering Lease</button>`);
+    } else if (isLeased) {
+      leaseActionButtons.push(`<button class="btn btn-secondary" onclick="viewLeaseDetails('${car.id}')">📄 Lease Details</button>`);
     }
 
     return `
@@ -2415,9 +2456,7 @@ function renderGarage() {
             onclick="markForSale('${car.id}')" ${inService || isLeased ? 'disabled' : ''}>
             ${car.isForSale ? '📤 Unlist' : '🏷️ Mark for Sale'}
           </button>
-          ${car.leaseStatus === 'none' ? `<button class="btn btn-secondary" onclick="makeLeaseAvailable('${car.id}')" ${car.isForSale || inService ? 'disabled' : ''}>📝 Make Lease Available</button>` : ''}
-          ${car.leaseStatus === 'available' ? `<button class="btn btn-warning" onclick="stopOfferingLease('${car.id}')">⏹️ Stop Offering Lease</button>` : ''}
-          ${isLeased ? `<button class="btn btn-secondary" onclick="viewLeaseDetails('${car.id}')">📄 Lease Details</button>` : ''}
+          ${leaseActionButtons.join('')}
         </div>
       </div>`;
   }).join('');
@@ -2430,7 +2469,6 @@ function renderGarage() {
       ${state.garage.filter(c => c.inServiceUntilDay).length ? `🔧 ${state.garage.filter(c => c.inServiceUntilDay).length} in service.` : ''}
       ${activeLeases ? `📝 ${activeLeases} active lease(s).` : ''}
       <br>Lease income/day: <strong>${formatCurrency(computeLeaseIncomePerDay())}</strong>.
-      ${showLeased ? '' : '<span class="text-yellow"> (leased cars hidden)</span>'}
       ${state.upgrades.crmSuite ? '<br>💼 High-volume tools active: bulk list/unlist available.' : ''}
     </div>
     <div class="bulk-row">
@@ -2928,7 +2966,14 @@ function closeModal() { document.getElementById('modal').classList.add('hidden')
 // ============================================================
 // SETTINGS (dark mode, difficulty)  — separate localStorage key
 // ============================================================
-let settings = { darkMode: false, difficulty: 'normal', sfxMuted: false, sfxVolume: 0.22, showWordmarks: true, showLeasedCars: true };
+let settings = {
+  darkMode: false,
+  difficulty: 'normal',
+  sfxMuted: false,
+  sfxVolume: 0.22,
+  showWordmarks: true,
+  showLeasedCars: true,
+};
 let audioCtx = null;
 const SFX = {
   click:   [420, 0.03, 'triangle'],

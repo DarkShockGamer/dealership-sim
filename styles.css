@@ -685,6 +685,12 @@ body {
   pointer-events: auto;
 }
 
+.recon-disabled-message {
+  font-size: .75rem;
+  padding: 8px 10px;
+  margin-top: 4px;
+}
+
 .recon-badges {
   display: flex;
   flex-wrap: wrap;
