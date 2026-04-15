@@ -1650,7 +1650,7 @@ function acceptTradeInRequest(requestId) {
 function rejectTradeInRequest(requestId) {
   state.tradeInRequests = state.tradeInRequests.filter(r => r.id !== requestId);
   saveState();
-  renderTradeInRequests();
+  renderForSale();
 }
 
 function counterTradeInRequest(requestId, rawDelta) {
@@ -1662,7 +1662,7 @@ function counterTradeInRequest(requestId, rawDelta) {
   req.state            = 'countered';
   req.expiresDay       = state.day + 2;
   saveState();
-  renderTradeInRequests();
+  renderForSale();
   showToast(`Counter sent — customer will respond next day.`, 'info');
 }
 
@@ -2396,18 +2396,6 @@ function renderUsedMarket() {
 }
 
 // ============================================================
-// RENDER — Trade-In Requests
-// ============================================================
-function renderTradeInRequests() {
-  const el = document.getElementById('tab-tradeins');
-  el.innerHTML = `<div class="empty-state" style="padding-top:40px">
-    <p>Trade-in requests now appear in the <strong>For Sale</strong> tab alongside your listings.<br>
-    Accepted trade-ins are clearly labeled with a <strong>TRADE-IN</strong> badge.</p>
-    <button class="btn btn-primary" onclick="switchTab('forsale')" style="margin-top:16px">Go to For Sale →</button>
-  </div>`;
-}
-
-// ============================================================
 // RENDER — Garage
 // ============================================================
 function renderGarage() {
@@ -2588,7 +2576,7 @@ function renderForSale() {
       const suggestion  = offer.staffSuggestion;
 
       return `
-        <div class="car-card offer-card ${isCountered ? 'countered-card' : ''}">
+        <div class="car-card offer-card ${isCountered ? 'countered-card disabled-card' : ''}">
           <div class="car-card-header">
             <div>
               ${settings.showWordmarks ? renderBrandWordmark(car.make) : ''}
@@ -2615,7 +2603,7 @@ function renderForSale() {
           </div>
           ${suggestion ? `<p class="text-muted" style="font-size:.78rem;margin-top:2px">🧑‍💼 ${suggestion.by}: ${suggestion.note}</p>` : ''}
           ${isCountered
-            ? `<p class="text-muted" style="font-size:.8rem;margin-top:4px">⏳ Waiting for customer response — resolves next day.</p>`
+            ? `<p class="text-muted" style="font-size:.8rem;margin-top:4px">Waiting for customer response — resolves next day.</p>`
             : `<div class="neg-input-row" style="margin-top:6px">
                 <input type="number" class="price-input" id="cof-${offer.id}"
                   placeholder="Counter price" value="${offer.playerCounter || ''}" min="1" max="${car.listPrice}">
@@ -2652,7 +2640,7 @@ function renderForSale() {
       const canAccept = cashDelta < 0 ? state.cash >= Math.abs(cashDelta) : true;
       const canFit    = state.garage.length < state.garageSlots || !targetCar;
       return `
-        <div class="car-card tradein-request-card ${isCountered ? 'countered-card' : ''}">
+        <div class="car-card tradein-request-card ${isCountered ? 'countered-card disabled-card' : ''}">
           <div class="car-card-header">
             <span class="car-name">Trade-In Offer</span>
             <span class="badge ${isCountered ? 'badge-yellow' : 'badge-blue'}">${isCountered ? 'Countered' : 'New Request'}</span>
@@ -2682,7 +2670,7 @@ function renderForSale() {
               <span>Net Value to You</span>
               <span class="${netValueToYou >= targetCar.listPrice * 0.85 ? 'text-green' : 'text-yellow'}">${formatCurrency(netValueToYou)}</span>
             </div>
-            ${isCountered ? `<p class="text-muted" style="font-size:.8rem;margin-top:6px">⏳ Counter sent — customer responds Day ${req.expiresDay}.</p>` : ''}
+            ${isCountered ? `<p class="text-muted" style="font-size:.8rem;margin-top:6px">Waiting for customer response — resolves next day.</p>` : ''}
           </div>
           ${!isCountered ? `
           <div class="neg-input-row" style="margin-top:4px">
@@ -3047,7 +3035,6 @@ function renderAll() {
     case 'dashboard':   renderDashboard();       break;
     case 'factory':     renderFactory();         break;
     case 'usedmarket':  renderUsedMarket();      break;
-    case 'tradeins':    renderTradeInRequests(); break;
     case 'garage':      renderGarage();          break;
     case 'forsale':     renderForSale();         break;
     case 'finance':     renderFinance();         break;
@@ -3071,7 +3058,6 @@ function switchTab(name) {
     case 'dashboard':   renderDashboard();       break;
     case 'factory':     renderFactory();         break;
     case 'usedmarket':  renderUsedMarket();      break;
-    case 'tradeins':    renderTradeInRequests(); break;
     case 'garage':      renderGarage();          break;
     case 'forsale':     renderForSale();         break;
     case 'finance':     renderFinance();         break;
@@ -3268,7 +3254,7 @@ function init() {
     drawLoan, payDownLoan,
     confirmNewGame, exportSave, hireStaff, dismissCandidate,
     toggleDarkMode, setDifficulty, toggleSfxMuted, setSfxVolume, toggleWordmarks,
-    renderGarage, renderForSale, renderUsedMarket, renderTradeInRequests, renderFinance, renderAchievements,
+    renderGarage, renderForSale, renderUsedMarket, renderFinance, renderAchievements,
   });
 
   renderAll();
