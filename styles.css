@@ -458,9 +458,32 @@ body {
 .upgrade-desc { font-size: .82rem; color: var(--text-muted); line-height: 1.4; }
 .upgrade-cost { font-size: 1.1rem; font-weight: 700; color: var(--primary); }
 .disabled-card { opacity: .65; }
-.achievement-card { min-height: 120px; }
+.achievement-card { min-height: 140px; text-align: center; }
 .achievement-locked { opacity: .74; }
 .achievement-unlocked { border-color: rgba(76, 214, 158, .55); }
+.ach-icon-wrap { display: flex; justify-content: center; align-items: center; width: 52px; height: 52px; border-radius: 50%; margin: 0 auto; }
+.ach-icon-unlocked { background: rgba(46, 213, 159, .18); color: #4df0be; }
+.ach-icon-locked   { background: rgba(135, 164, 214, .14); color: #8fa9d4; }
+.ach-icon { display: block; }
+.ach-progress { font-size: .78rem; color: var(--text-muted); margin-top: 4px; }
+/* Trade-in badge + inventory card highlight */
+.badge-tradein { background: rgba(255, 191, 93, .22); color: #ffe2b5; }
+.tradein-inventory { border-color: rgba(255, 191, 93, .4); }
+.tradein-source-banner {
+  background: rgba(255, 191, 93, .16);
+  color: #ffe2b5;
+  font-size: .78rem;
+  font-weight: 600;
+  text-align: center;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 4px;
+}
+/* Car actions flex-wrap so "Offer Lease" never overflows */
+.car-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.car-actions .btn { flex: 1 1 140px; min-width: 120px; }
+/* Keyboard focus ring for tab buttons */
+.tab-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 /* ============================================================
    Dashboard Grid
@@ -870,6 +893,17 @@ body.dark .tradein-banner {
   background: rgba(93, 153, 255, .18);
   color: #d8e9ff;
 }
+
+body.dark .tradein-source-banner {
+  background: rgba(255, 201, 120, .18);
+  color: #ffe8c8;
+}
+
+body.dark .badge-tradein { background: rgba(255, 201, 120, .22); color: #ffe8c8; }
+body.dark .tradein-inventory { border-color: rgba(255, 201, 120, .38); }
+
+body.dark .ach-icon-unlocked { background: rgba(89, 225, 186, .18); color: #59e1ba; }
+body.dark .ach-icon-locked   { background: rgba(93, 153, 255, .14); color: #7aaee8; }
 
 body.dark .recon-tag {
   background: rgba(93, 153, 255, .16);

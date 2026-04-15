@@ -12,7 +12,7 @@ import { CAR_CATALOG } from './data/cars.js';
 // DEFAULT STATE
 // ============================================================
 const DEFAULT_STATE = {
-  saveVersion: 5,
+  saveVersion: 6,
   cash: 25000,
   day: 1,
   reputation: 1.0,
@@ -39,6 +39,12 @@ const DEFAULT_STATE = {
     crmSuite: false,
     aiPricing: false,
     luxuryLounge: false,
+    financeOffice: false,
+    overheadReductions: 0,
+    photoStudio: false,
+    leaseManagement: false,
+    factoryAllocation: false,
+    reconditioningWorkshop: false,
   },
   salesHistory: [],
   notifications: [],
@@ -65,6 +71,8 @@ const DEFAULT_STATE = {
   gameOver: false,
   lastBankruptcyReport: null,
   achievementsUnlocked: {},
+  totalDetailsPerformed: 0,
+  totalTradeInsAccepted: 0,
 };
 
 let state = JSON.parse(JSON.stringify(DEFAULT_STATE));
@@ -853,15 +861,16 @@ function computeSaleChance(car) {
   const condFactor = CONDITION_FACTOR[car.condition] || 1;
   const daysLot    = car.daysInLot;
   const lotFactor  = daysLot > 14 ? 0.68 : daysLot > 7 ? 0.84 : 1.0;
-  const marketingFactor = 1 + 0.20 * state.upgrades.marketing;
-  const repBoostFactor  = 1 + 0.15 * state.upgrades.reputationBoosts;
-  const repFactor       = state.reputation;
-  const demandFactor    = car.demandFactor || 1;
-  const washBonus       = car.washBoostDays > 0 ? 1.08 : 1.0;
-  const titleFactor     = TITLE_BUYER_MULT[car.titleStatus] || 1.0;
+  const marketingFactor    = 1 + 0.20 * state.upgrades.marketing;
+  const repBoostFactor     = 1 + 0.15 * state.upgrades.reputationBoosts;
+  const repFactor          = state.reputation;
+  const demandFactor       = car.demandFactor || 1;
+  const washBonus          = car.washBoostDays > 0 ? 1.08 : 1.0;
+  const titleFactor        = TITLE_BUYER_MULT[car.titleStatus] || 1.0;
+  const photoStudioFactor  = state.upgrades.photoStudio ? 1.10 : 1.0;
 
   chance = chance * priceAtt * condFactor * lotFactor * marketingFactor * repFactor
-         * repBoostFactor * demandFactor * washBonus * titleFactor;
+         * repBoostFactor * demandFactor * washBonus * titleFactor * photoStudioFactor;
   return clamp(chance, 0.01, 0.85);
 }
 
@@ -895,11 +904,13 @@ function getBuyerTone(offeredPrice, listPrice, patience) {
 /** Deduct daily garage/staff/utility overhead from cash. */
 function processOverhead() {
   const baseOverhead    = OVERHEAD_BY_LEVEL[state.upgrades.garageLevel] ?? 300;
+  const reductionAmount = (state.upgrades.overheadReductions || 0) * 50;
   const diffMult        = (settings.difficulty === 'hard') ? 1.5 : 1.0;
   const staffWages      = getTotalStaffWages();
-  const total           = Math.round(baseOverhead * diffMult) + staffWages;
+  const lotCost         = Math.max(0, Math.round(baseOverhead * diffMult) - reductionAmount);
+  const total           = lotCost + staffWages;
   state.cash           -= total;
-  addNote(`🏢 Overhead: −${formatCurrency(total)} (lot rent/utilities ${formatCurrency(Math.round(baseOverhead * diffMult))}${staffWages ? ` + wages ${formatCurrency(staffWages)}` : ''})`, 'warning');
+  addNote(`🏢 Overhead: −${formatCurrency(total)} (lot rent/utilities ${formatCurrency(lotCost)}${staffWages ? ` + wages ${formatCurrency(staffWages)}` : ''})`, 'warning');
 }
 
 function drawLoan(rawAmount) {
@@ -955,7 +966,8 @@ function getLeaseRate(car) {
 }
 
 function computeLeasePaymentPerDay(car) {
-  return Math.max(20, Math.round((car.marketValue * getLeaseRate(car)) / 30));
+  const base = Math.max(20, Math.round((car.marketValue * getLeaseRate(car)) / 30));
+  return state.upgrades.leaseManagement ? Math.round(base * 1.08) : base;
 }
 
 function computeLeaseIncomePerDay() {
@@ -1514,7 +1526,9 @@ function buyFromFactory(catalogIdx) {
   const condition  = pickCondition([0.40, 0.45, 0.13, 0.02]);
   const car        = buildCar(entry, condition, 'factory', true);
   car.purchasePrice = entry.basePrice;
-  const days       = state.upgrades.expressDelivery ? Math.max(1, entry.deliveryDays - 1) : entry.deliveryDays;
+  const days       = Math.max(1, entry.deliveryDays
+    - (state.upgrades.expressDelivery ? 1 : 0)
+    - (state.upgrades.factoryAllocation ? 1 : 0));
   const arrivalDay = state.day + days;
   state.deliveries.push({ car, arrivalDay });
   addNote(`🏭 Ordered ${car.year} ${car.make} ${car.model} — arrives Day ${arrivalDay}.`, 'info');
@@ -1887,13 +1901,13 @@ function basicRepair(carId) {
   const cost = 800;
   if (state.cash < cost) { showToast(`Basic Repair costs ${formatCurrency(cost)} — not enough cash!`, 'error'); return; }
   state.cash -= cost;
-  car.inServiceUntilDay = state.day + 1;
+  car.inServiceUntilDay = state.upgrades.reconditioningWorkshop ? state.day : state.day + 1;
   car.pendingService    = { type: 'repair' };
   car.isForSale         = false;
-  addNote(`🔩 ${car.year} ${car.make} ${car.model} is in the service bay. Ready next day.`, 'info');
+  addNote(`🔩 ${car.year} ${car.make} ${car.model} is in the service bay. ${state.upgrades.reconditioningWorkshop ? 'Ready same day.' : 'Ready next day.'}`, 'info');
   saveState();
   renderAll();
-  showToast('Car is being repaired — ready next day.', 'info');
+  showToast(`Car is being repaired — ${state.upgrades.reconditioningWorkshop ? 'ready same day' : 'ready next day'}.`, 'info');
 }
 
 function partsUpgrade(carId) {
@@ -1910,13 +1924,13 @@ function partsUpgrade(carId) {
   const cost = 1500;
   if (state.cash < cost) { showToast(`Parts Upgrade costs ${formatCurrency(cost)} — not enough cash!`, 'error'); return; }
   state.cash -= cost;
-  car.inServiceUntilDay = state.day + 1;
+  car.inServiceUntilDay = state.upgrades.reconditioningWorkshop ? state.day : state.day + 1;
   car.pendingService    = { type: 'parts' };
   car.isForSale         = false;
-  addNote(`🏎️ ${car.year} ${car.make} ${car.model} is getting a performance upgrade. Ready next day.`, 'info');
+  addNote(`🏎️ ${car.year} ${car.make} ${car.model} is getting a performance upgrade. ${state.upgrades.reconditioningWorkshop ? 'Ready same day.' : 'Ready next day.'}`, 'info');
   saveState();
   renderAll();
-  showToast('Parts upgrade in progress — ready next day.', 'info');
+  showToast(`Parts upgrade in progress — ${state.upgrades.reconditioningWorkshop ? 'ready same day' : 'ready next day'}.`, 'info');
 }
 
 function detailCar(carId) {
@@ -2224,7 +2238,9 @@ function renderFactory() {
     </div>
     <div class="card-grid">`;
   for (const car of trims) {
-    const delivDays  = state.upgrades.expressDelivery ? Math.max(1, car.deliveryDays - 1) : car.deliveryDays;
+    const delivDays  = Math.max(1, car.deliveryDays
+      - (state.upgrades.expressDelivery ? 1 : 0)
+      - (state.upgrades.factoryAllocation ? 1 : 0));
     const marketIdx  = (state.marketIndices || {})[car.category] ?? 1.0;
     const adjMarket  = Math.round(car.marketValue * marketIdx);
     const adjMargin  = adjMarket - car.basePrice;
@@ -2786,8 +2802,9 @@ function renderUpgrades() {
       const available = upg.requires(state.upgrades);
       const canAfford = state.cash >= upg.cost;
       let stackInfo = '';
-      if (upg.id === 'marketing')       stackInfo = ` (${state.upgrades.marketing}/3)`;
-      if (upg.id === 'reputationBoost') stackInfo = ` (${state.upgrades.reputationBoosts}/3)`;
+      if (upg.id === 'marketing')          stackInfo = ` (${state.upgrades.marketing}/3)`;
+      if (upg.id === 'reputationBoost')    stackInfo = ` (${state.upgrades.reputationBoosts}/3)`;
+      if (upg.id === 'overheadReduction')  stackInfo = ` (${state.upgrades.overheadReductions || 0}/3)`;
 
       html += `
         <div class="car-card upgrade-card ${!available ? 'disabled-card' : ''}">
