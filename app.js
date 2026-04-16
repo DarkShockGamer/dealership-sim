@@ -174,7 +174,12 @@ const LEASE_CONDITION_DROP_ONE_STEP_MILES = 9000;
 const LEASE_CONDITION_DROP_TWO_STEP_MILES = 18000;
 const LEASE_MILES_VARIANCE_MIN = -8;
 const LEASE_MILES_VARIANCE_MAX = 14;
-const LEASE_DEPRECIATION_DIVISOR = 420000;
+const LEASE_DEPRECIATION_DIVISOR = 84000;   // Mileage-based depreciation (5× more aggressive than before)
+const LEASE_DAILY_TIME_DEPRECIATION_RATE = 0.001; // 0.1%/day time-based depreciation applied during lease
+const LEASE_CRASH_PROBABILITY = 0.0005;     // ~0.05%/day: rare crash (~3–9% chance over a full lease term)
+const LEASE_CRASH_REPAIR_COST_MIN = 0.90;   // Minimum repair cost multiplier after crash (90% of market value)
+const LEASE_CRASH_REPAIR_COST_MAX = 1.30;   // Maximum repair cost multiplier after crash (130% of market value)
+const LEASE_CRASH_STRUCTURAL_RATIO = 0.60;  // Portion of repair cost attributed to structural crash damage
 const LEASE_ISSUE_BONUS_HARD_DIFFICULTY = 0.0015;
 const LEASE_ISSUE_BONUS_LEMON = 0.003;
 const LEASE_ISSUE_BONUS_SALVAGE = 0.0015;
@@ -1187,7 +1192,47 @@ function processLeases() {
     const milesDelta = Math.max(10, lease.milesPerDay + randomInt(LEASE_MILES_VARIANCE_MIN, LEASE_MILES_VARIANCE_MAX));
     car.mileage += milesDelta;
     lease.totalMilesAdded = (lease.totalMilesAdded || 0) + milesDelta;
-    car.marketValue = Math.max(1000, Math.round(car.marketValue * (1 - (milesDelta / LEASE_DEPRECIATION_DIVISOR))));
+    // Apply combined mileage-based + time-based depreciation each day
+    car.marketValue = Math.max(1000, Math.round(
+      car.marketValue * (1 - (milesDelta / LEASE_DEPRECIATION_DIVISOR) - LEASE_DAILY_TIME_DEPRECIATION_RATE)
+    ));
+
+    // ── Rare crash event ─────────────────────────────────────────────────────
+    const crashBonus = settings.difficulty === 'hard' ? 0.0002 : 0;
+    if (Math.random() < LEASE_CRASH_PROBABILITY + crashBonus) {
+      // Lessee pays out all remaining lease payments immediately
+      const remainingDays   = Math.max(0, lease.endDay - state.day);
+      const remainingPayout = Math.round(remainingDays * lease.paymentPerDay);
+      state.cash += remainingPayout;
+      lease.totalPaid = (lease.totalPaid || 0) + remainingPayout;
+
+      // Return car in heavily damaged Poor / Salvage condition (condition code 'D' = Poor)
+      const valueBefore    = car.marketValue;
+      car.condition        = 'D';
+      car.titleStatus      = 'salvage';
+      // Repair cost is 90–130% of current market value — near or above the car's worth
+      car.repairCost       = Math.round(car.marketValue * randomFloat(LEASE_CRASH_REPAIR_COST_MIN, LEASE_CRASH_REPAIR_COST_MAX));
+      // Add structural crash damage entry to the car's hidden issues list
+      const structuralCost = Math.round(car.repairCost * LEASE_CRASH_STRUCTURAL_RATIO);
+      const crashIssue     = { name: 'Crash damage (structural)', cost: structuralCost };
+      if (!car.hiddenIssues.some(i => i.name === crashIssue.name)) car.hiddenIssues.push(crashIssue);
+      car.inspected = true;
+      const carLabel        = `${car.year} ${car.make} ${car.model}${car.trim ? ` ${car.trim}` : ''}`;
+      const repairPct       = Math.round(car.repairCost / Math.max(1, valueBefore) * 100);
+      addNote(
+        `💥 Lease crash! ${carLabel} was wrecked. Lessee paid out ${formatCurrency(remainingPayout)} (remaining payments). Repair cost: ~${formatCurrency(car.repairCost)}.`,
+        'error'
+      );
+      showModal(
+        '💥 Lease Vehicle Crashed!',
+        `${carLabel} was involved in a crash while on lease.\n\nLessee payout (remaining payments): ${formatCurrency(remainingPayout)}\nVehicle returned in Poor / Salvage condition.\nEstimated repair cost: ${formatCurrency(car.repairCost)} (${repairPct}% of car value)\n\nRepair or sell for parts — your call.`,
+        () => {}
+      );
+      showToast(`💥 Leased ${carLabel} was crashed! Payout received.`, 'error');
+      car.leaseStatus = 'none';
+      car.activeLease = null;
+      continue;
+    }
 
     const termProgress = clamp((state.day - lease.startDay) / Math.max(1, lease.termDays), 0, LEASE_TERM_PROGRESS_CAP);
     const hardBonus = settings.difficulty === 'hard' ? LEASE_ISSUE_BONUS_HARD_DIFFICULTY : 0;

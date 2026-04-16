@@ -477,6 +477,9 @@ body {
   vertical-align: -2px;
   flex-shrink: 0;
 }
+/* Nav/header icons rendered as <img> need an explicit white filter so
+   currentColor in the SVG source resolves to white on dark backgrounds. */
+img.ui-icon { filter: brightness(0) invert(1); }
 /* Larger variant for upgrade/feature card icons */
 .ui-icon-lg {
   width: 32px;
