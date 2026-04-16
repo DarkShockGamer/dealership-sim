@@ -1103,7 +1103,7 @@ function getLeaseRate(car) {
 }
 
 function computeLeasePaymentPerDay(car) {
-  const base = Math.max(20, Math.round((car.marketValue * getLeaseRate(car)) / 30));
+  const base = Math.max(50, Math.round((car.marketValue * getLeaseRate(car)) / 30));
   return state.upgrades.leaseManagement ? Math.round(base * 1.08) : base;
 }
 
@@ -1343,6 +1343,9 @@ function processMarketVolatility() {
 /** Apply market-driven value changes and sitting depreciation to all cars. */
 function processMarketDepreciation() {
   for (const car of state.garage) {
+    // Skip cars on active leases — their value is managed by processLeases depreciation
+    if (car.leaseStatus === 'active' && car.activeLease) continue;
+
     const idx = state.marketIndices[car.category] ?? 1.0;
 
     // If the segment is below baseline, cars slowly lose value (partial daily adjustment)
