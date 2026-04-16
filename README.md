@@ -644,60 +644,13 @@ Factory cars always use year **2026** with 5–50 miles regardless of `yearRange
 
 ---
 
-## 🖼️ Car Images (Wikimedia Commons)
-
-DealerSim displays real vehicle photos sourced from [Wikimedia Commons](https://commons.wikimedia.org) using the MediaWiki API. **No images are stored locally** — all photos are fetched at runtime via the public API. Attribution (author + license) is shown whenever an image is displayed, as required by Commons licensing.
-
-### How it works
-
-- Car cards show a **small thumbnail** fetched from Commons (click it to open a larger view with full attribution).
-- A **CSS/SVG placeholder** is shown for any car with no mapping, or while the image is loading.
-- Images are **cached in memory** for the session so subsequent renders are instant — no repeated network requests.
-- Toggle car photos on/off in **Settings → Display → Show Car Photos**.
-
-### Adding or updating a car image
-
-1. Find a suitable photo on [Wikimedia Commons](https://commons.wikimedia.org) — search for the car model.
-2. Open the file's detail page and copy the **exact file title** from the URL after `File:`.  
-   Example URL: `https://commons.wikimedia.org/wiki/File:2024_Toyota_Camry_XSE.jpg`  
-   → File title: `2024_Toyota_Camry_XSE.jpg`
-3. Open `data/car-images.js` and add an entry to `CAR_IMAGE_COMMONS` (shared across all trims):
-   ```js
-   // data/car-images.js
-   export const CAR_IMAGE_COMMONS = {
-     // ...existing entries...
-     'make model': 'Exact_File_Title_From_Commons.jpg',
-   };
-   ```
-   Keys are **lowercase** `"make model"` (e.g., `'toyota camry'`).
-
-4. For a **trim-specific override**, add to `CAR_IMAGE_TRIM_OVERRIDES` instead:
-   ```js
-   export const CAR_IMAGE_TRIM_OVERRIDES = {
-     'toyota camry trd': 'Some_Specific_TRD_Photo.jpg',
-   };
-   ```
-   Keys are lowercase `"make model trim"`.
-
-5. The app fetches attribution metadata automatically at runtime — no manual author/license input needed.
-
-### Attribution expectations
-
-All photos used must be freely licensed (CC-BY, CC-BY-SA, public domain, etc.) as is standard on Wikimedia Commons. The UI automatically displays:
-- A link to the Wikimedia Commons file page.
-- The author name (if provided in Commons metadata).
-- The license short name (e.g., `CC BY-SA 4.0`).
-
----
-
 ## 📁 File Structure
 
 ```
 dealership-sim/
-├── index.html       # SPA shell, tab structure, modals
+├── index.html       # SPA shell, tab structure, modal
 ├── styles.css       # All styles, CSS custom properties, dark mode
 ├── app.js           # Game logic, state management, render functions
 └── data/
-    ├── cars.js      # Car catalog — make/model/trim/category/pricing
-    └── car-images.js  # Wikimedia Commons image mappings + API fetch cache
+    └── cars.js      # Car catalog — expanded with supercars/hypercars and trims
 ```
