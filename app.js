@@ -12,7 +12,7 @@ import { CAR_CATALOG } from './data/cars.js';
 // DEFAULT STATE
 // ============================================================
 const DEFAULT_STATE = {
-  saveVersion: 7,
+  saveVersion: 8,
   cash: 25000,
   day: 1,
   reputation: 1.0,
@@ -185,8 +185,10 @@ const LEASE_START_CHANCE_FACTOR = 0.16;
 const LEASE_START_CHANCE_MIN = 0.04;
 const LEASE_START_CHANCE_MAX = 0.30;
 const LEASE_RATE_BY_SEGMENT = {
-  normal: { Economy: 0.024, Sedan: 0.023, SUV: 0.025, Truck: 0.024, Sports: 0.027, Luxury: 0.021 },
-  hard:   { Economy: 0.021, Sedan: 0.020, SUV: 0.022, Truck: 0.021, Sports: 0.024, Luxury: 0.019 },
+  // Monthly-equivalent rates as a fraction of market value — divided by 30 for daily payment.
+  // Sports and Luxury intentionally higher: they attract premium lessees and carry more risk.
+  normal: { Economy: 0.130, Sedan: 0.120, SUV: 0.120, Truck: 0.120, Sports: 0.150, Luxury: 0.140 },
+  hard:   { Economy: 0.110, Sedan: 0.100, SUV: 0.100, Truck: 0.100, Sports: 0.120, Luxury: 0.120 },
 };
 const LEASE_MILES_PER_DAY = {
   Economy: [55, 110],
@@ -752,6 +754,24 @@ function loadState() {
           day: loaded.day ?? 1,
         });
       }
+      if (loaded.saveVersion < 8) {
+        loaded.saveVersion = 8;
+        // settings is loaded before loadGame() is called (see init()), so difficulty is available.
+        const diffKey = (settings?.difficulty === 'hard') ? 'hard' : 'normal';
+        for (const car of loaded.garage || []) {
+          if (car.leaseStatus === 'active' && car.activeLease) {
+            const rate = LEASE_RATE_BY_SEGMENT[diffKey][car.category] ?? LEASE_RATE_BY_SEGMENT[diffKey].Sedan;
+            const base = Math.max(75, Math.round((car.marketValue * rate) / 30));
+            car.activeLease.paymentPerDay = loaded.upgrades.leaseManagement ? Math.round(base * 1.08) : base;
+          }
+        }
+        loaded.notifications = loaded.notifications || [];
+        loaded.notifications.unshift({
+          message: '🚗 Save upgraded to v8 — lease payment rates rebalanced; active leases updated to new rates.',
+          type: 'info',
+          day: loaded.day ?? 1,
+        });
+      }
       loaded.loanBalance = loaded.loanBalance ?? 0;
       loaded.loanLimit = loaded.loanLimit ?? getBaseLoanTerms().limit;
       loaded.loanApr = loaded.loanApr ?? getBaseLoanTerms().apr;
@@ -1103,7 +1123,7 @@ function getLeaseRate(car) {
 }
 
 function computeLeasePaymentPerDay(car) {
-  const base = Math.max(50, Math.round((car.marketValue * getLeaseRate(car)) / 30));
+  const base = Math.max(75, Math.round((car.marketValue * getLeaseRate(car)) / 30));
   return state.upgrades.leaseManagement ? Math.round(base * 1.08) : base;
 }
 
