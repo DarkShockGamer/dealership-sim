@@ -637,15 +637,16 @@ function getTotalStaffWages() {
 // ============================================================
 function saveState() {
   try {
-    localStorage.setItem('dealerSim_v1', JSON.stringify(state));
+    localStorage.setItem(slotKey(currentSlot), JSON.stringify(state));
   } catch (err) {
     showToast('⚠️ Save failed: ' + (err?.message || 'storage quota exceeded'), 'error');
   }
 }
 
-function loadState() {
+function loadState(slot) {
+  if (slot !== undefined) currentSlot = slot;
   try {
-    const raw = localStorage.getItem('dealerSim_v1');
+    const raw = localStorage.getItem(slotKey(currentSlot));
     if (raw) {
       const loaded = JSON.parse(raw);
       // Migrate old saves: tradeInOffers → usedMarketOffers
@@ -2310,9 +2311,9 @@ function importSave(file) {
   reader.onload = e => {
     try {
       const loaded = JSON.parse(e.target.result);
-      // Run migration on import too
-      localStorage.setItem('dealerSim_v1', JSON.stringify(loaded));
-      loadState(); // re-runs migration logic via the same code path
+      // Run migration on import too — write to the active slot key
+      localStorage.setItem(slotKey(currentSlot), JSON.stringify(loaded));
+      loadState(currentSlot); // re-runs migration logic via the same code path
       saveState();
       renderAll();
       showToast('Save imported successfully!', 'success');
@@ -3392,6 +3393,57 @@ let settings = {
   showWordmarks: true,
   showLeasedCars: true,
 };
+
+// ============================================================
+// SAVE SLOT MANAGEMENT
+// ============================================================
+/** Which slot (1–3) the active game session belongs to. */
+let currentSlot = 1;
+
+/** localStorage key for a given slot number. Slot 1 reuses the legacy key. */
+function slotKey(slot) {
+  return slot === 1 ? 'dealerSim_v1' : `dealerSim_slot_${slot}`;
+}
+
+/** Read the last-played slot from localStorage (defaults to 1). */
+function getLastSlot() {
+  return parseInt(localStorage.getItem('dealerSim_lastSlot') || '1', 10) || 1;
+}
+
+/** Persist the last-played slot. */
+function setLastSlot(slot) {
+  localStorage.setItem('dealerSim_lastSlot', String(slot));
+}
+
+/**
+ * Return a summary object for a slot, or null if no save exists.
+ * Summary: { money, day, cars }
+ */
+function getSlotSummary(slot) {
+  try {
+    const raw = localStorage.getItem(slotKey(slot));
+    if (!raw) return null;
+    const d = JSON.parse(raw);
+    return {
+      money: d.cash ?? 0,
+      day:   d.day  ?? 1,
+      cars:  (d.garage ?? []).length,
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
+/** Delete all data for a slot. */
+function deleteSlot(slot) {
+  localStorage.removeItem(slotKey(slot));
+  if (getLastSlot() === slot) {
+    // Reassign lastSlot to the first existing slot, or 1 if none
+    const next = [1, 2, 3].find(s => s !== slot && getSlotSummary(s) !== null) || 1;
+    setLastSlot(next);
+  }
+}
+
 let audioCtx = null;
 const SFX = {
   click:   [420, 0.03, 'triangle'],
@@ -3495,19 +3547,288 @@ function updateNegTone(offerId, rawVal) {
 }
 
 // ============================================================
+// HOME SCREEN
+// ============================================================
+
+/** Initialise and display the home screen; start the star-field animation. */
+function initHomeScreen() {
+  // ── Starfield ────────────────────────────────────────────
+  const canvas  = document.getElementById('menu-stars');
+  const ctx2d   = canvas.getContext('2d');
+  let stars     = [];
+  let rafId     = null;
+
+  function resizeCanvas() {
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+
+  function makeStars(n) {
+    stars = [];
+    for (let i = 0; i < n; i++) {
+      stars.push({
+        x:     Math.random() * canvas.width,
+        y:     Math.random() * canvas.height,
+        r:     Math.random() * 1.4 + 0.3,
+        alpha: Math.random() * 0.7 + 0.1,
+        speed: Math.random() * 0.18 + 0.04,
+        drift: (Math.random() - 0.5) * 0.12,
+        twinkle: Math.random() * Math.PI * 2,
+      });
+    }
+  }
+
+  function drawStars() {
+    ctx2d.clearRect(0, 0, canvas.width, canvas.height);
+    for (const s of stars) {
+      s.twinkle += 0.025;
+      const a = s.alpha * (0.65 + 0.35 * Math.sin(s.twinkle));
+      ctx2d.beginPath();
+      ctx2d.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx2d.fillStyle = `rgba(180, 220, 255, ${a})`;
+      ctx2d.fill();
+      s.y -= s.speed;
+      s.x += s.drift;
+      if (s.y < -2) { s.y = canvas.height + 2; s.x = Math.random() * canvas.width; }
+      if (s.x < -2) s.x = canvas.width + 2;
+      if (s.x > canvas.width + 2) s.x = -2;
+    }
+    rafId = requestAnimationFrame(drawStars);
+  }
+
+  resizeCanvas();
+  makeStars(160);
+  drawStars();
+  window.addEventListener('resize', () => { resizeCanvas(); makeStars(160); });
+
+  // Store cancellation handle so we can stop when leaving the menu
+  window._menuStarRaf = () => { if (rafId) cancelAnimationFrame(rafId); };
+
+  // ── Panel switching ──────────────────────────────────────
+  function showMenuView(id) {
+    document.querySelectorAll('#home-screen .menu-content').forEach(el => {
+      const isTarget = el.id === id;
+      el.classList.toggle('active', isTarget && el.classList.contains('menu-panel'));
+      el.setAttribute('aria-hidden', el.id !== id ? 'true' : 'false');
+      if (el.id === 'menu-view-main') {
+        el.style.display = (id === 'menu-view-main') ? 'flex' : 'none';
+      }
+    });
+  }
+
+  // Show main view initially
+  showMenuView('menu-view-main');
+
+  // ── Button event listeners ───────────────────────────────
+  document.getElementById('menu-btn-play').addEventListener('click', () => {
+    const anyExists = [1, 2, 3].some(s => getSlotSummary(s) !== null);
+    if (anyExists) {
+      // Continue from last-played slot
+      const last = getLastSlot();
+      // Fall back to first existing slot if lastSlot save was deleted
+      const slot = getSlotSummary(last) !== null ? last
+        : ([1, 2, 3].find(s => getSlotSummary(s) !== null) || 1);
+      launchGame(slot, false);
+    } else {
+      // No saves — start new game in slot 1
+      launchGame(1, true);
+    }
+  });
+
+  document.getElementById('menu-btn-load').addEventListener('click', () => {
+    renderSaveSlots();
+    showMenuView('menu-view-load');
+  });
+
+  document.getElementById('menu-btn-settings').addEventListener('click', () => {
+    syncMenuSettings();
+    showMenuView('menu-view-settings');
+  });
+
+  document.getElementById('menu-load-back').addEventListener('click', () => showMenuView('menu-view-main'));
+  document.getElementById('menu-settings-back').addEventListener('click', () => showMenuView('menu-view-main'));
+
+  // ── Delete confirmation dialog ───────────────────────────
+  let pendingDeleteSlot = null;
+  document.getElementById('menu-del-no').addEventListener('click', () => {
+    document.getElementById('menu-delete-confirm').classList.add('hidden');
+    pendingDeleteSlot = null;
+  });
+  document.getElementById('menu-del-yes').addEventListener('click', () => {
+    if (pendingDeleteSlot !== null) {
+      deleteSlot(pendingDeleteSlot);
+      pendingDeleteSlot = null;
+    }
+    document.getElementById('menu-delete-confirm').classList.add('hidden');
+    renderSaveSlots();
+  });
+
+  // Expose slot deletion trigger for dynamically rendered cards
+  window._menuRequestDeleteSlot = (slot) => {
+    pendingDeleteSlot = slot;
+    document.getElementById('menu-del-msg').textContent =
+      `Save Slot ${slot} will be permanently deleted. This cannot be undone.`;
+    document.getElementById('menu-delete-confirm').classList.remove('hidden');
+    document.getElementById('menu-del-yes').focus();
+  };
+
+  // Expose slot launch for dynamically rendered cards
+  window._menuLaunchSlot = (slot, isNew) => launchGame(slot, isNew);
+}
+
+/** Format a dollar amount for the save-slot display. */
+function fmtSlotMoney(n) {
+  if (n >= 1_000_000) return '$' + (n / 1_000_000).toFixed(1) + 'M';
+  if (n >= 1_000)     return '$' + (n / 1_000).toFixed(1) + 'K';
+  return '$' + Math.round(n).toLocaleString();
+}
+
+/** Re-render the three save-slot cards into #save-slot-grid. */
+function renderSaveSlots() {
+  const grid    = document.getElementById('save-slot-grid');
+  const lastSl  = getLastSlot();
+  grid.innerHTML = '';
+
+  for (let slot = 1; slot <= 3; slot++) {
+    const summary = getSlotSummary(slot);
+    const isLast  = summary !== null && slot === lastSl;
+    const card    = document.createElement('div');
+    card.className = 'save-slot-card' + (isLast ? ' last-played' : '');
+    card.setAttribute('role', 'listitem');
+    card.setAttribute('tabindex', '0');
+    card.setAttribute('aria-label', summary
+      ? `Save Slot ${slot}: Day ${summary.day}, ${fmtSlotMoney(summary.money)}, ${summary.cars} car${summary.cars !== 1 ? 's' : ''}${isLast ? ', last played' : ''}`
+      : `Save Slot ${slot}: Empty — start new game`);
+
+    if (summary) {
+      card.innerHTML = `
+        ${isLast ? '<span class="slot-last-badge">Last Played</span>' : ''}
+        <div class="slot-label">Save Slot ${slot}</div>
+        <div class="slot-icon">🚗</div>
+        <div class="slot-name">Day ${summary.day}</div>
+        <div class="slot-stats">
+          <div class="slot-stat-row"><span>💰 Money</span><span>${fmtSlotMoney(summary.money)}</span></div>
+          <div class="slot-stat-row"><span>📅 Days</span><span>${summary.day}</span></div>
+          <div class="slot-stat-row"><span>🚘 Cars</span><span>${summary.cars}</span></div>
+        </div>
+        <button class="slot-delete-btn" aria-label="Delete Save Slot ${slot}"
+          onclick="event.stopPropagation(); window._menuRequestDeleteSlot(${slot})">🗑 Delete</button>
+      `;
+      card.addEventListener('click', () => window._menuLaunchSlot(slot, false));
+      card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); window._menuLaunchSlot(slot, false); } });
+    } else {
+      card.innerHTML = `
+        <div class="slot-label">Save Slot ${slot}</div>
+        <div class="slot-icon" style="font-size:2.8rem;opacity:.55;">＋</div>
+        <div class="slot-name" style="opacity:.6;">Empty</div>
+        <div class="slot-cta">Create Save</div>
+      `;
+      card.addEventListener('click', () => window._menuLaunchSlot(slot, true));
+      card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); window._menuLaunchSlot(slot, true); } });
+    }
+
+    grid.appendChild(card);
+  }
+}
+
+/**
+ * Synchronise the menu settings toggles with current in-memory settings.
+ * Called each time the settings panel is opened.
+ */
+function syncMenuSettings() {
+  const setToggle = (id, active) => {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    btn.classList.toggle('active', !!active);
+    btn.querySelector('.toggle-thumb').style.transform = active ? 'translateX(22px)' : '';
+  };
+  setToggle('menu-toggle-dark',      settings.darkMode);
+  setToggle('menu-toggle-wordmarks', settings.showWordmarks);
+  setToggle('menu-toggle-sfx',       !settings.sfxMuted);
+
+  // Highlight the active difficulty button
+  const isHard = settings.difficulty === 'hard';
+  document.getElementById('menu-diff-normal')?.classList.toggle('menu-btn-play', !isHard);
+  document.getElementById('menu-diff-normal')?.classList.toggle('menu-btn-load', isHard);
+  document.getElementById('menu-diff-hard')?.classList.toggle('menu-btn-play', isHard);
+  document.getElementById('menu-diff-hard')?.classList.toggle('menu-btn-load', !isHard);
+}
+
+/** Toggle dark mode from the home-screen settings panel. */
+function menuToggleDark() {
+  settings.darkMode = !settings.darkMode;
+  applyDarkMode();
+  saveSettings();
+  syncMenuSettings();
+}
+
+/** Toggle wordmarks from the home-screen settings panel. */
+function menuToggleWordmarks() {
+  settings.showWordmarks = !settings.showWordmarks;
+  saveSettings();
+  syncMenuSettings();
+}
+
+/** Toggle SFX from the home-screen settings panel. */
+function menuToggleSfx() {
+  settings.sfxMuted = !settings.sfxMuted;
+  saveSettings();
+  syncMenuSettings();
+}
+
+/** Set difficulty from the home-screen settings panel. */
+function menuSetDifficulty(level) {
+  settings.difficulty = level;
+  syncLoanTermsToDifficulty();
+  saveSettings();
+  syncMenuSettings();
+}
+
+/**
+ * Hide the home screen and start the game session in the given slot.
+ * @param {number} slot  1–3
+ * @param {boolean} isNew  true → create a fresh game; false → load existing save
+ */
+function launchGame(slot, isNew) {
+  currentSlot = slot;
+  setLastSlot(slot);
+
+  if (isNew) {
+    state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+    syncLoanTermsToDifficulty();
+    state.usedMarketOffers = generateUsedMarket();
+    saveState();
+  } else {
+    if (!loadState(slot)) {
+      // Slot was empty (race-condition safety) — start fresh
+      state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+      syncLoanTermsToDifficulty();
+      state.usedMarketOffers = generateUsedMarket();
+      saveState();
+    }
+  }
+
+  syncLoanTermsToDifficulty();
+  runAchievementChecks();
+  ensureStaffCandidates();
+  renderAll();
+
+  // Stop star animation
+  if (window._menuStarRaf) window._menuStarRaf();
+
+  // Fade out and hide the home screen
+  const hs = document.getElementById('home-screen');
+  hs.classList.add('fade-out');
+  setTimeout(() => hs.classList.add('hidden'), 450);
+}
+
+// ============================================================
 // INIT
 // ============================================================
 function init() {
   loadSettings(); // must be before any render so dark mode applies
-  if (!loadState()) {
-    state.usedMarketOffers = generateUsedMarket();
-    syncLoanTermsToDifficulty();
-    saveState();
-  }
-  syncLoanTermsToDifficulty();
-  runAchievementChecks();
-  ensureStaffCandidates();
 
+  // Wire up game-shell event listeners (panel stays hidden until launchGame)
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
   });
@@ -3537,9 +3858,8 @@ function init() {
     confirmNewGame, exportSave, hireStaff, dismissCandidate,
     toggleDarkMode, setDifficulty, toggleSfxMuted, setSfxVolume, toggleWordmarks,
     renderGarage, renderForSale, renderUsedMarket, renderFinance, renderAchievements,
+    menuToggleDark, menuToggleWordmarks, menuToggleSfx, menuSetDifficulty,
   });
-
-  renderAll();
 
   // Keyboard navigation — arrow keys cycle through visible tabs, ignore when focus is in input/select/textarea
   document.addEventListener('keydown', e => {
@@ -3556,6 +3876,10 @@ function init() {
     tabs[next].focus();
     e.preventDefault();
   });
+
+  // Show the home screen
+  initHomeScreen();
 }
+
 
 init();

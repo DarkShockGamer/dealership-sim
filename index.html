@@ -5,8 +5,121 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DealerSim — Car Dealership Simulator</title>
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="menu.css" />
 </head>
 <body>
+
+  <!-- ══════════════════════════════════════════════════════
+       HOME SCREEN / MAIN MENU
+       ══════════════════════════════════════════════════════ -->
+  <div id="home-screen" role="main" aria-label="Main Menu">
+    <!-- Animated star canvas -->
+    <canvas id="menu-stars" aria-hidden="true"></canvas>
+
+    <!-- Main menu view -->
+    <div class="menu-content" id="menu-view-main">
+      <div class="menu-brand">
+        <span class="menu-subtitle">Car Dealership Simulator</span>
+        <h1 class="menu-title">DealerSim</h1>
+      </div>
+      <div class="menu-divider" aria-hidden="true"></div>
+      <div class="menu-buttons" role="navigation" aria-label="Main menu">
+        <button class="menu-btn menu-btn-play" id="menu-btn-play">▶ &nbsp;Play</button>
+        <button class="menu-btn menu-btn-load" id="menu-btn-load">📂 &nbsp;Load</button>
+        <button class="menu-btn menu-btn-settings" id="menu-btn-settings">⚙ &nbsp;Settings</button>
+      </div>
+    </div>
+
+    <!-- Load / Save Slots panel -->
+    <div class="menu-content menu-panel" id="menu-view-load" aria-label="Load save" aria-hidden="true">
+      <div class="menu-panel-header">
+        <button class="menu-back-btn" id="menu-load-back" aria-label="Back to main menu">← Back</button>
+        <h2 class="menu-panel-title">Select Save</h2>
+        <div style="width:80px"></div><!-- spacer -->
+      </div>
+      <div class="save-slot-grid" id="save-slot-grid" role="list" aria-label="Save slots"></div>
+    </div>
+
+    <!-- Settings panel -->
+    <div class="menu-content menu-panel" id="menu-view-settings" aria-label="Settings" aria-hidden="true">
+      <div class="menu-panel-header">
+        <button class="menu-back-btn" id="menu-settings-back" aria-label="Back to main menu">← Back</button>
+        <h2 class="menu-panel-title">Settings</h2>
+        <div style="width:80px"></div><!-- spacer -->
+      </div>
+      <div class="menu-settings-wrap">
+        <div class="menu-settings-card">
+          <h3>Display</h3>
+          <div class="menu-setting-row">
+            <div>
+              <div class="menu-setting-label">Dark Mode</div>
+              <div class="menu-setting-desc">Use a deeper dark colour palette.</div>
+            </div>
+            <button class="toggle-btn" id="menu-toggle-dark" onclick="menuToggleDark()" aria-label="Toggle dark mode">
+              <span class="toggle-thumb"></span>
+            </button>
+          </div>
+          <div class="menu-setting-row">
+            <div>
+              <div class="menu-setting-label">Car Brand Wordmarks</div>
+              <div class="menu-setting-desc">Show brand labels on car cards.</div>
+            </div>
+            <button class="toggle-btn" id="menu-toggle-wordmarks" onclick="menuToggleWordmarks()" aria-label="Toggle wordmarks">
+              <span class="toggle-thumb"></span>
+            </button>
+          </div>
+        </div>
+        <div class="menu-settings-card">
+          <h3>Audio</h3>
+          <div class="menu-setting-row">
+            <div>
+              <div class="menu-setting-label">Sound Effects</div>
+              <div class="menu-setting-desc">UI click and event sounds.</div>
+            </div>
+            <button class="toggle-btn" id="menu-toggle-sfx" onclick="menuToggleSfx()" aria-label="Toggle sound effects">
+              <span class="toggle-thumb"></span>
+            </button>
+          </div>
+        </div>
+        <div class="menu-settings-card">
+          <h3>Difficulty</h3>
+          <div class="menu-setting-row" id="menu-difficulty-row">
+            <div>
+              <div class="menu-setting-label">Game Difficulty</div>
+              <div class="menu-setting-desc">Affects loan limits and overhead costs.</div>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="menu-btn menu-btn-load" id="menu-diff-normal" onclick="menuSetDifficulty('normal')"
+                style="padding:8px 18px;font-size:.82rem;letter-spacing:1px;min-width:0;width:auto;">Normal</button>
+              <button class="menu-btn menu-btn-load" id="menu-diff-hard" onclick="menuSetDifficulty('hard')"
+                style="padding:8px 18px;font-size:.82rem;letter-spacing:1px;min-width:0;width:auto;">Hard</button>
+            </div>
+          </div>
+        </div>
+        <div class="menu-settings-card" style="text-align:center;">
+          <h3>About</h3>
+          <p style="font-size:.88rem;color:rgba(160,200,255,.65);line-height:1.55;">
+            DealerSim — Car Dealership Simulator<br>
+            Build your empire one deal at a time.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <span class="menu-version" aria-hidden="true">v1.0</span>
+  </div>
+
+  <!-- Delete-slot confirmation dialog -->
+  <div id="menu-delete-confirm" class="hidden" role="dialog" aria-modal="true" aria-labelledby="menu-del-title">
+    <div class="menu-confirm-box">
+      <h3 id="menu-del-title">Delete Save?</h3>
+      <p id="menu-del-msg">This save will be permanently deleted. This cannot be undone.</p>
+      <div class="menu-confirm-actions">
+        <button class="menu-confirm-delete" id="menu-del-yes">Delete</button>
+        <button class="menu-confirm-cancel" id="menu-del-no">Cancel</button>
+      </div>
+    </div>
+  </div>
 
   <!-- ── Header ─────────────────────────────────────────── -->
   <header class="app-header">
