@@ -756,8 +756,8 @@ function loadState() {
       }
       if (loaded.saveVersion < 8) {
         loaded.saveVersion = 8;
-        // Recalculate paymentPerDay for all active leases using the updated rates.
-        const diffKey = settings.difficulty === 'hard' ? 'hard' : 'normal';
+        // settings is loaded before loadGame() is called (see init()), so difficulty is available.
+        const diffKey = (settings?.difficulty === 'hard') ? 'hard' : 'normal';
         for (const car of loaded.garage || []) {
           if (car.leaseStatus === 'active' && car.activeLease) {
             const rate = LEASE_RATE_BY_SEGMENT[diffKey][car.category] ?? LEASE_RATE_BY_SEGMENT[diffKey].Sedan;
