@@ -178,6 +178,10 @@ const LEASE_DEPRECIATION_DIVISOR = 420000;
 const LEASE_ISSUE_BONUS_HARD_DIFFICULTY = 0.0015;
 const LEASE_ISSUE_BONUS_LEMON = 0.003;
 const LEASE_ISSUE_BONUS_SALVAGE = 0.0015;
+// Repair cost scaling thresholds by mileage (see computeRepairCost)
+const REPAIR_COST_BASE_MIN = 500;        // Minimum base parts/labour cost even with no issues
+const REPAIR_WARN_COST_RATIO = 0.6;      // Warn player when repair cost exceeds 60 % of market value
+const REPAIR_JUNK_COST_RATIO = 1.0;      // "Beyond economical repair" when cost ≥ market value
 const MAX_LEASE_STARTS_PER_DAY = 2;
 const LEASE_VALUE_SCORE_DIVISOR = 220000;
 const LEASE_START_CHANCE_BASE = 0.05;
@@ -827,6 +831,7 @@ function migrateCar(car) {
   if (car.trim               === undefined) car.trim               = '';
   if (!TITLE_STATUSES.includes(car.titleStatus)) car.titleStatus   = 'clean';
   if (car.hasBeenDetailed    === undefined) car.hasBeenDetailed    = car.reconditionLog.some(r => r.type === 'Detailing');
+  if (car.repairCount        === undefined) car.repairCount        = car.reconditionLog.filter(r => r.type === 'Basic Repair').length;
 }
 
 // ============================================================
@@ -896,6 +901,7 @@ function buildCar(entry, condition, source, inspected = false) {
     leaseStatus: 'none',
     activeLease: null,
     hasBeenDetailed: false,
+    repairCount: 0,
   };
 }
 
@@ -1140,6 +1146,37 @@ function downgradeConditionBySteps(condition, steps) {
   return CONDITIONS[Math.min(CONDITIONS.length - 1, idx + steps)];
 }
 
+/**
+ * Compute the realistic repair cost for a car.
+ * Cost scales with:
+ *   - Actual hidden-issue repair costs (or a minimum labour floor)
+ *   - Mileage multiplier: gets exponentially expensive past 100 k, prohibitive at 140 k–250 k
+ *   - Repair-count multiplier: each prior repair makes subsequent ones much costlier
+ */
+function computeRepairCost(car) {
+  const issueCost    = car.hiddenIssues.reduce((s, i) => s + i.cost, 0);
+  const basePartsCost = Math.max(REPAIR_COST_BASE_MIN, issueCost);
+
+  const miles = car.mileage;
+  const mileageMult =
+    miles < 50000  ? 1.0 :
+    miles < 100000 ? lerp(1.0, 1.8,  (miles - 50000)  / 50000) :
+    miles < 140000 ? lerp(1.8, 3.5,  (miles - 100000) / 40000) :
+    miles < 200000 ? lerp(3.5, 8.0,  (miles - 140000) / 60000) :
+    miles < 250000 ? lerp(8.0, 16.0, (miles - 200000) / 50000) :
+    16.0;
+
+  const repairCount = car.repairCount || 0;
+  const repairMult =
+    repairCount === 0 ? 1.0 :
+    repairCount === 1 ? 1.6 :
+    repairCount === 2 ? 2.6 :
+    repairCount === 3 ? 4.2 :
+    Math.min(6.5 + (repairCount - 4) * 2.0, 18.0);
+
+  return Math.round(basePartsCost * mileageMult * repairMult);
+}
+
 function processLeases() {
   for (const car of state.garage) {
     if (car.leaseStatus !== 'active' || !car.activeLease) continue;
@@ -1175,6 +1212,10 @@ function processLeases() {
         ? 2
         : lease.totalMilesAdded >= LEASE_CONDITION_DROP_ONE_STEP_MILES ? 1 : 0;
       if (steps > 0) car.condition = downgradeConditionBySteps(car.condition, steps);
+      // If hidden issues accumulated but condition is still A, reflect real wear — drop to B
+      if (car.hiddenIssues.length > 0 && car.condition === 'A') {
+        car.condition = 'B';
+      }
 
       const report = {
         day: state.day,
@@ -1383,6 +1424,17 @@ function processMarketDepreciation() {
       const rate = car.daysInLot > 14 ? 0.003 : 0.002;
       car.marketValue = Math.max(1000, Math.round(car.marketValue * (1 - rate)));
     }
+
+    // Mileage-based aging depreciation — high-mileage vehicles lose value every day
+    // regardless of market conditions, reflecting ongoing mechanical wear.
+    if (car.mileage > 80000) {
+      const excessMiles = car.mileage - 80000;
+      // Rate climbs from ~0.03 %/day at 80 k to ~0.15 %/day at 250 k+
+      const agingRate = clamp(0.0003 + (excessMiles / 170000) * 0.0012, 0.0003, 0.0015);
+      // Additional penalty for repeatedly repaired vehicles
+      const repairPenalty = (car.repairCount || 0) * 0.0002;
+      car.marketValue = Math.max(500, Math.round(car.marketValue * (1 - agingRate - repairPenalty)));
+    }
   }
 }
 
@@ -1450,15 +1502,23 @@ function processService() {
       const svc = car.pendingService;
       if (svc.type === 'repair') {
         const oldCond = car.condition;
-        const idx     = CONDITIONS.indexOf(car.condition);
-        if (idx > 0) {
-          car.condition = CONDITIONS[idx - 1];
-          car.marketValue = Math.round(car.marketValue * 1.10);
-          car.hiddenIssues = [];
-          car.repairCost   = 0;
-          car.reconditionLog.push({ type: 'Basic Repair', day: state.day });
-          addNote(`🔩 ${car.year} ${car.make} ${car.model} repair complete: ${oldCond} → ${car.condition}. +10% value.`, 'success');
-        }
+        // Repair always restores to excellent condition and clears all issues
+        car.condition    = 'A';
+        car.hiddenIssues = [];
+        car.repairCost   = 0;
+        car.repairCount  = (car.repairCount || 0) + 1;
+        // Value boost diminishes with each repair and with high mileage — reflects
+        // diminishing returns on a wearing vehicle.
+        const repairCount = car.repairCount;
+        const mileagePenalty = clamp(car.mileage / 300000, 0, 0.8); // 0→0.8 at 300 k miles
+        const rawBoost = repairCount === 1 ? 0.12 :
+                         repairCount === 2 ? 0.07 :
+                         repairCount === 3 ? 0.03 :
+                         0; // 4+ repairs: no value boost — car is a high-mileage beater
+        const boostFactor = rawBoost * (1 - mileagePenalty);
+        if (boostFactor > 0) car.marketValue = Math.round(car.marketValue * (1 + boostFactor));
+        car.reconditionLog.push({ type: 'Basic Repair', day: state.day });
+        addNote(`🔩 ${car.year} ${car.make} ${car.model} repair complete: ${oldCond} → ${car.condition}. Repair #${repairCount}${boostFactor > 0 ? ` (+${Math.round(boostFactor * 100)}% value)` : ' (no value gain at this mileage)'}.`, 'success');
       } else if (svc.type === 'parts') {
         car.marketValue = Math.round(car.marketValue * 1.15);
         car.reconditionLog.push({ type: 'Parts Upgrade', day: state.day });
@@ -2060,17 +2120,22 @@ function basicRepair(carId) {
   const car = state.garage.find(c => c.id === carId);
   if (!car) return;
   if (car.leaseStatus === 'active' && car.activeLease) { showToast('No recon actions allowed while lease is active.', 'error'); return; }
-  if (car.condition === 'A' || (car.condition === 'B' && car.hiddenIssues.length === 0)) {
-    showToast('Car is in good condition — no major repairs needed!', 'error'); return;
+  // Block repair only when condition is A or B AND there are no hidden issues to fix
+  if (car.hiddenIssues.length === 0 && (car.condition === 'A' || car.condition === 'B')) {
+    showToast('Car is in good condition with no known issues — no repairs needed!', 'error'); return;
   }
   if (car.inServiceUntilDay) { showToast('Car is already in service.', 'error'); return; }
-  const cost = 800;
-  if (state.cash < cost) { showToast(`Basic Repair costs ${formatCurrency(cost)} — not enough cash!`, 'error'); return; }
+  const cost = computeRepairCost(car);
+  const costRatio = cost / Math.max(1, car.marketValue);
+  if (costRatio >= REPAIR_JUNK_COST_RATIO) {
+    showToast(`⚠️ Repair estimate (${formatCurrency(cost)}) exceeds car value — this vehicle may not be worth fixing!`, 'warning');
+  }
+  if (state.cash < cost) { showToast(`Repair estimate is ${formatCurrency(cost)} — not enough cash!`, 'error'); return; }
   state.cash -= cost;
   car.inServiceUntilDay = state.upgrades.reconditioningWorkshop ? state.day : state.day + 1;
   car.pendingService    = { type: 'repair' };
   car.isForSale         = false;
-  addNote(`🔩 ${car.year} ${car.make} ${car.model} is in the service bay. ${state.upgrades.reconditioningWorkshop ? 'Ready same day.' : 'Ready next day.'}`, 'info');
+  addNote(`🔩 ${car.year} ${car.make} ${car.model} is in the service bay (${formatCurrency(cost)}). ${state.upgrades.reconditioningWorkshop ? 'Ready same day.' : 'Ready next day.'}`, 'info');
   saveState();
   renderAll();
   showToast(`Car is being repaired — ${state.upgrades.reconditioningWorkshop ? 'ready same day' : 'ready next day'}.`, 'info');
@@ -2624,11 +2689,17 @@ function renderGarage() {
             ${canDetail ? '' : 'disabled'} title="Instant: +1 condition tier, +7% value">${uiIcon('sparkles')} Detail ($500)</button>`;
         }
       }
-      // Basic Repair
-      const canRepair = Number(state.cash) >= 800;
-      if (state.upgrades.serviceBay && car.condition !== 'A') {
-        reconHtml += `<button class="btn btn-sm btn-secondary recon-btn" onclick="basicRepair('${car.id}')"
-          ${canRepair ? '' : 'disabled'} title="1 day: fixes issues, +1 condition tier, +10% value">${uiIcon('wrench')} Repair ($800)</button>`;
+      // Basic Repair — show button whenever the function would allow repair
+      const repairNeeded = car.hiddenIssues.length > 0 || (car.condition !== 'A' && car.condition !== 'B');
+      if (state.upgrades.serviceBay && repairNeeded) {
+        const repairEst  = computeRepairCost(car);
+        const canRepair  = Number(state.cash) >= repairEst;
+        const costRatio  = repairEst / Math.max(1, car.marketValue);
+        const junkWarn   = costRatio >= REPAIR_JUNK_COST_RATIO  ? '⚠️ Beyond economical repair! ' :
+                           costRatio >= REPAIR_WARN_COST_RATIO  ? '⚠️ Expensive repair — ' : '';
+        const repairBtnClass = costRatio >= REPAIR_WARN_COST_RATIO ? 'btn-danger' : 'btn-secondary';
+        reconHtml += `<button class="btn btn-sm ${repairBtnClass} recon-btn" onclick="basicRepair('${car.id}')"
+          ${canRepair ? '' : 'disabled'} title="${junkWarn}1 day: fixes all issues, restores to Excellent condition">${uiIcon('wrench')} Repair (${formatCurrency(repairEst)})</button>`;
       }
       // Parts Upgrade
       const canPartsUpgrade = Number(state.cash) >= 1500;
