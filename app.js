@@ -3619,6 +3619,12 @@ function initHomeScreen() {
   // Show main view initially
   showMenuView('menu-view-main');
 
+  /** Switch to the load panel with freshly rendered slot cards. */
+  function openLoadView() {
+    renderSaveSlots();
+    showMenuView('menu-view-load');
+  }
+
   // ── Button event listeners ───────────────────────────────
   document.getElementById('menu-btn-play').addEventListener('click', () => {
     const anyExists = [1, 2, 3].some(s => getSlotSummary(s) !== null);
@@ -3635,10 +3641,7 @@ function initHomeScreen() {
     }
   });
 
-  document.getElementById('menu-btn-load').addEventListener('click', () => {
-    renderSaveSlots();
-    showMenuView('menu-view-load');
-  });
+  document.getElementById('menu-btn-load').addEventListener('click', openLoadView);
 
   document.getElementById('menu-btn-settings').addEventListener('click', () => {
     syncMenuSettings();
@@ -3660,7 +3663,7 @@ function initHomeScreen() {
       pendingDeleteSlot = null;
     }
     document.getElementById('menu-delete-confirm').classList.add('hidden');
-    renderSaveSlots();
+    openLoadView();
   });
 
   // Expose slot deletion trigger for dynamically rendered cards
@@ -3806,9 +3809,9 @@ function launchGame(slot, isNew) {
       state.usedMarketOffers = generateUsedMarket();
       saveState();
     }
+    // loadState() calls syncLoanTermsToDifficulty() internally when a save exists
   }
 
-  syncLoanTermsToDifficulty();
   runAchievementChecks();
   ensureStaffCandidates();
   renderAll();
