@@ -3602,7 +3602,8 @@ function initHomeScreen() {
   window.addEventListener('resize', () => { resizeCanvas(); makeStars(160); });
 
   // Store cancellation handle so we can stop when leaving the menu
-  window._stopMenuStarfield = () => { if (rafId) cancelAnimationFrame(rafId); };
+  window._stopMenuStarfield  = () => { if (rafId) { cancelAnimationFrame(rafId); rafId = null; } };
+  window._startMenuStarfield = () => { if (!rafId) { resizeCanvas(); makeStars(160); drawStars(); } };
 
   // ── Panel switching ──────────────────────────────────────
   function showMenuView(id) {
@@ -3825,6 +3826,33 @@ function launchGame(slot, isNew) {
 }
 
 // ============================================================
+// RETURN TO MENU
+// ============================================================
+/** Save state and return to the main menu / home screen. */
+function returnToMenu() {
+  // Persist current progress before leaving the game
+  saveState();
+
+  // Restore home screen
+  const hs = document.getElementById('home-screen');
+  hs.classList.remove('hidden');
+  // Force reflow so the opacity transition fires
+  void hs.offsetWidth;
+  hs.classList.remove('fade-out');
+
+  // Show the main menu panel, hide sub-panels
+  document.querySelectorAll('#home-screen .menu-content').forEach(el => {
+    const isMain = el.id === 'menu-view-main';
+    if (el.classList.contains('menu-panel')) el.classList.remove('active');
+    el.setAttribute('aria-hidden', isMain ? 'false' : 'true');
+    if (el.id === 'menu-view-main') el.style.display = 'flex';
+  });
+
+  // Restart the star animation
+  if (window._startMenuStarfield) window._startMenuStarfield();
+}
+
+// ============================================================
 // INIT
 // ============================================================
 function init() {
@@ -3836,6 +3864,7 @@ function init() {
   });
 
   document.getElementById('btn-next-day').addEventListener('click', nextDay);
+  document.getElementById('btn-return-menu').addEventListener('click', returnToMenu);
 
   document.getElementById('modal-cancel').addEventListener('click', closeModal);
   document.getElementById('modal').addEventListener('click', e => {
@@ -3861,6 +3890,7 @@ function init() {
     toggleDarkMode, setDifficulty, toggleSfxMuted, setSfxVolume, toggleWordmarks,
     renderGarage, renderForSale, renderUsedMarket, renderFinance, renderAchievements,
     menuToggleDark, menuToggleWordmarks, menuToggleSfx, menuSetDifficulty,
+    returnToMenu,
   });
 
   // Keyboard navigation — arrow keys cycle through visible tabs, ignore when focus is in input/select/textarea
