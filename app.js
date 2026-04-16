@@ -205,6 +205,96 @@ function achSvg(pathD) {
     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
     class="ach-icon" aria-hidden="true">${pathD}</svg>`;
 }
+// UI icon helper — returns a 16×16 inline SVG icon for use in buttons, labels, and headings
+function uiSvg(pathD, ariaLabel) {
+  const ariaAttrs = ariaLabel
+    ? `role="img" aria-label="${ariaLabel}"`
+    : 'aria-hidden="true"';
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+    class="ui-icon" ${ariaAttrs}>${pathD}</svg>`;
+}
+// Larger UI icon (32px) for upgrade/feature cards
+function uiSvgLg(pathD, ariaLabel) {
+  const ariaAttrs = ariaLabel
+    ? `role="img" aria-label="${ariaLabel}"`
+    : 'aria-hidden="true"';
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"
+    fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+    class="ui-icon-lg" ${ariaAttrs}>${pathD}</svg>`;
+}
+const _P = {
+  car:          '<rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>',
+  chartBar:     '<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>',
+  factory:      '<rect x="2" y="6" width="20" height="16" rx="1"/><path d="M2 12h20"/><path d="M7 2v4"/><path d="M12 2v4"/><path d="M17 2v4"/>',
+  key:          '<path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>',
+  tag:          '<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>',
+  bank:         '<rect x="1" y="10" width="22" height="12" rx="1"/><line x1="1" y1="14" x2="23" y2="14"/><path d="M12 2l10 8H2l10-8z"/>',
+  arrowUp:      '<line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>',
+  trophy:       '<path d="M6 9H4a2 2 0 0 0-2 2v0a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2h-2"/><path d="M8 21h8"/><path d="M12 17v4"/><path d="M6 2h12v11a6 6 0 0 1-6 6 6 6 0 0 1-6-6V2z"/>',
+  gear:         '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  cash:         '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+  calendar:     '<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
+  home:         '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
+  document:     '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
+  star:         '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+  trendingUp:   '<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>',
+  trendingDown: '<polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/>',
+  arrowRight:   '<line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>',
+  warning:      '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+  check:        '<polyline points="20 6 9 17 4 12"/>',
+  xIcon:        '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+  ban:          '<circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>',
+  bell:         '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
+  package:      '<line x1="16.5" y1="9.4" x2="7.55" y2="4.24"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" y1="22" x2="12" y2="12"/>',
+  money:        '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+  person:       '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  trash:        '<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>',
+  upload:       '<polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>',
+  download:     '<polyline points="8 17 12 21 16 17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"/>',
+  search:       '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+  handshake:    '<path d="M18 11V6l-9 5-5-3v5l5 3 9-5z"/><path d="M3 11l5 3 9-5 4 2.5v5l-4-2.5-9 5-5-3V11z"/>',
+  message:      '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  droplet:      '<path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>',
+  sparkles:     '<path d="M12 3l1.5 3.5L17 8l-3.5 1.5L12 13l-1.5-3.5L7 8l3.5-1.5L12 3z"/><path d="M5 17l.5 1.5L7 19l-1.5.5L5 21l-.5-1.5L3 19l1.5-.5L5 17z"/><path d="M19 17l.5 1.5L21 19l-1.5.5L19 21l-.5-1.5L17 19l1.5-.5L19 17z"/>',
+  wrench:       '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.77 3.77z"/>',
+  gauge:        '<path d="M12 2a10 10 0 0 1 10 10"/><path d="M12 2a10 10 0 0 0-10 10"/><circle cx="12" cy="12" r="2"/><path d="M12 14v4"/><path d="M8.5 8.5L10.5 10.5"/>',
+  toolbox:      '<rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/>',
+  stop:         '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>',
+  fileText:     '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
+  refresh:      '<polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>',
+  inbox:        '<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/>',
+  palette:      '<circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>',
+  speaker:      '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>',
+  clipboard:    '<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>',
+  dumbbell:     '<path d="M6.5 6.5h11"/><path d="M6.5 17.5h11"/><rect x="3" y="9" width="2" height="6" rx="1"/><rect x="19" y="9" width="2" height="6" rx="1"/><rect x="5" y="7" width="2" height="10" rx="1"/><rect x="17" y="7" width="2" height="10" rx="1"/>',
+  building:     '<rect x="4" y="2" width="16" height="20" rx="1"/><path d="M9 22V12h6v10"/><path d="M8 7h2"/><path d="M14 7h2"/><path d="M8 11h2"/><path d="M14 11h2"/>',
+  construction: '<rect x="2" y="10" width="20" height="11" rx="1"/><path d="M12 10V2"/><path d="M8 6l4-4 4 4"/>',
+  megaphone:    '<path d="M3 11l15-8v16L3 11z"/><path d="M21 15.5A2.5 2.5 0 0 0 21 8.5"/><path d="M3 11v5"/>',
+  book:         '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+  brain:        '<path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.46 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-1.14"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.46 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-1.14"/>',
+  wine:         '<path d="M8 22h8"/><path d="M7 10h10"/><path d="M12 15v7"/><path d="M12 15A5 5 0 0 0 17 10V3H7v7a5 5 0 0 0 5 5z"/>',
+  camera:       '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
+  truck:        '<rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>',
+  pillar:       '<rect x="4" y="2" width="3" height="20" rx="1"/><rect x="17" y="2" width="3" height="20" rx="1"/><rect x="2" y="2" width="20" height="4" rx="1"/><rect x="2" y="18" width="20" height="4" rx="1"/>',
+  creditCard:   '<rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>',
+  receipt:      '<path d="M3 3h18v18H3z"/><path d="M9 9h6"/><path d="M9 12h6"/><path d="M9 15h4"/><path d="M3 3v18l3-3 3 3 3-3 3 3 3-3V3"/>',
+  layers:       '<polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>',
+  info:         '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
+};
+// Returns a 16px UI icon SVG by key
+function uiIcon(key, ariaLabel) { return uiSvg(_P[key] || _P.info, ariaLabel); }
+// Returns a 32px UI icon SVG by key
+function uiIconLg(key, ariaLabel) { return uiSvgLg(_P[key] || _P.info, ariaLabel); }
+// Map from upgrade icon emoji to icon key
+const UPGRADE_ICON_MAP = {
+  '🏗️': 'construction', '🏢': 'building', '🏭': 'factory', '📣': 'megaphone',
+  '🔧': 'wrench', '🤝': 'handshake', '✨': 'sparkles', '🔩': 'wrench',
+  '🏎️': 'gauge', '🚚': 'truck', '🧑‍💼': 'person', '📚': 'book',
+  '🧠': 'brain', '🥂': 'wine', '🏦': 'bank', '💳': 'creditCard',
+  '💳💳': 'creditCard', '🏛️': 'pillar', '📉': 'trendingDown', '📸': 'camera',
+  '📝': 'document', '🛠️': 'toolbox', '⭐': 'star',
+};
 const ACH_ICONS = {
   star:       achSvg('<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>'),
   handshake:  achSvg('<path d="M18 11V6l-9 5-5-3v5l5 3 9-5z"/><path d="M3 11l5 3 9-5 4 2.5v5l-4-2.5-9 5-5-3V11z"/>'),
@@ -926,22 +1016,22 @@ function computeSaleChance(car) {
 // ============================================================
 /** Returns tone text & CSS class based on seller's perspective of player's offer ratio. */
 function getSellerTone(ratio, patience) {
-  if (patience === 0) return { text: '⚠️ Final offer', cls: 'text-red' };
-  if (ratio >= 0.96)  return { text: '😊 Very interested', cls: 'text-green' };
-  if (ratio >= 0.88)  return { text: '🤔 Interested', cls: 'text-yellow' };
-  if (ratio >= 0.76)  return { text: '😐 Hesitant', cls: 'text-yellow' };
-  if (ratio >= 0.65)  return { text: '😠 Offended', cls: 'text-red' };
-  return { text: '🤬 Insulted — likely to walk', cls: 'text-red' };
+  if (patience === 0) return { text: 'Final offer', cls: 'text-red' };
+  if (ratio >= 0.96)  return { text: 'Very interested', cls: 'text-green' };
+  if (ratio >= 0.88)  return { text: 'Interested', cls: 'text-yellow' };
+  if (ratio >= 0.76)  return { text: 'Hesitant', cls: 'text-yellow' };
+  if (ratio >= 0.65)  return { text: 'Offended', cls: 'text-red' };
+  return { text: 'Insulted — likely to walk', cls: 'text-red' };
 }
 
 /** Returns tone text & CSS class based on buyer's offer relative to list price. */
 function getBuyerTone(offeredPrice, listPrice, patience) {
   const ratio = offeredPrice / listPrice;
-  if (patience === 0) return { text: '⚠️ Final offer', cls: 'text-red' };
-  if (ratio >= 0.95)  return { text: '😊 Fair offer', cls: 'text-green' };
-  if (ratio >= 0.87)  return { text: '🤔 Reasonable', cls: 'text-yellow' };
-  if (ratio >= 0.78)  return { text: '😐 Low offer', cls: 'text-yellow' };
-  return { text: '😠 Lowball offer', cls: 'text-red' };
+  if (patience === 0) return { text: 'Final offer', cls: 'text-red' };
+  if (ratio >= 0.95)  return { text: 'Fair offer', cls: 'text-green' };
+  if (ratio >= 0.87)  return { text: 'Reasonable', cls: 'text-yellow' };
+  if (ratio >= 0.78)  return { text: 'Low offer', cls: 'text-yellow' };
+  return { text: 'Lowball offer', cls: 'text-red' };
 }
 
 // ============================================================
@@ -2119,15 +2209,15 @@ function titleBadge(status) {
 }
 
 function renderStats() {
-  document.getElementById('stat-cash').textContent   = `💵 ${formatCurrency(state.cash)}`;
-  document.getElementById('stat-day').textContent    = `📅 Day ${state.day}`;
-  document.getElementById('stat-rep').textContent    = `⭐ Rep ${state.reputation.toFixed(2)}`;
-  document.getElementById('stat-garage').textContent = `🏠 ${state.garage.length} / ${state.garageSlots}`;
+  document.getElementById('stat-cash').innerHTML   = `${uiIcon('cash')} ${formatCurrency(state.cash)}`;
+  document.getElementById('stat-day').innerHTML    = `${uiIcon('calendar')} Day ${state.day}`;
+  document.getElementById('stat-rep').innerHTML    = `${uiIcon('star')} Rep ${state.reputation.toFixed(2)}`;
+  document.getElementById('stat-garage').innerHTML = `${uiIcon('home')} ${state.garage.length} / ${state.garageSlots}`;
   const debtChip = document.getElementById('stat-debt');
-  if (debtChip) debtChip.textContent = `🏦 Debt ${formatCurrency(state.loanBalance || 0)}`;
+  if (debtChip) debtChip.innerHTML = `${uiIcon('bank')} Debt ${formatCurrency(state.loanBalance || 0)}`;
   const activeLeases = state.garage.filter(c => c.leaseStatus === 'active' && c.activeLease).length;
   const leaseChip = document.getElementById('stat-lease');
-  if (leaseChip) leaseChip.textContent = `📝 Leases ${activeLeases} · ${formatCurrency(computeLeaseIncomePerDay())}/day`;
+  if (leaseChip) leaseChip.innerHTML = `${uiIcon('document')} Leases ${activeLeases} · ${formatCurrency(computeLeaseIncomePerDay())}/day`;
 }
 
 // ============================================================
@@ -2183,7 +2273,7 @@ function renderDashboard() {
   const marketRows = Object.entries(state.marketIndices || {}).map(([seg, idx]) => {
     const pct  = ((idx - 1) * 100).toFixed(1);
     const cls  = idx >= 1.02 ? 'text-green' : idx <= 0.98 ? 'text-red' : 'text-muted';
-    const icon = idx >= 1.02 ? '📈' : idx <= 0.98 ? '📉' : '➡️';
+    const icon = idx >= 1.02 ? uiIcon('trendingUp') : idx <= 0.98 ? uiIcon('trendingDown') : uiIcon('arrowRight');
     return `<div class="stat-row"><span>${icon} ${seg}</span>
       <strong class="${cls}">${(idx * 100).toFixed(1)}% (${pct >= 0 ? '+' : ''}${pct}%)</strong></div>`;
   }).join('');
@@ -2192,7 +2282,7 @@ function renderDashboard() {
     <div class="dashboard-grid">
 
       <div class="dash-card">
-        <h3>📊 Business Overview</h3>
+        <h3>${uiIcon('chartBar')} Business Overview</h3>
         <div class="stat-row"><span>Cash</span><strong>${formatCurrency(state.cash)}</strong></div>
         <div class="stat-row"><span>Day</span><strong>${state.day}</strong></div>
         <div class="stat-row"><span>Reputation</span><strong>${state.reputation.toFixed(2)}</strong></div>
@@ -2220,38 +2310,38 @@ function renderDashboard() {
       </div>
 
       <div class="dash-card">
-        <h3>📈 Market Conditions</h3>
+        <h3>${uiIcon('trendingUp')} Market Conditions</h3>
         ${marketRows}
         ${state.lastMarketEvent ? `<div class="tab-info" style="margin-top:10px;font-size:.8rem">${state.lastMarketEvent}</div>` : ''}
-        ${state.delinquencyLevel > 0 ? `<div class="tab-info" style="margin-top:10px;font-size:.8rem;border-color:rgba(255,122,133,.5);background:rgba(255,122,133,.12)">⚠️ Delinquency level ${state.delinquencyLevel}: ${state.loanFrozen ? 'credit line is frozen.' : 'stay solvent to avoid default.'}</div>` : ''}
+        ${state.delinquencyLevel > 0 ? `<div class="tab-info" style="margin-top:10px;font-size:.8rem;border-color:rgba(255,122,133,.5);background:rgba(255,122,133,.12)">${uiIcon('warning')} Delinquency level ${state.delinquencyLevel}: ${state.loanFrozen ? 'credit line is frozen.' : 'stay solvent to avoid default.'}</div>` : ''}
       </div>
 
       <div class="dash-card">
-        <h3>📦 Incoming Deliveries (${state.deliveries.length})</h3>
+        <h3>${uiIcon('package')} Incoming Deliveries (${state.deliveries.length})</h3>
         ${deliveryRows}
       </div>
 
       <div class="dash-card">
-        <h3>💰 Recent Sales</h3>
+        <h3>${uiIcon('money')} Recent Sales</h3>
         ${recentSales}
       </div>
 
       <div class="dash-card dash-card-wide">
-        <h3>🔔 Activity Log</h3>
+        <h3>${uiIcon('bell')} Activity Log</h3>
         ${logs}
       </div>
 
       <div class="dash-card dash-card-wide">
-        <h3>🧑‍💼 Staff Negotiation Feed (Mode 2 Suggestions)</h3>
+        <h3>${uiIcon('person')} Staff Negotiation Feed (Mode 2 Suggestions)</h3>
         ${staffLogs}
       </div>
 
     </div>
 
     <div class="save-controls">
-      <button class="btn btn-danger"    onclick="confirmNewGame()">🗑️ New Game / Reset</button>
-      <button class="btn btn-secondary" onclick="exportSave()">📤 Export Save</button>
-      <button class="btn btn-secondary" onclick="document.getElementById('import-file').click()">📥 Import Save</button>
+      <button class="btn btn-danger"    onclick="confirmNewGame()">${uiIcon('trash')} New Game / Reset</button>
+      <button class="btn btn-secondary" onclick="exportSave()">${uiIcon('upload')} Export Save</button>
+      <button class="btn btn-secondary" onclick="document.getElementById('import-file').click()">${uiIcon('download')} Import Save</button>
     </div>`;
 }
 
@@ -2283,7 +2373,7 @@ function renderFactory() {
     <button class="btn btn-sm ${factorySelection.model === model ? 'btn-primary' : 'btn-secondary'}" onclick="setFactoryModel('${model}')">
       ${model}
     </button>`).join('');
-  let html = `<div class="tab-info">🏭 Factory sells 2026 model year cars at fixed invoice prices — no negotiation. Pick <strong>make → model → trim</strong> to keep browsing compact.</div>
+  let html = `<div class="tab-info">${uiIcon('factory')} Factory sells 2026 model year cars at fixed invoice prices — no negotiation. Pick <strong>make → model → trim</strong> to keep browsing compact.</div>
     <div class="factory-browser">
       <div class="factory-stage"><h4>1) Make</h4><div class="make-pill-row">${makeButtons}</div></div>
       <div class="factory-stage"><h4>2) Model</h4><div class="make-pill-row">${modelButtons || '<span class="text-muted">No models</span>'}</div></div>
@@ -2319,7 +2409,7 @@ function renderFactory() {
           <div class="detail-row"><span>Delivery</span><span>${delivDays} day${delivDays !== 1 ? 's' : ''}</span></div>
         </div>
         <button class="btn btn-primary btn-full" onclick="buyFromFactory(${car.idx})" ${canBuy ? '' : 'disabled'}>
-          ${garageFull ? '🚫 Garage Full' : state.cash < car.basePrice ? `💸 Need ${formatCurrency(car.basePrice - state.cash)} more` : `Order — ${formatCurrency(car.basePrice)}`}
+          ${garageFull ? `${uiIcon('ban')} Garage Full` : state.cash < car.basePrice ? `${uiIcon('warning')} Need ${formatCurrency(car.basePrice - state.cash)} more` : `Order — ${formatCurrency(car.basePrice)}`}
         </button>
       </div>`;
   }
@@ -2344,10 +2434,10 @@ function renderUsedMarket() {
   const cards = state.usedMarketOffers.map(offer => {
     const issuesHtml = offer.inspected
       ? (offer.hiddenIssues.length === 0
-          ? '<p class="text-green" style="font-size:.82rem">✅ No hidden issues found!</p>'
+          ? `<p class="text-green" style="font-size:.82rem">${uiIcon('check')} No hidden issues found!</p>`
           : offer.hiddenIssues.map(i =>
-              `<span class="issue-tag">⚠️ ${i.name} (${formatCurrency(i.cost)})</span>`).join(''))
-      : '<p class="text-muted" style="font-size:.82rem">🔍 Unknown — inspect to reveal issues</p>';
+              `<span class="issue-tag">${uiIcon('warning')} ${i.name} (${formatCurrency(i.cost)})</span>`).join(''))
+      : `<p class="text-muted" style="font-size:.82rem">${uiIcon('search')} Unknown — inspect to reveal issues</p>`;
 
     const asking        = offer.askingPrice;
     const counterPrice  = offer.sellerCounter ?? null;
@@ -2363,14 +2453,14 @@ function renderUsedMarket() {
       const tone  = getSellerTone(ratio, offer.patience);
       negotiationHtml = `
         <div class="neg-status neg-countered">
-          💬 Seller countered: <strong>${formatCurrency(counterPrice)}</strong>
+          ${uiIcon('message')} Seller countered: <strong>${formatCurrency(counterPrice)}</strong>
           <div style="font-size:.78rem;margin-top:4px">
             Seller mood: <strong class="${tone.cls}">${tone.text}</strong>
             &nbsp;|&nbsp; Rounds left: <strong>${offer.patience}</strong>
           </div>
           <div class="car-actions" style="margin-top:8px">
             <button class="btn btn-success" onclick="acceptUsedOffer('${offer.id}')" ${canAccept ? '' : 'disabled'}>
-              ✅ Accept ${formatCurrency(counterPrice)}
+              ${uiIcon('check')} Accept ${formatCurrency(counterPrice)}
             </button>
           </div>
           <div class="neg-input-row" style="margin-top:8px">
@@ -2388,7 +2478,7 @@ function renderUsedMarket() {
           <input type="number" class="price-input" id="neg-${offer.id}" placeholder="Your offer" min="1"
             oninput="updateNegTone('${offer.id}', this.value)">
           <button class="btn btn-warning" onclick="submitUsedOffer('${offer.id}', document.getElementById('neg-${offer.id}').value)">
-            🤝 Negotiate
+            ${uiIcon('handshake')} Negotiate
           </button>
         </div>
         <div id="neg-tone-${offer.id}" style="font-size:.76rem;margin-top:4px;color:var(--text-muted)">
@@ -2429,21 +2519,21 @@ function renderUsedMarket() {
         ${negotiationHtml}
         <div class="car-actions">
           ${!offer.inspected
-            ? `<button class="btn btn-secondary" onclick="inspectUsedOffer('${offer.id}')" ${canInspect ? '' : 'disabled'}>🔍 Inspect (${formatCurrency(inspectCost)})</button>`
+            ? `<button class="btn btn-secondary" onclick="inspectUsedOffer('${offer.id}')" ${canInspect ? '' : 'disabled'}>${uiIcon('search')} Inspect (${formatCurrency(inspectCost)})</button>`
             : ''}
           <button class="btn btn-success" onclick="acceptUsedOffer('${offer.id}')" ${canAccept ? '' : 'disabled'}>
-            ✅ Buy ${formatCurrency(displayPrice)}
+            ${uiIcon('check')} Buy ${formatCurrency(displayPrice)}
           </button>
-          <button class="btn btn-danger" onclick="declineUsedOffer('${offer.id}')">❌ Pass</button>
+          <button class="btn btn-danger" onclick="declineUsedOffer('${offer.id}')">${uiIcon('xIcon')} Pass</button>
         </div>
       </div>`;
   }).join('');
 
   el.innerHTML = `
     <div class="tab-info">
-      🚗 ${state.usedMarketOffers.length} used car(s) available. Listings refresh each day.
+      ${uiIcon('car')} ${state.usedMarketOffers.length} used car(s) available. Listings refresh each day.
       Garage: ${state.garage.length}/${state.garageSlots} slots.
-      ${state.upgrades.negotiationTraining ? '🤝 Negotiation Training active — better deal outcomes.' : ''}
+      ${state.upgrades.negotiationTraining ? `${uiIcon('handshake')} Negotiation Training active — better deal outcomes.` : ''}
     </div>
     <div class="card-grid">${cards}</div>`;
 }
@@ -2470,8 +2560,8 @@ function renderGarage() {
     const leaseDaysLeft = isLeased ? Math.max(0, car.activeLease.endDay - state.day) : 0;
     const issuesHtml = car.inspected
       ? (car.hiddenIssues.length === 0
-          ? '<span class="text-green">✅ None</span>'
-          : car.hiddenIssues.map(i => `<span class="issue-tag">⚠️ ${i.name}</span>`).join(''))
+          ? `<span class="text-green">${uiIcon('check')} None</span>`
+          : car.hiddenIssues.map(i => `<span class="issue-tag">${uiIcon('warning')} ${i.name}</span>`).join(''))
       : '<span class="text-muted">Unknown (not inspected)</span>';
 
     const saleChance = car.isForSale && car.listPrice > 0
@@ -2480,8 +2570,8 @@ function renderGarage() {
     // Reconditioning log badges
     const reconBadges = car.reconditionLog.length
       ? car.reconditionLog.map(r => {
-          const icons = { 'Car Wash': '🚿', 'Detailing': '✨', 'Basic Repair': '🔩', 'Parts Upgrade': '🏎️' };
-          return `<span class="recon-tag">${icons[r.type] || '🔧'} ${r.type}</span>`;
+          const icons = { 'Car Wash': 'droplet', 'Detailing': 'sparkles', 'Basic Repair': 'wrench', 'Parts Upgrade': 'gauge' };
+          return `<span class="recon-tag">${uiIcon(icons[r.type] || 'wrench')} ${r.type}</span>`;
         }).join('')
       : '';
 
@@ -2490,50 +2580,50 @@ function renderGarage() {
     const perfDone     = car.reconditionLog.some(r => r.type === 'Parts Upgrade');
     let reconHtml = '';
     if (isLeased) {
-      reconHtml = `<div class="tab-info recon-disabled-message">🧰 Recon disabled while lease is active.</div>`;
+      reconHtml = `<div class="tab-info recon-disabled-message">${uiIcon('toolbox')} Recon disabled while lease is active.</div>`;
     } else if (!inService) {
       reconHtml = `<div class="recon-actions">`;
       // Car Wash
       const canWash = Number(state.cash) >= 150;
       if (car.washBoostDays <= 0) {
         reconHtml += `<button class="btn btn-sm btn-secondary recon-btn" onclick="carWash('${car.id}')"
-          ${canWash ? '' : 'disabled'} title="Instant: +3% value, boosted sale chance 3 days">🚿 Wash ($150)</button>`;
+          ${canWash ? '' : 'disabled'} title="Instant: +3% value, boosted sale chance 3 days">${uiIcon('droplet')} Wash ($150)</button>`;
       } else {
-        reconHtml += `<button class="btn btn-sm btn-secondary recon-btn" disabled title="Wash boost active for ${car.washBoostDays} more day(s)">🚿 Washed (${car.washBoostDays}d)</button>`;
+        reconHtml += `<button class="btn btn-sm btn-secondary recon-btn" disabled title="Wash boost active for ${car.washBoostDays} more day(s)">${uiIcon('droplet')} Washed (${car.washBoostDays}d)</button>`;
       }
       // Detailing
       const canDetail = Number(state.cash) >= 500;
       if (state.upgrades.detailing) {
         if (car.hasBeenDetailed) {
-          reconHtml += `<button class="btn btn-sm btn-secondary recon-btn" disabled title="Already detailed once this ownership">✨ Detailed</button>`;
+          reconHtml += `<button class="btn btn-sm btn-secondary recon-btn" disabled title="Already detailed once this ownership">${uiIcon('sparkles')} Detailed</button>`;
         } else if (car.condition !== 'A') {
           reconHtml += `<button class="btn btn-sm btn-secondary recon-btn" onclick="detailCar('${car.id}')"
-            ${canDetail ? '' : 'disabled'} title="Instant: +1 condition tier, +7% value">✨ Detail ($500)</button>`;
+            ${canDetail ? '' : 'disabled'} title="Instant: +1 condition tier, +7% value">${uiIcon('sparkles')} Detail ($500)</button>`;
         }
       }
       // Basic Repair
       const canRepair = Number(state.cash) >= 800;
       if (state.upgrades.serviceBay && car.condition !== 'A') {
         reconHtml += `<button class="btn btn-sm btn-secondary recon-btn" onclick="basicRepair('${car.id}')"
-          ${canRepair ? '' : 'disabled'} title="1 day: fixes issues, +1 condition tier, +10% value">🔩 Repair ($800)</button>`;
+          ${canRepair ? '' : 'disabled'} title="1 day: fixes issues, +1 condition tier, +10% value">${uiIcon('wrench')} Repair ($800)</button>`;
       }
       // Parts Upgrade
       const canPartsUpgrade = Number(state.cash) >= 1500;
       if (state.upgrades.performanceShop && perfEligible && !perfDone) {
         reconHtml += `<button class="btn btn-sm btn-secondary recon-btn" onclick="partsUpgrade('${car.id}')"
-          ${canPartsUpgrade ? '' : 'disabled'} title="1 day: +15% market value">🏎️ Parts ($1,500)</button>`;
+          ${canPartsUpgrade ? '' : 'disabled'} title="1 day: +15% market value">${uiIcon('gauge')} Parts ($1,500)</button>`;
       }
       reconHtml += `</div>`;
     }
     const leaseActionButtons = [];
     if (car.leaseStatus === 'none') {
       leaseActionButtons.push(
-        `<button class="btn btn-secondary" onclick="makeLeaseAvailable('${car.id}')" ${car.isForSale || inService ? 'disabled' : ''}>📝 Offer Lease</button>`
+        `<button class="btn btn-secondary" onclick="makeLeaseAvailable('${car.id}')" ${car.isForSale || inService ? 'disabled' : ''}>${uiIcon('document')} Offer Lease</button>`
       );
     } else if (car.leaseStatus === 'available') {
-      leaseActionButtons.push(`<button class="btn btn-warning" onclick="stopOfferingLease('${car.id}')">⏹️ Stop Offering Lease</button>`);
+      leaseActionButtons.push(`<button class="btn btn-warning" onclick="stopOfferingLease('${car.id}')">${uiIcon('stop')} Stop Offering Lease</button>`);
     } else if (isLeased) {
-      leaseActionButtons.push(`<button class="btn btn-secondary" onclick="viewLeaseDetails('${car.id}')">📄 Lease Details</button>`);
+      leaseActionButtons.push(`<button class="btn btn-secondary" onclick="viewLeaseDetails('${car.id}')">${uiIcon('fileText')} Lease Details</button>`);
     }
 
     return `
@@ -2550,17 +2640,17 @@ function renderGarage() {
               ${isLeased ? `<span class="badge badge-blue">LEASED (${leaseDaysLeft}d left)</span>` : ''}
             </div>
           </div>
-        ${inService ? `<div class="service-banner">🔧 IN SERVICE — Ready Day ${car.inServiceUntilDay} (${car.pendingService?.type === 'repair' ? 'Basic Repair' : 'Parts Upgrade'})</div>` : ''}
-        ${car.isForSale ? '<div class="for-sale-banner">🏷️ LISTED FOR SALE</div>' : ''}
-        ${isLeased ? `<div class="service-banner">📝 LEASE ACTIVE — ${leaseDaysLeft} day(s) remaining</div>` : ''}
-        ${car.washBoostDays > 0 ? `<div class="wash-banner">🚿 Wash boost active (${car.washBoostDays} days left)</div>` : ''}
+        ${inService ? `<div class="service-banner">${uiIcon('wrench')} IN SERVICE — Ready Day ${car.inServiceUntilDay} (${car.pendingService?.type === 'repair' ? 'Basic Repair' : 'Parts Upgrade'})</div>` : ''}
+        ${car.isForSale ? `<div class="for-sale-banner">${uiIcon('tag')} LISTED FOR SALE</div>` : ''}
+        ${isLeased ? `<div class="service-banner">${uiIcon('document')} LEASE ACTIVE — ${leaseDaysLeft} day(s) remaining</div>` : ''}
+        ${car.washBoostDays > 0 ? `<div class="wash-banner">${uiIcon('droplet')} Wash boost active (${car.washBoostDays} days left)</div>` : ''}
         <div class="car-details">
           <div class="detail-row"><span>Category</span><span>${car.category}</span></div>
           <div class="detail-row"><span>Title Status</span><span>${TITLE_LABELS[car.titleStatus] || 'Clean'}</span></div>
           <div class="detail-row"><span>Mileage</span><span>${car.mileage.toLocaleString()} mi</span></div>
           <div class="detail-row"><span>Purchased For</span><span>${formatCurrency(car.purchasePrice)}</span></div>
           <div class="detail-row"><span>Market Value</span><span class="text-green">${formatCurrency(car.marketValue)}</span></div>
-          <div class="detail-row"><span>Source</span><span>${car.source === 'factory' ? '🏭 Factory' : '🚗 Used Market'}</span></div>
+          <div class="detail-row"><span>Source</span><span>${car.source === 'factory' ? `${uiIcon('factory')} Factory` : `${uiIcon('car')} Used Market`}</span></div>
           <div class="detail-row"><span>Lease Status</span><span>${isLeased ? `Active (${leaseDaysLeft}d left)` : car.leaseStatus === 'available' ? 'Available' : 'Not Offered'}</span></div>
           ${isLeased ? `<div class="detail-row"><span>Lease Income / Day</span><span class="text-green">+${formatCurrency(car.activeLease.paymentPerDay)}</span></div>` : ''}
           ${car.isForSale ? `<div class="detail-row"><span>Days on Lot</span><span>${car.daysInLot}</span></div>` : ''}
@@ -2578,7 +2668,7 @@ function renderGarage() {
         <div class="car-actions" style="margin-top:4px">
           <button class="btn ${car.isForSale ? 'btn-warning' : 'btn-primary'}"
             onclick="markForSale('${car.id}')" ${inService || isLeased ? 'disabled' : ''}>
-            ${car.isForSale ? '📤 Unlist' : '🏷️ Mark for Sale'}
+            ${car.isForSale ? `${uiIcon('upload')} Unlist` : `${uiIcon('tag')} Mark for Sale`}
           </button>
           ${leaseActionButtons.join('')}
         </div>
@@ -2588,12 +2678,12 @@ function renderGarage() {
   const activeLeases = state.garage.filter(c => c.leaseStatus === 'active' && c.activeLease).length;
   el.innerHTML = `
     <div class="tab-info">
-      🏠 Garage: ${state.garage.length}/${state.garageSlots} slots.
+      ${uiIcon('home')} Garage: ${state.garage.length}/${state.garageSlots} slots.
       ${state.garage.filter(c => c.isForSale).length} listed for sale.
-      ${state.garage.filter(c => c.inServiceUntilDay).length ? `🔧 ${state.garage.filter(c => c.inServiceUntilDay).length} in service.` : ''}
-      ${activeLeases ? `📝 ${activeLeases} active lease(s).` : ''}
+      ${state.garage.filter(c => c.inServiceUntilDay).length ? `${uiIcon('wrench')} ${state.garage.filter(c => c.inServiceUntilDay).length} in service.` : ''}
+      ${activeLeases ? `${uiIcon('document')} ${activeLeases} active lease(s).` : ''}
       <br>Lease income/day: <strong>${formatCurrency(computeLeaseIncomePerDay())}</strong>.
-      ${state.upgrades.crmSuite ? '<br>💼 High-volume tools active: bulk list/unlist available.' : ''}
+      ${state.upgrades.crmSuite ? `<br>${uiIcon('layers')} High-volume tools active: bulk list/unlist available.` : ''}
     </div>
     <div class="bulk-row">
       <button class="btn btn-sm btn-secondary" onclick="toggleShowLeasedCars()">${showLeased ? 'Hide Leased Cars' : 'Show Leased Cars'}</button>
@@ -2654,7 +2744,7 @@ function renderForSale() {
             ${isCountered ? `<div class="detail-row"><span>Your Counter</span><span>${formatCurrency(offer.playerCounter)}</span></div>` : ''}
             ${suggestion ? `<div class="detail-row"><span>Staff Suggestion</span><span>${formatCurrency(suggestion.counterPrice)} (${suggestion.confidence})</span></div>` : ''}
           </div>
-          ${suggestion ? `<p class="text-muted" style="font-size:.78rem;margin-top:2px">🧑‍💼 ${suggestion.by}: ${suggestion.note}</p>` : ''}
+          ${suggestion ? `<p class="text-muted" style="font-size:.78rem;margin-top:2px">${uiIcon('person')} ${suggestion.by}: ${suggestion.note}</p>` : ''}
           ${isCountered
             ? `<p class="text-muted" style="font-size:.8rem;margin-top:4px">Waiting for customer response — resolves next day.</p>`
             : `<div class="neg-input-row" style="margin-top:6px">
@@ -2666,15 +2756,15 @@ function renderForSale() {
                 ${suggestion ? `<button class="btn btn-secondary" onclick="applyStaffSuggestion('${offer.id}')">Use Staff</button>` : ''}
               </div>
               <div class="car-actions" style="margin-top:8px">
-                <button class="btn btn-success" onclick="acceptCustomerOffer('${offer.id}')">✅ Accept</button>
-                <button class="btn btn-danger"  onclick="rejectCustomerOffer('${offer.id}')">❌ Reject</button>
+                <button class="btn btn-success" onclick="acceptCustomerOffer('${offer.id}')">${uiIcon('check')} Accept</button>
+                <button class="btn btn-danger"  onclick="rejectCustomerOffer('${offer.id}')">${uiIcon('xIcon')} Reject</button>
               </div>`}
         </div>`;
     }).join('');
 
     offersHtml = `
       <div class="category-section">
-        <h3>📬 Customer Offers (${pendingOffers.length} pending, ${counteredOffers.length} countered)</h3>
+        <h3>${uiIcon('inbox')} Customer Offers (${pendingOffers.length} pending, ${counteredOffers.length} countered)</h3>
         <div class="card-grid">${offerCards}</div>
       </div>`;
   }
@@ -2700,7 +2790,7 @@ function renderForSale() {
           </div>
           <div class="tradein-split">
             <div class="tradein-half">
-              <h5>🚗 Their Car</h5>
+              <h5>${uiIcon('car')} Their Car</h5>
               <div class="detail-row"><span>Car</span><span>${req.customerCar.year} ${req.customerCar.make} ${req.customerCar.model}</span></div>
               <div class="detail-row"><span>Condition</span>${condBadge(req.customerCar.condition)}</div>
               <div class="detail-row"><span>Title</span><span>${TITLE_LABELS[req.customerCar.titleStatus] || 'Clean'}</span></div>
@@ -2708,7 +2798,7 @@ function renderForSale() {
               <div class="detail-row"><span>Their Car Value</span><span class="text-green">${formatCurrency(req.customerCarValue)}</span></div>
             </div>
             <div class="tradein-half">
-              <h5>🏷️ Your Car</h5>
+              <h5>${uiIcon('tag')} Your Car</h5>
               <div class="detail-row"><span>Car</span><span>${targetCar.year} ${targetCar.make} ${targetCar.model}</span></div>
               <div class="detail-row"><span>Listed Price</span><span class="text-blue">${formatCurrency(targetCar.listPrice)}</span></div>
               <div class="detail-row"><span>Title</span><span>${TITLE_LABELS[targetCar.titleStatus] || 'Clean'}</span></div>
@@ -2732,14 +2822,14 @@ function renderForSale() {
             <button class="btn btn-warning" onclick="counterTradeInRequest('${req.id}', document.getElementById('tir-${req.id}').value)">Counter</button>
           </div>
           <div class="car-actions">
-            <button class="btn btn-success" onclick="acceptTradeInRequest('${req.id}')" ${canAccept && canFit ? '' : 'disabled'}>✅ Accept Deal</button>
-            <button class="btn btn-danger" onclick="rejectTradeInRequest('${req.id}')">❌ Reject</button>
+            <button class="btn btn-success" onclick="acceptTradeInRequest('${req.id}')" ${canAccept && canFit ? '' : 'disabled'}>${uiIcon('check')} Accept Deal</button>
+            <button class="btn btn-danger" onclick="rejectTradeInRequest('${req.id}')">${uiIcon('xIcon')} Reject</button>
           </div>` : ''}
         </div>`;
     }).join('');
     tradeInHtml = `
       <div class="category-section">
-        <h3>🔄 Trade-In Requests (${pendingTIR.length} pending, ${counteredTIR.length} countered)</h3>
+        <h3>${uiIcon('refresh')} Trade-In Requests (${pendingTIR.length} pending, ${counteredTIR.length} countered)</h3>
         <div class="card-grid">${tirCards}</div>
       </div>`;
   }
@@ -2760,8 +2850,8 @@ function renderForSale() {
     const chanceClass = parseFloat(chance) >= 30 ? 'text-green' : parseFloat(chance) >= 15 ? 'text-yellow' : 'text-red';
     const reconBadges = car.reconditionLog.length
       ? car.reconditionLog.map(r => {
-          const icons = { 'Car Wash': '🚿', 'Detailing': '✨', 'Basic Repair': '🔩', 'Parts Upgrade': '🏎️' };
-          return `<span class="recon-tag">${icons[r.type] || '🔧'} ${r.type}</span>`;
+          const icons = { 'Car Wash': 'droplet', 'Detailing': 'sparkles', 'Basic Repair': 'wrench', 'Parts Upgrade': 'gauge' };
+          return `<span class="recon-tag">${uiIcon(icons[r.type] || 'wrench')} ${r.type}</span>`;
         }).join('') : '';
     const hasOffer = state.customerOffers.some(o => o.carId === car.id);
     const hasTIR   = state.tradeInRequests.some(r => r.targetCarId === car.id && r.state === 'pending');
@@ -2779,9 +2869,9 @@ function renderForSale() {
             ${titleBadge(car.titleStatus)}
           </div>
         </div>
-        ${car.source === 'tradein' ? '<div class="tradein-source-banner">🔄 Accepted trade-in vehicle</div>' : ''}
-        ${hasOffer ? '<div class="offer-banner">📬 Customer offer waiting (see above)</div>' : ''}
-        ${car.washBoostDays > 0 ? `<div class="wash-banner">🚿 Wash boost active (${car.washBoostDays} days)</div>` : ''}
+        ${car.source === 'tradein' ? `<div class="tradein-source-banner">${uiIcon('refresh')} Accepted trade-in vehicle</div>` : ''}
+        ${hasOffer ? `<div class="offer-banner">${uiIcon('inbox')} Customer offer waiting (see above)</div>` : ''}
+        ${car.washBoostDays > 0 ? `<div class="wash-banner">${uiIcon('droplet')} Wash boost active (${car.washBoostDays} days)</div>` : ''}
         <div class="car-details">
           <div class="detail-row"><span>Purchased For</span><span>${formatCurrency(car.purchasePrice)}</span></div>
           <div class="detail-row"><span>Market Value</span><span class="text-green">${formatCurrency(car.marketValue)}</span></div>
@@ -2807,7 +2897,7 @@ function renderForSale() {
           <button class="btn btn-sm btn-warning"   onclick="setListPriceMultiplier('${car.id}', 0.9)" title="-10% below market">−10%</button>
           <button class="btn btn-sm btn-warning"   onclick="setListPriceMultiplier('${car.id}', 0.8)" title="-20% below market">−20%</button>
         </div>
-        <button class="btn btn-danger btn-full" onclick="markForSale('${car.id}')">📤 Unlist</button>
+        <button class="btn btn-danger btn-full" onclick="markForSale('${car.id}')">${uiIcon('upload')} Unlist</button>
       </div>`;
   }).join('');
 
@@ -2815,7 +2905,7 @@ function renderForSale() {
     ${offersHtml}
     ${tradeInHtml}
     <div class="category-section">
-      <h3>🏷️ Your Listings (${listed.length})</h3>
+      <h3>${uiIcon('tag')} Your Listings (${listed.length})</h3>
       <div class="tab-info">
         Press <strong>Next Day</strong> to simulate customer visits. Auto-sales happen at list price; below-list offers appear above.
       </div>
@@ -2849,16 +2939,16 @@ function renderUpgrades() {
 
       html += `
         <div class="car-card upgrade-card ${!available ? 'disabled-card' : ''}">
-          <div class="upgrade-icon">${upg.icon}</div>
+          <div class="upgrade-icon">${uiIconLg(UPGRADE_ICON_MAP[upg.icon] || 'gear')}</div>
           <h4>${upg.name}${stackInfo}</h4>
           <p class="upgrade-desc">${upg.desc}</p>
           <p class="upgrade-cost">${formatCurrency(upg.cost)}</p>
           <button class="btn btn-primary btn-full" onclick="buyUpgrade('${upg.id}')"
             ${!available || !canAfford ? 'disabled' : ''}>
             ${!available
-              ? '✅ Purchased / Max Level'
+              ? `${uiIcon('check')} Purchased / Max Level`
               : !canAfford
-                ? `💸 Need ${formatCurrency(upg.cost - state.cash)} more`
+                ? `${uiIcon('warning')} Need ${formatCurrency(upg.cost - state.cash)} more`
                 : `Buy — ${formatCurrency(upg.cost)}`}
           </button>
         </div>`;
@@ -2869,14 +2959,14 @@ function renderUpgrades() {
     ensureStaffCandidates();
     const staffCards = (state.staff || []).map(s => `
       <div class="car-card upgrade-card">
-        <div class="upgrade-icon">🧑‍💼</div>
+        <div class="upgrade-icon">${uiIconLg('person')}</div>
         <h4>${s.name}</h4>
         <p class="upgrade-desc">Negotiation ${s.negotiation} · Selling ${s.selling} · Speed ${s.speed}/day</p>
         <p class="upgrade-cost text-red">${formatCurrency(s.wage)}/day wage</p>
       </div>`).join('') || '<p class="text-muted">No staff hired yet.</p>';
     const candidateCards = (state.staffCandidates || []).map(s => `
       <div class="car-card upgrade-card">
-        <div class="upgrade-icon">🧾</div>
+        <div class="upgrade-icon">${uiIconLg('fileText')}</div>
         <h4>${s.name}</h4>
         <p class="upgrade-desc">Negotiation ${s.negotiation} · Selling ${s.selling} · Speed ${s.speed}/day</p>
         <p class="upgrade-cost">${formatCurrency(s.wage)}/day</p>
@@ -2886,8 +2976,8 @@ function renderUpgrades() {
         </div>
       </div>`).join('');
     html += `
-      <div class="category-section"><h3>🧑‍💼 Hired Staff</h3><div class="card-grid">${staffCards}</div></div>
-      <div class="category-section"><h3>📝 Hiring Candidates</h3><div class="card-grid">${candidateCards}</div></div>`;
+      <div class="category-section"><h3>${uiIcon('person')} Hired Staff</h3><div class="card-grid">${staffCards}</div></div>
+      <div class="category-section"><h3>${uiIcon('document')} Hiring Candidates</h3><div class="card-grid">${candidateCards}</div></div>`;
   }
   document.getElementById('tab-upgrades').innerHTML = html;
 }
@@ -2911,7 +3001,7 @@ function renderFinance() {
   document.getElementById('tab-finance').innerHTML = `
     <div class="dashboard-grid">
       <div class="dash-card">
-        <h3>🏦 Dealership Credit Line</h3>
+        <h3>${uiIcon('bank')} Dealership Credit Line</h3>
         <div class="stat-row"><span>Balance</span><strong class="${state.loanBalance > 0 ? 'text-red' : 'text-green'}">${formatCurrency(state.loanBalance)}</strong></div>
         <div class="stat-row"><span>Available</span><strong>${formatCurrency(available)}</strong></div>
         <div class="stat-row"><span>Limit</span><strong>${formatCurrency(state.loanLimit)}</strong></div>
@@ -2923,7 +3013,7 @@ function renderFinance() {
       </div>
 
       <div class="dash-card">
-        <h3>💳 Manage Loan</h3>
+        <h3>${uiIcon('creditCard')} Manage Loan</h3>
         <p class="text-muted" style="font-size:.82rem;margin-bottom:10px">Draw funds for inventory, then pay down as you sell cars. Interest applies every Next Day.</p>
         <div class="neg-input-row">
           <input type="number" class="price-input" id="loan-draw-input" min="1" placeholder="Draw amount">
@@ -2941,14 +3031,14 @@ function renderFinance() {
       </div>
 
       <div class="dash-card dash-card-wide">
-        <h3>📉 Delinquency & Bankruptcy Ladder</h3>
+        <h3>${uiIcon('trendingDown')} Delinquency &amp; Bankruptcy Ladder</h3>
         <div class="stat-row"><span>1 Missed Payment</span><strong class="text-yellow">Warning</strong></div>
         <div class="stat-row"><span>2 Missed Payments</span><strong class="text-red">Default: credit freeze + APR increase</strong></div>
         <div class="stat-row"><span>3 Missed Payments</span><strong class="text-red">${settings.difficulty === 'hard' ? 'Hard: Game Over' : 'Normal: Instant liquidation then continue'}</strong></div>
       </div>
 
       <div class="dash-card dash-card-wide">
-        <h3>🧾 Bankruptcy Report ${report ? `(Day ${report.day})` : ''}</h3>
+        <h3>${uiIcon('receipt')} Bankruptcy Report ${report ? `(Day ${report.day})` : ''}</h3>
         ${report ? `<div class="tab-info">Cash after liquidation: <strong>${formatCurrency(report.cashAfter)}</strong> · New limit: <strong>${formatCurrency(report.loanLimit)}</strong> · New APR: <strong>${(report.loanApr * 100).toFixed(1)}%</strong></div>` : ''}
         ${reportRows}
       </div>
@@ -2972,7 +3062,7 @@ function renderAchievements() {
     </div>`;
   }).join('');
   document.getElementById('tab-achievements').innerHTML = `
-    <div class="tab-info">🏆 ${unlockedCount} / ${ACHIEVEMENTS.length} achievements unlocked.</div>
+    <div class="tab-info">${uiIcon('trophy')} ${unlockedCount} / ${ACHIEVEMENTS.length} achievements unlocked.</div>
     <div class="card-grid">${cards}</div>`;
 }
 
@@ -2988,7 +3078,7 @@ function renderSettings() {
   document.getElementById('tab-settings').innerHTML = `
     <div class="settings-panel">
       <div class="dash-card settings-card">
-        <h3>🎨 Display</h3>
+        <h3>${uiIcon('palette')} Display</h3>
         <div class="setting-row">
           <div>
             <div class="setting-label">Dark Mode</div>
@@ -3010,7 +3100,7 @@ function renderSettings() {
       </div>
 
       <div class="dash-card settings-card">
-        <h3>🔊 Sound</h3>
+        <h3>${uiIcon('speaker')} Sound</h3>
         <div class="setting-row">
           <div>
             <div class="setting-label">SFX</div>
@@ -3031,7 +3121,7 @@ function renderSettings() {
       </div>
 
       <div class="dash-card settings-card">
-        <h3>⚙️ Economy Difficulty</h3>
+        <h3>${uiIcon('gear')} Economy Difficulty</h3>
         <div class="setting-row">
           <div>
             <div class="setting-label">Normal</div>
@@ -3043,7 +3133,7 @@ function renderSettings() {
         </div>
         <div class="setting-row" style="margin-top:10px">
           <div>
-            <div class="setting-label">Hard 💪</div>
+            <div class="setting-label">Hard ${uiIcon('dumbbell')}</div>
             <div class="setting-desc">1.5× overhead, higher APR/min principal pressure, and bankruptcy is Game Over.</div>
           </div>
           <button class="btn btn-sm ${isHard ? 'btn-danger' : 'btn-secondary'}" onclick="setDifficulty('hard')">
@@ -3053,10 +3143,10 @@ function renderSettings() {
       </div>
 
       <div class="dash-card settings-card">
-        <h3>📋 Current Economy Info</h3>
+        <h3>${uiIcon('clipboard')} Current Economy Info</h3>
         <div class="stat-row">
           <span>Difficulty</span>
-          <strong class="${isHard ? 'text-red' : 'text-green'}">${isHard ? 'Hard 💪' : 'Normal'}</strong>
+          <strong class="${isHard ? 'text-red' : 'text-green'}">${isHard ? `Hard ${uiIcon('dumbbell')}` : 'Normal'}</strong>
         </div>
         <div class="stat-row">
           <span>Daily Overhead</span>
@@ -3071,7 +3161,7 @@ function renderSettings() {
           <strong>Tier ${state.upgrades.garageLevel} (${state.garageSlots} slots)</strong>
         </div>
         <p class="text-muted" style="font-size:.82rem;margin-top:10px">
-          💡 Overhead scales with garage size — only expand when you can handle the extra costs!
+          ${uiIcon('info')} Overhead scales with garage size — only expand when you can handle the extra costs!
         </p>
       </div>
     </div>`;
@@ -3202,7 +3292,7 @@ function setDifficulty(level) {
   syncLoanTermsToDifficulty();
   saveSettings();
   renderAll();
-  showToast(`Difficulty set to ${level === 'hard' ? 'Hard 💪' : 'Normal'}.`);
+  showToast(`Difficulty set to ${level === 'hard' ? 'Hard (Hard Mode)' : 'Normal'}.`);
   playSfx('click');
 }
 

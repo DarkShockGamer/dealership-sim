@@ -453,7 +453,7 @@ body {
   align-items: center;
   text-align: center;
 }
-.upgrade-icon { font-size: 2.2rem; }
+.upgrade-icon { font-size: 2.2rem; display: flex; align-items: center; justify-content: center; height: 2.4rem; }
 .upgrade-card h4 { font-size: .95rem; font-weight: 700; }
 .upgrade-desc { font-size: .82rem; color: var(--text-muted); line-height: 1.4; }
 .upgrade-cost { font-size: 1.1rem; font-weight: 700; color: var(--primary); }
@@ -466,6 +466,23 @@ body {
 .ach-icon-locked   { background: rgba(135, 164, 214, .14); color: #8fa9d4; }
 .ach-icon { display: block; }
 .ach-progress { font-size: .78rem; color: var(--text-muted); margin-top: 4px; }
+
+/* ============================================================
+   UI Icons — small inline SVG icons replacing emoji placeholders
+   ============================================================ */
+.ui-icon {
+  width: 16px;
+  height: 16px;
+  display: inline-block;
+  vertical-align: -2px;
+  flex-shrink: 0;
+}
+/* Larger variant for upgrade/feature card icons */
+.ui-icon-lg {
+  width: 32px;
+  height: 32px;
+  display: block;
+}
 /* Trade-in badge + inventory card highlight */
 .badge-tradein { background: rgba(255, 191, 93, .22); color: #ffe2b5; }
 .tradein-inventory { border-color: rgba(255, 191, 93, .4); }
