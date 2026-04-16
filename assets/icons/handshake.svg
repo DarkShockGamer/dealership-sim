@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+  fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <title>Handshake</title>
+  <path d='M18 11V6l-9 5-5-3v5l5 3 9-5z'/>
+  <path d='M3 11l5 3 9-5 4 2.5v5l-4-2.5-9 5-5-3V11z'/>
+</svg>
