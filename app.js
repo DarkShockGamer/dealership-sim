@@ -180,7 +180,7 @@ const LEASE_ISSUE_BONUS_LEMON = 0.003;
 const LEASE_ISSUE_BONUS_SALVAGE = 0.0015;
 // Repair cost scaling thresholds by mileage (see computeRepairCost)
 const REPAIR_COST_BASE_MIN = 500;        // Minimum base parts/labour cost even with no issues
-const REPAIR_WARN_COST_RATIO = 0.6;      // Warn player when repair cost exceeds 60 % of market value
+const REPAIR_WARN_COST_RATIO = 0.6;      // Warn player when repair cost exceeds 60% of market value
 const REPAIR_JUNK_COST_RATIO = 1.0;      // "Beyond economical repair" when cost ≥ market value
 const MAX_LEASE_STARTS_PER_DAY = 2;
 const LEASE_VALUE_SCORE_DIVISOR = 220000;
@@ -1150,7 +1150,7 @@ function downgradeConditionBySteps(condition, steps) {
  * Compute the realistic repair cost for a car.
  * Cost scales with:
  *   - Actual hidden-issue repair costs (or a minimum labour floor)
- *   - Mileage multiplier: gets exponentially expensive past 100 k, prohibitive at 140 k–250 k
+ *   - Mileage multiplier: gets exponentially expensive past 100k, prohibitive at 140k–250k
  *   - Repair-count multiplier: each prior repair makes subsequent ones much costlier
  */
 function computeRepairCost(car) {
@@ -1429,7 +1429,7 @@ function processMarketDepreciation() {
     // regardless of market conditions, reflecting ongoing mechanical wear.
     if (car.mileage > 80000) {
       const excessMiles = car.mileage - 80000;
-      // Rate climbs from ~0.03 %/day at 80 k to ~0.15 %/day at 250 k+
+      // Rate climbs from ~0.03%/day at 80k to ~0.15%/day at 250k+
       const agingRate = clamp(0.0003 + (excessMiles / 170000) * 0.0012, 0.0003, 0.0015);
       // Additional penalty for repeatedly repaired vehicles
       const repairPenalty = (car.repairCount || 0) * 0.0002;
@@ -1510,7 +1510,7 @@ function processService() {
         // Value boost diminishes with each repair and with high mileage — reflects
         // diminishing returns on a wearing vehicle.
         const repairCount = car.repairCount;
-        const mileagePenalty = clamp(car.mileage / 300000, 0, 0.8); // 0→0.8 at 300 k miles
+        const mileagePenalty = clamp(car.mileage / 300000, 0, 0.8); // 0→0.8 at 300k miles
         const rawBoost = repairCount === 1 ? 0.12 :
                          repairCount === 2 ? 0.07 :
                          repairCount === 3 ? 0.03 :
