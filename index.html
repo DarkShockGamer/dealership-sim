@@ -35,7 +35,7 @@
       <div class="menu-panel-header">
         <button class="menu-back-btn" id="menu-load-back" aria-label="Back to main menu">← Back</button>
         <h2 class="menu-panel-title">Select Save</h2>
-        <div style="width:80px"></div><!-- spacer -->
+        <div class="menu-panel-spacer"></div><!-- spacer -->
       </div>
       <div class="save-slot-grid" id="save-slot-grid" role="list" aria-label="Save slots"></div>
     </div>
@@ -45,7 +45,7 @@
       <div class="menu-panel-header">
         <button class="menu-back-btn" id="menu-settings-back" aria-label="Back to main menu">← Back</button>
         <h2 class="menu-panel-title">Settings</h2>
-        <div style="width:80px"></div><!-- spacer -->
+        <div class="menu-panel-spacer"></div><!-- spacer -->
       </div>
       <div class="menu-settings-wrap">
         <div class="menu-settings-card">
@@ -88,17 +88,15 @@
               <div class="menu-setting-label">Game Difficulty</div>
               <div class="menu-setting-desc">Affects loan limits and overhead costs.</div>
             </div>
-            <div style="display:flex;gap:8px;">
-              <button class="menu-btn menu-btn-load" id="menu-diff-normal" onclick="menuSetDifficulty('normal')"
-                style="padding:8px 18px;font-size:.82rem;letter-spacing:1px;min-width:0;width:auto;">Normal</button>
-              <button class="menu-btn menu-btn-load" id="menu-diff-hard" onclick="menuSetDifficulty('hard')"
-                style="padding:8px 18px;font-size:.82rem;letter-spacing:1px;min-width:0;width:auto;">Hard</button>
+            <div class="menu-difficulty-btn-group">
+              <button class="menu-btn menu-btn-load menu-difficulty-btn" id="menu-diff-normal" onclick="menuSetDifficulty('normal')">Normal</button>
+              <button class="menu-btn menu-btn-load menu-difficulty-btn" id="menu-diff-hard" onclick="menuSetDifficulty('hard')">Hard</button>
             </div>
           </div>
         </div>
-        <div class="menu-settings-card" style="text-align:center;">
+        <div class="menu-settings-card menu-about-card">
           <h3>About</h3>
-          <p style="font-size:.88rem;color:rgba(160,200,255,.65);line-height:1.55;">
+          <p class="menu-about-text">
             DealerSim — Car Dealership Simulator<br>
             Build your empire one deal at a time.
           </p>

@@ -478,5 +478,32 @@
   letter-spacing: 1px;
 }
 
+/* ── Panel header spacer ─────────────────────────────────── */
+.menu-panel-spacer {
+  width: 80px;
+  flex-shrink: 0;
+}
+
+/* ── Difficulty buttons ──────────────────────────────────── */
+.menu-difficulty-btn-group {
+  display: flex;
+  gap: 8px;
+}
+.menu-difficulty-btn {
+  padding: 8px 18px;
+  font-size: .82rem;
+  letter-spacing: 1px;
+  min-width: 0;
+  width: auto;
+}
+
+/* ── About card ──────────────────────────────────────────── */
+.menu-about-card { text-align: center; }
+.menu-about-text {
+  font-size: .88rem;
+  color: rgba(160, 200, 255, .65);
+  line-height: 1.55;
+}
+
 /* ── Keyframe shared ─────────────────────────────────────── */
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }

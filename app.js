@@ -3602,7 +3602,7 @@ function initHomeScreen() {
   window.addEventListener('resize', () => { resizeCanvas(); makeStars(160); });
 
   // Store cancellation handle so we can stop when leaving the menu
-  window._menuStarRaf = () => { if (rafId) cancelAnimationFrame(rafId); };
+  window._stopMenuStarfield = () => { if (rafId) cancelAnimationFrame(rafId); };
 
   // ── Panel switching ──────────────────────────────────────
   function showMenuView(id) {
@@ -3667,16 +3667,13 @@ function initHomeScreen() {
   });
 
   // Expose slot deletion trigger for dynamically rendered cards
-  window._menuRequestDeleteSlot = (slot) => {
+  window._confirmDeleteSlot = (slot) => {
     pendingDeleteSlot = slot;
     document.getElementById('menu-del-msg').textContent =
       `Save Slot ${slot} will be permanently deleted. This cannot be undone.`;
     document.getElementById('menu-delete-confirm').classList.remove('hidden');
     document.getElementById('menu-del-yes').focus();
   };
-
-  // Expose slot launch for dynamically rendered cards
-  window._menuLaunchSlot = (slot, isNew) => launchGame(slot, isNew);
 }
 
 /** Format a dollar amount for the save-slot display. */
@@ -3715,10 +3712,11 @@ function renderSaveSlots() {
           <div class="slot-stat-row"><span>🚘 Cars</span><span>${summary.cars}</span></div>
         </div>
         <button class="slot-delete-btn" aria-label="Delete Save Slot ${slot}"
-          onclick="event.stopPropagation(); window._menuRequestDeleteSlot(${slot})">🗑 Delete</button>
+          onclick="event.stopPropagation(); window._confirmDeleteSlot(${slot})">🗑 Delete</button>
       `;
-      card.addEventListener('click', () => window._menuLaunchSlot(slot, false));
-      card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); window._menuLaunchSlot(slot, false); } });
+      const activateExisting = () => launchGame(slot, false);
+      card.addEventListener('click', activateExisting);
+      card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activateExisting(); } });
     } else {
       card.innerHTML = `
         <div class="slot-label">Save Slot ${slot}</div>
@@ -3726,8 +3724,9 @@ function renderSaveSlots() {
         <div class="slot-name" style="opacity:.6;">Empty</div>
         <div class="slot-cta">Create Save</div>
       `;
-      card.addEventListener('click', () => window._menuLaunchSlot(slot, true));
-      card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); window._menuLaunchSlot(slot, true); } });
+      const activateNew = () => launchGame(slot, true);
+      card.addEventListener('click', activateNew);
+      card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activateNew(); } });
     }
 
     grid.appendChild(card);
@@ -3817,7 +3816,7 @@ function launchGame(slot, isNew) {
   renderAll();
 
   // Stop star animation
-  if (window._menuStarRaf) window._menuStarRaf();
+  if (window._stopMenuStarfield) window._stopMenuStarfield();
 
   // Fade out and hide the home screen
   const hs = document.getElementById('home-screen');
