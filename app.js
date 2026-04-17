@@ -4408,8 +4408,8 @@ function initHomeScreen() {
         : ([1, 2, 3].find(s => getSlotSummary(s) !== null) || 1);
       launchGame(slot, false);
     } else {
-      // No saves — start new game in slot 1
-      launchGame(1, true);
+      // No saves — show difficulty picker for slot 1
+      showDifficultyPicker(1);
     }
   });
 
@@ -4437,6 +4437,12 @@ function initHomeScreen() {
     document.getElementById('menu-delete-confirm').classList.add('hidden');
     openLoadView();
   });
+
+  // Difficulty picker button listeners
+  document.getElementById('diff-picker-prev').addEventListener('click', diffPickerPrev);
+  document.getElementById('diff-picker-next').addEventListener('click', diffPickerNext);
+  document.getElementById('diff-picker-cancel').addEventListener('click', diffPickerCancel);
+  document.getElementById('diff-picker-confirm').addEventListener('click', diffPickerConfirm);
 
   // Expose slot deletion trigger for dynamically rendered cards
   window._confirmDeleteSlot = (slot) => {
@@ -4980,8 +4986,9 @@ function launchGame(slot, isNew, difficulty) {
     saveState();
   } else {
     if (!loadState(slot)) {
-      // Slot was empty (race-condition safety) — start fresh
+      // Slot was empty (race-condition safety) — start fresh with normal difficulty
       state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+      state.difficulty = 'normal';
       syncLoanTermsToDifficulty();
       state.usedMarketOffers = generateUsedMarket();
       saveState();
