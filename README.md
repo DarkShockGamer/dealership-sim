@@ -122,7 +122,8 @@ Use **← → Arrow Keys** to cycle through tabs without using the mouse.
 |---|---|---|
 | Garage Tier 2 | $15,000 | 10 slots |
 | Garage Tier 3 | $40,000 | 20 slots |
-| Garage Tier 4 | $90,000 | 50 slots |
+| Garage Tier 4 | $90,000 | 35 slots |
+| Garage Tier 5 | $200,000 | 50 slots (maximum) |
 
 ### Marketing
 | Upgrade | Cost | Effect |
@@ -185,7 +186,8 @@ Your lot isn't free. Every Next Day press deducts:
 | Tier 1 (5 slots) | $300 |
 | Tier 2 (10 slots) | $600 |
 | Tier 3 (20 slots) | $1,200 |
-| Tier 4 (50 slots) | $2,100 |
+| Tier 4 (35 slots) | $1,800 |
+| Tier 5 (50 slots) | $2,600 |
 
 The **Cost Efficiency Program** upgrade reduces overhead by $50/day per tier (up to $150/day off).
 
@@ -434,7 +436,8 @@ Lists your cars for sale plus a **Customer Offers inbox**:
 |---|---|---|
 | Garage Tier 2 | $15,000 | 10 slots |
 | Garage Tier 3 | $40,000 | 20 slots |
-| Garage Tier 4 | $90,000 | 50 slots |
+| Garage Tier 4 | $90,000 | 35 slots |
+| Garage Tier 5 | $200,000 | 50 slots (maximum) |
 | Marketing Campaign | $8,000 | +20% daily traffic (×3 stackable) |
 | Inspection Tool | $5,000 | Inspection cost $300 → $150 |
 | Negotiation Training | $8,000 | Better negotiation outcomes (buying & selling) |
@@ -448,6 +451,47 @@ Lists your cars for sale plus a **Customer Offers inbox**:
 | AI Pricing Terminal | $120,000 | Better buyer acceptance on close counters |
 | Luxury Client Lounge | $180,000 | Increases premium/supercar buyer activity |
 
+### 🔍 Legal & Compliance Upgrades
+| Upgrade | Cost | Effect |
+|---|---|---|
+| DMV Database Access | $12,000 | Inspection reveals legal status (clean/no-title/stolen) before purchase |
+| VIN Scanner Kit | $8,000 | Inspection reveals scratched/altered VINs, reducing risk of buying stolen cars |
+| Title Recovery Service | $20,000 | Convert no-title cars to clean title for $800/car |
+| Compliance Training | $15,000 | Reduces police fine amounts by 40% and lowers catch chance |
+
+### 🔭 Advanced Inspection
+| Upgrade | Cost | Effect |
+|---|---|---|
+| Frame Damage Inspection Tools | $10,000 | Reveals exact crash damage severity (minor/moderate/severe) during inspection |
+
+---
+
+## 🚔 Legal Risk System
+
+Some used cars on the market carry hidden legal risks:
+
+- **No Title** — car lacks valid title paperwork. Selling risks a police fine ($500–$2,500).
+- **Stolen** — vehicle is flagged in police databases. Selling risks a larger fine ($3,000–$10,000) and vehicle impound.
+- **Scratched/Altered VIN** — tampered VIN increases police detection chance when selling.
+
+**Inspection** combined with **DMV Database Access** or **VIN Scanner** reveals these risks before purchase. The **Title Recovery Service** upgrade lets you convert no-title cars to clean title for $800.
+
+**Compliance Training** reduces all fine amounts by 40% and lowers the base catch chance.
+
+---
+
+## 💥 Hidden Crash Damage
+
+Used cars may have hidden crash damage at different severity levels:
+
+| Severity | Repair Cost (approx.) | Value Impact |
+|---|---|---|
+| Minor | ~12% of market value | −4% value |
+| Moderate | ~40% of market value | −14% value |
+| Severe | ~85% of market value | −28% value |
+
+Crash damage is revealed during **inspection**. The **Frame Damage Inspection Tools** upgrade shows exact severity. Repairing a crash-damaged car (via Basic Repair) clears the damage and qualifies for the **Crash Rebuilder** achievement.
+
 ---
 
 ## 📉 Economy & Risk
@@ -460,7 +504,8 @@ Your lot isn't free. Every Next Day press deducts:
 | Tier 1 (5 slots) | $300 |
 | Tier 2 (10 slots) | $600 |
 | Tier 3 (20 slots) | $1,200 |
-| Tier 4 (50 slots) | $2,100 |
+| Tier 4 (35 slots) | $1,800 |
+| Tier 5 (50 slots) | $2,600 |
 
 Expanding your garage means bigger overhead — only upgrade when your sales can cover it.  
 If you hire staff, **daily wages** are added to overhead and can seriously hurt profitability.
