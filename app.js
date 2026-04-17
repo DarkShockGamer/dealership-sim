@@ -666,6 +666,12 @@ const OVERPRICED_SKEPTICISM_RATE = 0.18;
 
 // Daily stale-listing decay for overpriced cars: 8% per day after 3 days on lot.
 const OVERPRICED_STALE_DECAY_RATE = 0.92;
+
+// Trade-in counter acceptance curve constants.
+const TI_FAIRNESS_CAP        = 1.5;  // fairness values above this are clamped (buyer getting a bargain)
+const TI_FAIRNESS_EXPONENT   = 3;    // cubic curve steepness (higher = harsher penalty for above-market asks)
+const TI_BASE_ACCEPT_RATE    = 0.85; // max acceptance rate at perfect fairness
+const TI_MIN_ACCEPT_PROB     = 0.03; // floor so there is always a tiny chance even on bad counters
 const formatCurrency = n => '$' + Math.round(n).toLocaleString();
 const generateId  = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 let factorySelection = { make: null, model: null };
@@ -1292,17 +1298,49 @@ function generateTradeInRequests() {
   const newRequests = [];
   const numRequests = randomInt(0, Math.min(2, listed.length));
   for (let i = 0; i < numRequests; i++) {
-    const targetCar   = randomFrom(listed);
+    const targetCar = randomFrom(listed);
+
+    // === Price-ratio gate (mirrors cash-buyer logic) ===
+    const askRatio = targetCar.listPrice / targetCar.marketValue;
+    // Hard cutoff: no trade-in requests for cars priced more than 2× market value.
+    if (askRatio > 2.0) continue;
+    // Severely reduce probability for moderately overpriced listings.
+    if (askRatio > 1.5 && Math.random() > 0.15) continue;
+    if (askRatio > 1.2 && Math.random() > 0.45) continue;
+
     const entry       = pickCatalogEntryForUsed();
     const condition   = pickCondition([0.05, 0.25, 0.40, 0.30]);
     const customerCar = buildCar(entry, condition, 'used', false);
     customerCar.purchasePrice = 0;
     // Their car's value at ~55–80% market (they inflate a bit)
     const customerCarValue = Math.round(customerCar.marketValue * randomFloat(0.55, 0.80));
-    // cashDelta: positive = customer adds cash, negative = customer wants you to pay extra
-    const rawDelta    = targetCar.listPrice - customerCarValue;
-    // Cap the customer's asks — they won't demand more than 20% of your car's list
-    const cashDelta   = Math.max(rawDelta, -Math.round(targetCar.listPrice * 0.20));
+
+    // === Anchor total offer to market value, not list price ===
+    // The higher the askRatio, the lower the total customer is willing to pay.
+    let buyerTotalWillingToPay;
+    if (askRatio > 1.5) {
+      // Heavy overpricing: lowball based on market value with skepticism discount.
+      const skepticismDiscount = clamp(1.0 - (askRatio - 1.5) * OVERPRICED_SKEPTICISM_RATE, 0.60, 0.90);
+      buyerTotalWillingToPay = Math.round(targetCar.marketValue * skepticismDiscount * randomFloat(0.75, 0.95));
+    } else if (askRatio > 1.2) {
+      // Moderately overpriced: buyer anchors to market value, usually below list.
+      buyerTotalWillingToPay = Math.round(targetCar.marketValue * randomFloat(0.80, 0.97));
+    } else if (askRatio > 1.05) {
+      // Slightly overpriced: offer near but slightly below list price.
+      buyerTotalWillingToPay = Math.round(targetCar.marketValue * randomFloat(0.90, 1.03));
+    } else {
+      // Fair pricing: buyer may offer up to slightly above market value.
+      buyerTotalWillingToPay = Math.round(targetCar.marketValue * randomFloat(0.94, 1.06));
+    }
+
+    // cashDelta: positive = customer adds cash, negative = customer wants you to pay extra.
+    const rawDelta = buyerTotalWillingToPay - customerCarValue;
+    // Cap extra cash to 30% of market value (prevents insane top-ups for overpriced cars).
+    const maxExtraCash = Math.round(targetCar.marketValue * 0.30);
+    // Cap the amount the customer asks us to pay to 20% of market value.
+    const minDelta = -Math.round(targetCar.marketValue * 0.20);
+    const cashDelta = clamp(rawDelta, minDelta, maxExtraCash);
+
     newRequests.push({
       id: generateId(),
       customerCar,
@@ -2123,11 +2161,20 @@ function resolveTradeInCounters() {
         toRemove.add(req.id);
         continue;
       }
-      // Customer acceptance probability based on how fair the counter is
       const totalCustomerCost = req.customerCarValue + req.counterCashDelta;
-      const fairness = totalCustomerCost / targetCar.listPrice;
+      // Hard block: counter exceeding list price cannot be accepted (no exploit path).
+      if (totalCustomerCost > targetCar.listPrice) {
+        addNote(`❌ Trade-in counter for ${targetCar.year} ${targetCar.make} ${targetCar.model} exceeded asking price — rejected.`, 'warning');
+        toRemove.add(req.id);
+        continue;
+      }
+      // Acceptance probability based on market-value fairness (not list price).
+      // customerFairness > 1 means they're paying below market (good for them → accept).
+      // customerFairness < 1 means they're paying above market (bad for them → resist).
+      const customerFairness = targetCar.marketValue / Math.max(totalCustomerCost, 1);
       const negBonus = state.upgrades.negotiationTraining ? 0.08 : 0;
-      const acceptProb = clamp(fairness * 0.85 + negBonus, 0.05, 0.85);
+      // Steep cubic curve so above-market counters are strongly resisted.
+      const acceptProb = clamp(Math.pow(Math.min(customerFairness, TI_FAIRNESS_CAP), TI_FAIRNESS_EXPONENT) * TI_BASE_ACCEPT_RATE + negBonus, TI_MIN_ACCEPT_PROB, TI_BASE_ACCEPT_RATE);
       if (Math.random() < acceptProb) {
         executeTradeIn(req, req.counterCashDelta);
         addNote(`🤝 Trade-in counter accepted! Got ${req.customerCar.year} ${req.customerCar.make} ${req.customerCar.model}.`, 'success');
@@ -2430,6 +2477,15 @@ function counterTradeInRequest(requestId, rawDelta) {
   if (!req) return;
   const delta = Math.round(parseFloat(rawDelta));
   if (isNaN(delta)) { showToast('Enter a valid cash amount.', 'error'); return; }
+  // Prevent countering such that the customer's total payment exceeds the car's asking price.
+  const targetCar = state.garage.find(c => c.id === req.targetCarId);
+  if (targetCar) {
+    const totalCustomerCost = req.customerCarValue + delta;
+    if (totalCustomerCost > targetCar.listPrice) {
+      showToast(`Counter would require the customer to pay more than your asking price (${formatCurrency(targetCar.listPrice)}). Reduce the cash amount.`, 'error');
+      return;
+    }
+  }
   req.counterCashDelta = delta;
   req.state            = 'countered';
   req.expiresDay       = state.day + 2;
