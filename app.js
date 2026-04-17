@@ -11,9 +11,19 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.1.0';
+const GAME_VERSION = '1.1.1';
 
 const PATCH_NOTES = [
+  {
+    version: '1.1.1',
+    date: 'April 2026',
+    notes: [
+      { type: 'balance', text: 'Anti-exploit selling: asking price is now strongly checked against market value. Overpriced cars receive sharply fewer leads and buyer interest drops steeply — at 2× market value you will see almost no serious buyers; beyond 3× market value sales are effectively impossible.' },
+      { type: 'balance', text: 'Buyer offers are now anchored to market value, not list price. Overpriced listings attract lowballers who offer based on what the car is actually worth, not your asking price.' },
+      { type: 'balance', text: 'Stale listing penalty strengthened for overpriced cars: leads decay faster every day the car sits unsold above market value.' },
+      { type: 'feature', text: 'Price label shown on each For Sale listing: Fair Price / Slightly High / Overpriced / Way Over Market / Extreme — with matching interest indicator.' },
+    ],
+  },
   {
     version: '1.1.0',
     date: 'April 2026',
@@ -648,6 +658,14 @@ const randomFloat = (min, max) => Math.random() * (max - min) + min;
 const clamp       = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const lerp        = (a, b, t) => a + (b - a) * t;
 const randomFrom  = arr => arr[Math.floor(Math.random() * arr.length)];
+
+// How much extra skepticism buyers apply per unit of overpricing beyond 1.5×.
+// At 1.5× they start with a 10% discount off market; each extra 0.1× of ratio
+// adds another ~1.8% discount, clamped so offers never fall below 55% of market.
+const OVERPRICED_SKEPTICISM_RATE = 0.18;
+
+// Daily stale-listing decay for overpriced cars: 8% per day after 3 days on lot.
+const OVERPRICED_STALE_DECAY_RATE = 0.92;
 const formatCurrency = n => '$' + Math.round(n).toLocaleString();
 const generateId  = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 let factorySelection = { make: null, model: null };
@@ -1312,11 +1330,30 @@ function generateCustomerOffers() {
     const luxuryBoost = state.upgrades.luxuryLounge && car.marketValue >= 90000 ? 0.14 : 0;
     // Offer probability is 1.5× sale chance (buyer haggles rather than pays full)
     if (Math.random() < Math.min(chance * 1.5 + luxuryBoost, 0.85)) {
-      // Buyer has a hidden maximum they're willing to stretch to
-      const buyerMax     = Math.round(car.listPrice * randomFloat(0.86, 0.99) * clamp(titleBuyerMult + 0.1, 0.65, 1.05));
-      // Initial offer is below their max (they start low to leave room)
-      const mult         = randomFloat(0.72, 0.97);
-      const offeredPrice = Math.round(Math.min(buyerMax * 0.98, car.listPrice * mult));
+      const askRatio = car.listPrice / car.marketValue;
+
+      // When the car is overpriced, buyers are aware of market value and anchor
+      // their offers there — not to the inflated asking price.
+      // At extreme ratios only lowballers appear, offering well below market.
+      let buyerMax, offeredPrice;
+      if (askRatio > 1.5) {
+        // Lowball territory: buyer offers based on market value with a skepticism discount.
+        // The more overpriced, the harsher the lowball (OVERPRICED_SKEPTICISM_RATE per extra ratio unit).
+        const skepticismDiscount = clamp(1.0 - (askRatio - 1.5) * OVERPRICED_SKEPTICISM_RATE, 0.55, 0.90);
+        buyerMax     = Math.round(car.marketValue * skepticismDiscount * clamp(titleBuyerMult + 0.1, 0.65, 1.05));
+        offeredPrice = Math.round(buyerMax * randomFloat(0.82, 0.97));
+      } else if (askRatio > 1.2) {
+        // Above market: buyer knows and anchors to market value.
+        const mvMult = randomFloat(0.78, 0.97);
+        buyerMax     = Math.round(car.marketValue * mvMult * clamp(titleBuyerMult + 0.1, 0.65, 1.05));
+        offeredPrice = Math.round(buyerMax * randomFloat(0.87, 0.98));
+      } else {
+        // Normal: buyer offers relative to list price as before.
+        buyerMax     = Math.round(car.listPrice * randomFloat(0.86, 0.99) * clamp(titleBuyerMult + 0.1, 0.65, 1.05));
+        const mult   = randomFloat(0.72, 0.97);
+        offeredPrice = Math.round(Math.min(buyerMax * 0.98, car.listPrice * mult));
+      }
+
       if (offeredPrice >= car.listPrice) continue; // would be auto-sold
       newOffers.push({
         id: generateId(),
@@ -1338,12 +1375,42 @@ function generateCustomerOffers() {
 // ============================================================
 function computeSaleChance(car) {
   if (!car.isForSale || car.listPrice <= 0) return 0;
+
+  // askRatio > 1 means overpriced; hard cap above 3× makes sale impossible.
+  const askRatio = car.listPrice / car.marketValue;
+  if (askRatio > 3.0) return 0;
+
   let chance = 0.08;
-  const priceRatio = car.marketValue / car.listPrice;
-  const priceAtt   = clamp(priceRatio * 0.88, 0.25, 1.9);
+
+  // Price attractiveness — steep exponential penalty for overpricing.
+  // Retries do NOT improve this: every day uses the same curve independently.
+  let priceAtt;
+  if (askRatio <= 1.05) {
+    // At or below market: slight reward for competitive pricing.
+    priceAtt = clamp((1 / askRatio) * 0.88, 0.84, 1.9);
+  } else if (askRatio <= 1.2) {
+    // Slightly over: mild reduction (0.84 → 0.40).
+    priceAtt = lerp(0.84, 0.40, (askRatio - 1.05) / 0.15);
+  } else if (askRatio <= 1.5) {
+    // Moderately over: significant reduction (0.40 → 0.12).
+    priceAtt = lerp(0.40, 0.12, (askRatio - 1.2) / 0.30);
+  } else if (askRatio <= 2.0) {
+    // Way over: near-zero (0.12 → 0.02).
+    priceAtt = lerp(0.12, 0.02, (askRatio - 1.5) / 0.50);
+  } else {
+    // Extreme (2× – 3×): effectively impossible (0.02 → 0).
+    priceAtt = lerp(0.02, 0, (askRatio - 2.0) / 1.0);
+  }
+
   const condFactor = CONDITION_FACTOR[car.condition] || 1;
   const daysLot    = car.daysInLot;
-  const lotFactor  = daysLot > 14 ? 0.68 : daysLot > 7 ? 0.84 : 1.0;
+
+  // Overpriced listings go stale faster — OVERPRICED_STALE_DECAY_RATE (8%) daily decay once on lot >3 days.
+  const staleDays = Math.max(0, daysLot - 3);
+  const stalePenalty = askRatio > 1.2 ? Math.pow(OVERPRICED_STALE_DECAY_RATE, staleDays) : 1.0;
+  const baseLotFactor  = daysLot > 14 ? 0.68 : daysLot > 7 ? 0.84 : 1.0;
+  const lotFactor      = baseLotFactor * stalePenalty;
+
   const marketingFactor    = 1 + 0.20 * state.upgrades.marketing;
   const repBoostFactor     = 1 + 0.15 * state.upgrades.reputationBoosts;
   const repFactor          = state.reputation;
@@ -1354,7 +1421,26 @@ function computeSaleChance(car) {
 
   chance = chance * priceAtt * condFactor * lotFactor * marketingFactor * repFactor
          * repBoostFactor * demandFactor * washBonus * titleFactor * photoStudioFactor;
-  return clamp(chance, 0.01, 0.85);
+
+  // No guaranteed floor for overpriced cars — retries must never converge to a sale.
+  const floor = askRatio > 2.0 ? 0 : askRatio > 1.5 ? 0.001 : askRatio > 1.2 ? 0.004 : 0.01;
+  return clamp(chance, floor, 0.85);
+}
+
+/**
+ * Returns a human-readable price label and CSS class based on how the
+ * asking price compares to market value.
+ */
+function getPriceLabel(car) {
+  if (!car.isForSale || car.listPrice <= 0) return null;
+  const r = car.listPrice / car.marketValue;
+  if (r > 3.0)  return { text: 'Extreme — No Buyers',      cls: 'text-red',    interest: 'None' };
+  if (r > 2.0)  return { text: 'Way Over Market',          cls: 'text-red',    interest: 'Nearly None' };
+  if (r > 1.5)  return { text: 'Overpriced',               cls: 'text-red',    interest: 'Very Low' };
+  if (r > 1.2)  return { text: 'Above Market',             cls: 'text-yellow', interest: 'Low' };
+  if (r > 1.05) return { text: 'Slightly High',            cls: 'text-yellow', interest: 'Moderate' };
+  if (r > 0.9)  return { text: 'Fair Price',               cls: 'text-green',  interest: 'Good' };
+  return              { text: 'Below Market — Great Deal', cls: 'text-green',  interest: 'High' };
 }
 
 // ============================================================
@@ -1965,7 +2051,13 @@ function resolveCustomerOfferCounters() {
     if (!car) { toRemove.add(offer.id); continue; }
 
     const counter  = offer.playerCounter;
-    const buyerMax = offer.buyerMax ?? Math.round(car.listPrice * 0.93);
+    // buyerMax is set when the offer was generated and is anchored to marketValue
+    // for overpriced cars. Fall back to 93% of list price only for fairly priced cars.
+    const askRatio = car.listPrice / car.marketValue;
+    const fallbackMax = askRatio > 1.2
+      ? Math.round(car.marketValue * 0.95)
+      : Math.round(car.listPrice * 0.93);
+    const buyerMax = offer.buyerMax ?? fallbackMax;
     const negBonus = state.upgrades.negotiationTraining ? 0.06 : 0;
     const aiBonus  = state.upgrades.aiPricing ? 0.04 : 0;
     const ratio    = counter / buyerMax;
@@ -3464,6 +3556,7 @@ function renderForSale() {
         }).join('') : '';
     const hasOffer = state.customerOffers.some(o => o.carId === car.id);
     const hasTIR   = state.tradeInRequests.some(r => r.targetCarId === car.id && r.state === 'pending');
+    const priceLabel = car.listPrice > 0 ? getPriceLabel(car) : null;
 
     return `
       <div class="car-card forsale-card ${hasOffer ? 'has-offer' : ''} ${car.source === 'tradein' ? 'tradein-inventory' : ''}">
@@ -3486,6 +3579,8 @@ function renderForSale() {
           <div class="detail-row"><span>Market Value</span><span class="text-green">${formatCurrency(car.marketValue)}</span></div>
           <div class="detail-row"><span>Title Status</span><span>${TITLE_LABELS[car.titleStatus] || 'Clean'}</span></div>
           <div class="detail-row"><span>Days on Lot</span><span>${car.daysInLot}</span></div>
+          ${priceLabel ? `<div class="detail-row"><span>Price Rating</span><span class="${priceLabel.cls}" style="font-weight:600">${priceLabel.text}</span></div>` : ''}
+          ${priceLabel ? `<div class="detail-row"><span>Buyer Interest</span><span class="${priceLabel.cls}">${priceLabel.interest}</span></div>` : ''}
           <div class="detail-row"><span>Sale Chance / Day</span><span class="${chanceClass}">${chance}%</span></div>
           <div class="detail-row"><span>Transaction Fee (2%)</span><span class="text-red">−${formatCurrency(fee)}</span></div>
           <div class="detail-row"><span>Est. Profit</span>
