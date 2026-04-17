@@ -12,7 +12,7 @@ import { CAR_CATALOG } from './data/cars.js';
 // DEFAULT STATE
 // ============================================================
 const DEFAULT_STATE = {
-  saveVersion: 8,
+  saveVersion: 9,
   cash: 25000,
   day: 1,
   reputation: 1.0,
@@ -362,7 +362,7 @@ const ACHIEVEMENTS = [
     check: s => (s.bankruptcyCount || 0) > 0 && !s.gameOver },
   { id: 'first_upgrade',       icon: ACH_ICONS.layers,     name: 'Investing in the Future',desc: 'Purchase your first dealership upgrade.',
     check: s => Object.values(s.upgrades||{}).some(v => v === true || (typeof v === 'number' && v > 1)) },
-  { id: 'garage_tier4',        icon: ACH_ICONS.map,        name: 'Mega Lot',               desc: 'Expand to Garage Tier 4 (35 slots).',
+  { id: 'garage_tier4',        icon: ACH_ICONS.map,        name: 'Mega Lot',               desc: 'Expand to Garage Tier 4 (50 slots).',
     check: s => (s.upgrades?.garageLevel || 1) >= 4 },
   { id: 'first_lease',         icon: ACH_ICONS.key,        name: 'Lease Launch',           desc: 'Get your first active lease.',
     check: s => (s.garage||[]).some(c => c.leaseStatus === 'active') || (s.salesHistory||[]).some(h => h.wasLease) },
@@ -401,9 +401,9 @@ const UPGRADES_CONFIG = [
   },
   {
     id: 'garage4', name: 'Garage Tier 4', icon: '🏭', category: 'Garage', cost: 90000,
-    desc: 'Expand to 35 garage slots.',
+    desc: 'Expand to 50 garage slots.',
     requires: u => u.garageLevel === 3,
-    apply: s => { s.upgrades.garageLevel = 4; s.garageSlots = 35; },
+    apply: s => { s.upgrades.garageLevel = 4; s.garageSlots = 50; },
   },
   {
     id: 'marketing', name: 'Marketing Campaign', icon: '📣', category: 'Marketing', cost: 8000,
@@ -778,6 +778,19 @@ function loadState(slot) {
         loaded.notifications = loaded.notifications || [];
         loaded.notifications.unshift({
           message: '🚗 Save upgraded to v8 — lease payment rates rebalanced; active leases updated to new rates.',
+          type: 'info',
+          day: loaded.day ?? 1,
+        });
+      }
+      if (loaded.saveVersion < 9) {
+        loaded.saveVersion = 9;
+        // If the player already has Garage Tier 4, update slots from old 35 → new 50
+        if ((loaded.upgrades?.garageLevel || 1) >= 4 && loaded.garageSlots < 50) {
+          loaded.garageSlots = 50;
+        }
+        loaded.notifications = loaded.notifications || [];
+        loaded.notifications.unshift({
+          message: '🏭 Save upgraded to v9 — Garage Tier 4 expanded to 50 slots.',
           type: 'info',
           day: loaded.day ?? 1,
         });
@@ -2921,7 +2934,7 @@ function renderForSale() {
       const isCountered = req.state === 'countered';
       const netValueToYou = req.customerCarValue + cashDelta;
       const canAccept = cashDelta < 0 ? state.cash >= Math.abs(cashDelta) : true;
-      const canFit    = state.garage.length < state.garageSlots || !targetCar;
+      const canFit    = state.garage.length <= state.garageSlots || !targetCar; // trade-in removes target first, so full garage is OK
       return `
         <div class="car-card tradein-request-card ${isCountered ? 'countered-card disabled-card' : ''}">
           <div class="car-card-header">

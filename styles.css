@@ -363,17 +363,23 @@ body {
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 4px;
+  position: relative;
+  z-index: 1;
 }
 .car-actions .btn {
-  flex: 1 1 160px;
-  min-width: 140px;
+  flex: 1 1 140px;
+  min-width: 120px;
+  position: relative;
+  z-index: 1;
 }
 
-@media (max-width: 420px) {
+@media (max-width: 640px) {
   .car-actions .btn {
-    min-width: 120px;
+    min-width: 110px;
     white-space: normal;
     line-height: 1.15;
+    font-size: .82rem;
+    padding: 7px 10px;
   }
 }
 
@@ -515,9 +521,6 @@ img.ui-icon { filter: brightness(0) invert(1); }
   border-radius: var(--radius-sm);
   margin-bottom: 4px;
 }
-/* Car actions flex-wrap so "Offer Lease" never overflows */
-.car-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.car-actions .btn { flex: 1 1 140px; min-width: 120px; }
 /* Keyboard focus ring for tab buttons */
 .tab-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
@@ -726,6 +729,8 @@ img.ui-icon { filter: brightness(0) invert(1); }
   border-radius: var(--radius-sm);
   padding: 10px 12px;
   font-size: .85rem;
+  position: relative;
+  z-index: 1;
 }
 .neg-countered {
   background: rgba(255, 191, 93, .18);
