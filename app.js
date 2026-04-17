@@ -1047,8 +1047,10 @@ function genVinStatus(legalStatus) {
 
 /** Apply police check when selling/holding a problematic car.
  *  Returns true if the player was caught and fined.
+ *  @param {object} car - the car object
+ *  @param {boolean} [allowImpound=true] - whether impound is possible (false for cars being sold to a customer)
  */
-function checkPoliceEvent(car) {
+function checkPoliceEvent(car, allowImpound = true) {
   if (!car) return false;
   const legalStatus = car.legalStatus || 'clean';
   if (legalStatus === 'clean' && (car.vinStatus || 'normal') === 'normal') return false;
@@ -1066,7 +1068,7 @@ function checkPoliceEvent(car) {
   let fineRange, impound;
   if (legalStatus === 'stolen') {
     fineRange = POLICE_FINE.stolen;
-    impound   = true;
+    impound   = allowImpound; // Only impound if car is still on lot
   } else if (legalStatus === 'noTitle') {
     fineRange = POLICE_FINE.noTitle;
     impound   = false;
@@ -1878,9 +1880,9 @@ function processForSale() {
         ? Math.min(state.reputation + 0.02, 2.0)
         : Math.max(state.reputation - 0.01, 0.1);
       recordSaleStats(car, profit);
-      // Police check at point of sale for any problematic car
+      // Police check at point of sale for any problematic car (no impound — car already sold to buyer)
       const legalRisk = (car.legalStatus || 'clean') !== 'clean' || (car.vinStatus || 'normal') === 'scratched';
-      if (legalRisk) checkPoliceEvent(car);
+      if (legalRisk) checkPoliceEvent(car, false);
       state.salesHistory.unshift({
         ...car, soldDay: state.day, salePrice: car.listPrice, fee, profit,
       });
@@ -1954,9 +1956,9 @@ function executeSale(offer, car, salePrice) {
     ? Math.min(state.reputation + 0.015, 2.0)
     : Math.max(state.reputation - 0.01, 0.1);
   recordSaleStats(car, profit);
-  // Police check on sale (customer negotiations / accepted offers)
+  // Police check on sale (customer negotiations / accepted offers) — no impound, car already sold
   const legalRisk = (car.legalStatus || 'clean') !== 'clean' || (car.vinStatus || 'normal') === 'scratched';
-  if (legalRisk) checkPoliceEvent(car);
+  if (legalRisk) checkPoliceEvent(car, false);
   state.salesHistory.unshift({ ...car, soldDay: state.day, salePrice, fee, profit });
   runAchievementChecks();
   state.garage          = state.garage.filter(c => c.id !== car.id);
@@ -2126,8 +2128,8 @@ function acceptUsedOffer(offerId) {
 
 function declineUsedOffer(offerId) {
   const offer = state.usedMarketOffers.find(o => o.id === offerId);
-  if (offer && (offer.legalStatus || 'clean') === 'stolen') {
-    // Track "detected and avoided stealing" for achievement
+  // Only count as "avoided" if player discovered the stolen status before declining
+  if (offer && offer.legalDiscovered && (offer.legalStatus || 'clean') === 'stolen') {
     state.stolenCarsAvoided = (state.stolenCarsAvoided || 0) + 1;
     runAchievementChecks();
   }
