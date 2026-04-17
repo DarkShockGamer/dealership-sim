@@ -4658,8 +4658,6 @@ function _tutorialUpdateNextButton() {
   const step = _tutorialSteps[_tutorialStep];
   const complete = !step || !step.isComplete || step.isComplete();
   btnNext.disabled = !complete;
-  btnNext.style.opacity = complete ? '' : '0.45';
-  btnNext.style.cursor  = complete ? '' : 'not-allowed';
   // Re-position spotlight in case state/layout changed (e.g. user navigated to a tab)
   if (complete && step && step.noAutoTab) {
     const overlay   = document.getElementById('tutorial-overlay');
@@ -4732,7 +4730,8 @@ function _tutorialPositionSpotlight(step, overlay, spotlight, tooltip) {
     spotlight.style.width  = `${rect.width  + PADDING * 2}px`;
     spotlight.style.height = `${rect.height + PADDING * 2}px`;
 
-    // Measure the actual rendered tooltip height (after potential reflows)
+    // Temporarily hide to measure actual dimensions without visual flicker,
+    // then restore visibility once positioning is computed.
     tooltip.style.visibility = 'hidden';
     tooltip.style.top  = '0px';
     tooltip.style.left = '0px';
