@@ -2057,30 +2057,46 @@ function processForSale() {
       }
     }
     const chance = computeSaleChance(car);
-    if (Math.random() < chance) {
-      soldIds.add(car.id);
-      const fee    = Math.round(car.listPrice * TRANSACTION_FEE);
-      const profit = car.listPrice - fee - car.purchasePrice;
-      state.cash  += car.listPrice - fee;
-      state.reputation = profit > 0
-        ? Math.min(state.reputation + 0.02, 2.0)
-        : Math.max(state.reputation - 0.01, 0.1);
-      recordSaleStats(car, profit);
-      // Police check at point of sale for any problematic car (no impound — car already sold to buyer)
-      const legalRisk = (car.legalStatus || 'clean') !== 'clean' || (car.vinStatus || 'normal') === 'scratched';
-      if (legalRisk) checkPoliceEvent(car, false);
-      state.salesHistory.unshift({
-        ...car, soldDay: state.day, salePrice: car.listPrice, fee, profit,
-      });
-      runAchievementChecks();
-      addNote(
-        `🎉 SOLD: ${car.year} ${car.make} ${car.model} for ${formatCurrency(car.listPrice)}! ` +
-        `Profit: ${profit >= 0 ? '+' : ''}${formatCurrency(profit)}`,
-        profit >= 0 ? 'success' : 'warning'
-      );
-    } else {
+    // Tutorial forced-sale: when on the sell step, force an instant sale for the
+    // tutorial car if the price is reasonable (≤ 110 % of market value).
+    // If the price is too high, skip the normal random chance and prompt the player.
+    const onTutorialSellStep = _tutorialStep >= 0
+      && (_tutorialSteps[_tutorialStep] || {}).tutorialForceSale
+      && _tutorialCarId === car.id;
+    if (onTutorialSellStep) {
+      const marketRef = car.marketValue > 0 ? car.marketValue : car.listPrice;
+      const ratio = car.listPrice / marketRef;
+      if (ratio > 1.10) {
+        // Price too high — leave the car unsold this day and show guidance
+        remaining.push(car);
+        showToast("That\u2019s priced too high \u2014 set it closer to Market or +10% to sell.", 'warning');
+        continue;
+      }
+      // Price is fair — fall through and force the sale (treat as if Math.random() succeeded)
+    } else if (!(Math.random() < chance)) {
       remaining.push(car);
+      continue;
     }
+    soldIds.add(car.id);
+    const fee    = Math.round(car.listPrice * TRANSACTION_FEE);
+    const profit = car.listPrice - fee - car.purchasePrice;
+    state.cash  += car.listPrice - fee;
+    state.reputation = profit > 0
+      ? Math.min(state.reputation + 0.02, 2.0)
+      : Math.max(state.reputation - 0.01, 0.1);
+    recordSaleStats(car, profit);
+    // Police check at point of sale for any problematic car (no impound — car already sold to buyer)
+    const legalRisk = (car.legalStatus || 'clean') !== 'clean' || (car.vinStatus || 'normal') === 'scratched';
+    if (legalRisk) checkPoliceEvent(car, false);
+    state.salesHistory.unshift({
+      ...car, soldDay: state.day, salePrice: car.listPrice, fee, profit,
+    });
+    runAchievementChecks();
+    addNote(
+      `🎉 SOLD: ${car.year} ${car.make} ${car.model} for ${formatCurrency(car.listPrice)}! ` +
+      `Profit: ${profit >= 0 ? '+' : ''}${formatCurrency(profit)}`,
+      profit >= 0 ? 'success' : 'warning'
+    );
   }
   state.garage = remaining.filter(c => !impoundedIds.has(c.id));
   // Remove customer offers / trade-in requests for sold or impounded cars
@@ -2290,8 +2306,9 @@ function buyFromFactory(catalogIdx) {
   const condition  = pickCondition([0.40, 0.45, 0.13, 0.02]);
   const car        = buildCar(entry, condition, 'factory', true);
   car.purchasePrice = entry.basePrice;
-  // During the tutorial, fast-deliver the first factory car in 1 day
+  // During the tutorial, fast-deliver the first factory car in 1 day and track it
   const tutorialActive = _tutorialStep >= 0 && _tutorialSteps.length > 0;
+  if (tutorialActive && !_tutorialCarId) _tutorialCarId = car.id;
   const days       = tutorialActive ? 1 : Math.max(1, entry.deliveryDays
     - (state.upgrades.expressDelivery ? 1 : 0)
     - (state.upgrades.factoryAllocation ? 1 : 0));
@@ -4584,24 +4601,17 @@ function getTutorialSteps() {
     },
     {
       // Step 5: Mark for Sale — garage tab is active
-      message: '🏷️ Find your new car and click "List for Sale". Set a price close to the car\'s estimated value, then confirm. The car will move to your For Sale lot.',
+      message: '🏷️ Find your new car and click "List for Sale". Set a price close to the car\'s estimated value (within +10%), then confirm. The tutorial will advance as soon as you list the car.',
       target: '#tab-garage',
       tab: 'garage',
       isComplete: () => (state.garage || []).some(c => c.isForSale && c.listPrice > 0),
     },
     {
-      // Step 6: Navigate to For Sale — user must click the tab themselves
-      message: '📋 Now open the For Sale tab to see your listed car. Buyers browse your lot every day.',
-      target: '.tab-btn[data-tab="forsale"]',
-      tab: null,
-      noAutoTab: true,
-      isComplete: () => getActiveTab() === 'forsale',
-    },
-    {
-      // Step 7: Press Next Day until sold
-      message: '⏩ Keep pressing "Next Day" until a buyer accepts your price. A notification will pop up when the car sells. Congratulations — you\'ve made your first deal! 🎉',
+      // Step 6: Press Next Day until sold (tutorial forces instant sale if price is fair)
+      message: '⏩ Press "Next Day" to advance time. If your price is at or near Market value (≤+10%), the car will sell instantly! 🎉',
       target: '#btn-next-day',
       tab: 'forsale',
+      tutorialForceSale: true,
       isComplete: () => (state.salesHistory || []).length > initialSalesCount,
     },
   ];
@@ -4609,6 +4619,8 @@ function getTutorialSteps() {
 
 let _tutorialStep = -1;
 let _tutorialSteps = [];
+/** ID of the car ordered during the tutorial, used to force an instant sale. */
+let _tutorialCarId = null;
 
 /** Bound reposition handler stored so it can be removed when tutorial ends. */
 let _tutorialRepositionPending = false;
@@ -4675,6 +4687,7 @@ function tutorialEnd() {
   if (overlay) overlay.classList.add('hidden');
   _tutorialStep = -1;
   _tutorialSteps = [];
+  _tutorialCarId = null;
   // Remove layout-change listeners registered by tutorialStart()
   window.removeEventListener('scroll', _tutorialReposition, { capture: true });
   window.removeEventListener('resize', _tutorialReposition);
