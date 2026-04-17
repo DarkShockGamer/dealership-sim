@@ -4610,11 +4610,38 @@ function getTutorialSteps() {
 let _tutorialStep = -1;
 let _tutorialSteps = [];
 
+/** Bound reposition handler stored so it can be removed when tutorial ends. */
+let _tutorialRepositionPending = false;
+function _tutorialReposition() {
+  if (_tutorialStep < 0 || !_tutorialSteps.length) return;
+  // Throttle to one reposition per animation frame to avoid flooding on fast scroll
+  if (_tutorialRepositionPending) return;
+  _tutorialRepositionPending = true;
+  requestAnimationFrame(() => {
+    _tutorialRepositionPending = false;
+    if (_tutorialStep < 0 || !_tutorialSteps.length) return;
+    const step     = _tutorialSteps[_tutorialStep];
+    const overlay  = document.getElementById('tutorial-overlay');
+    const spotlight= document.getElementById('tutorial-spotlight');
+    const tooltip  = document.getElementById('tutorial-tooltip');
+    if (!overlay || !spotlight || !tooltip) return;
+    // Suppress CSS transitions during scroll/resize repositioning for instant update
+    spotlight.style.transition = 'none';
+    _tutorialPositionSpotlight(step, overlay, spotlight, tooltip);
+    // Re-enable transitions after the paint so tab-switch animations still work
+    requestAnimationFrame(() => { spotlight.style.transition = ''; });
+  });
+}
+
 /** Start the tutorial from step 0. */
 function tutorialStart() {
   _tutorialSteps = getTutorialSteps();
   _tutorialStep = 0;
   _tutorialShowStep();
+  // Keep spotlight + tooltip aligned whenever layout changes
+  window.addEventListener('scroll', _tutorialReposition, { passive: true, capture: true });
+  window.addEventListener('resize', _tutorialReposition, { passive: true });
+  window.addEventListener('orientationchange', _tutorialReposition, { passive: true });
 }
 
 /** Advance to the next tutorial step, or finish if done. */
@@ -4648,6 +4675,10 @@ function tutorialEnd() {
   if (overlay) overlay.classList.add('hidden');
   _tutorialStep = -1;
   _tutorialSteps = [];
+  // Remove layout-change listeners registered by tutorialStart()
+  window.removeEventListener('scroll', _tutorialReposition, { capture: true });
+  window.removeEventListener('resize', _tutorialReposition);
+  window.removeEventListener('orientationchange', _tutorialReposition);
 }
 
 /** Enable/disable the Next button based on the current step's completion predicate. */
@@ -4712,8 +4743,9 @@ function _tutorialPositionSpotlight(step, overlay, spotlight, tooltip) {
   const target   = step.target ? document.querySelector(step.target) : null;
   const vw       = window.innerWidth;
   const vh       = window.innerHeight;
-  const maxW     = Math.min(360, vw - MARGIN * 2);
-  const maxH     = Math.min(520, vh * 0.65);
+  // Use 92vw as the upper bound so we never clip on phones
+  const maxW     = Math.min(Math.floor(vw * 0.92), 420);
+  const maxH     = Math.min(520, vh * 0.70);
 
   // Apply safe max dimensions
   tooltip.style.maxWidth  = `${maxW}px`;
@@ -4721,10 +4753,18 @@ function _tutorialPositionSpotlight(step, overlay, spotlight, tooltip) {
   tooltip.style.overflowY = 'auto';
 
   if (target) {
+    // If the target is off-screen, scroll it into view instantly (not smooth, to
+    // avoid a race condition where the scroll event fires _tutorialReposition
+    // before the element has reached its final position).
+    const rect0 = target.getBoundingClientRect();
+    if (rect0.bottom < 0 || rect0.top > vh || rect0.right < 0 || rect0.left > vw) {
+      target.scrollIntoView({ behavior: 'instant', block: 'center', inline: 'nearest' });
+    }
+
     overlay.classList.remove('no-target');
     const rect = target.getBoundingClientRect();
 
-    // Spotlight box around the target
+    // Spotlight box — position: fixed so it stays anchored to the viewport coordinate
     spotlight.style.top    = `${rect.top    - PADDING}px`;
     spotlight.style.left   = `${rect.left   - PADDING}px`;
     spotlight.style.width  = `${rect.width  + PADDING * 2}px`;
@@ -4743,14 +4783,13 @@ function _tutorialPositionSpotlight(step, overlay, spotlight, tooltip) {
     const spaceBelow = vh - rect.bottom - GAP - PADDING;
     const spaceAbove = rect.top - GAP - PADDING;
 
+    const placeBelow = spaceBelow >= tooltipH || spaceBelow >= spaceAbove;
     let topPos;
-    if (spaceBelow >= tooltipH || spaceBelow >= spaceAbove) {
-      // Place below target
+    if (placeBelow) {
       topPos = rect.bottom + PADDING + GAP;
       tooltip.classList.remove('arrow-down');
       tooltip.classList.add('arrow-up');
     } else {
-      // Place above target
       topPos = rect.top - PADDING - GAP - tooltipH;
       tooltip.classList.remove('arrow-up');
       tooltip.classList.add('arrow-down');
@@ -4759,7 +4798,46 @@ function _tutorialPositionSpotlight(step, overlay, spotlight, tooltip) {
     // Clamp vertically so tooltip stays within viewport
     topPos = Math.max(MARGIN, Math.min(topPos, vh - tooltipH - MARGIN));
 
-    // Horizontal: align left edge with target, clamp to viewport
+    // Re-check: if clamping caused the tooltip to overlap the target, try the other side
+    const targetTop    = rect.top    - PADDING;
+    const targetBottom = rect.bottom + PADDING;
+    const overlaps = (topPos < targetBottom + GAP) && (topPos + tooltipH > targetTop - GAP);
+    if (overlaps) {
+      let altTopPos;
+      if (placeBelow) {
+        // Try above instead
+        altTopPos = rect.top - PADDING - GAP - tooltipH;
+        const altClamped = Math.max(MARGIN, Math.min(altTopPos, vh - tooltipH - MARGIN));
+        const altOverlaps = (altClamped < targetBottom + GAP) && (altClamped + tooltipH > targetTop - GAP);
+        if (!altOverlaps) {
+          topPos = altClamped;
+          tooltip.classList.remove('arrow-up');
+          tooltip.classList.add('arrow-down');
+        } else {
+          // No good side — hide arrow and pin away from target
+          tooltip.classList.remove('arrow-up', 'arrow-down');
+          topPos = targetBottom + GAP < vh / 2
+            ? Math.max(MARGIN, targetBottom + GAP)
+            : Math.min(vh - tooltipH - MARGIN, targetTop - GAP - tooltipH);
+          topPos = Math.max(MARGIN, Math.min(topPos, vh - tooltipH - MARGIN));
+        }
+      } else {
+        // Try below instead
+        altTopPos = rect.bottom + PADDING + GAP;
+        const altClamped = Math.max(MARGIN, Math.min(altTopPos, vh - tooltipH - MARGIN));
+        const altOverlaps = (altClamped < targetBottom + GAP) && (altClamped + tooltipH > targetTop - GAP);
+        if (!altOverlaps) {
+          topPos = altClamped;
+          tooltip.classList.remove('arrow-down');
+          tooltip.classList.add('arrow-up');
+        } else {
+          tooltip.classList.remove('arrow-up', 'arrow-down');
+          topPos = Math.max(MARGIN, Math.min(altClamped, vh - tooltipH - MARGIN));
+        }
+      }
+    }
+
+    // Horizontal: align centre with target, clamp to viewport
     const targetCenterX = rect.left + rect.width / 2;
     let leftPos = targetCenterX - tooltipW / 2;
     leftPos = Math.max(MARGIN, Math.min(leftPos, vw - tooltipW - MARGIN));
@@ -4768,21 +4846,24 @@ function _tutorialPositionSpotlight(step, overlay, spotlight, tooltip) {
     tooltip.style.left      = `${leftPos}px`;
     tooltip.style.transform = '';
 
-    // Position the arrow to point at the target's horizontal center
+    // Position the arrow to point at the target's horizontal centre
     const arrowOffset = Math.round(
       Math.max(16, Math.min(targetCenterX - leftPos - 8, tooltipW - 24))
     );
     tooltip.style.setProperty('--arrow-offset', `${arrowOffset}px`);
 
   } else {
-    // No target — centered modal with no arrow
+    // No target — centered modal with no arrow; position: fixed handles viewport centering
     overlay.classList.add('no-target');
     spotlight.style.width  = '0';
     spotlight.style.height = '0';
     tooltip.classList.remove('arrow-up', 'arrow-down');
-    tooltip.style.top       = '50%';
-    tooltip.style.left      = '50%';
-    tooltip.style.transform = 'translate(-50%, -50%)';
+    // Centre explicitly in pixels so it's immune to animation fill-mode conflicts
+    const tooltipW = Math.min(tooltip.offsetWidth || maxW, maxW);
+    const tooltipH = tooltip.offsetHeight || 160;
+    tooltip.style.top       = `${Math.round((vh - tooltipH) / 2)}px`;
+    tooltip.style.left      = `${Math.round((vw - tooltipW) / 2)}px`;
+    tooltip.style.transform = '';
   }
 }
 
