@@ -11,9 +11,18 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.1.1';
+const GAME_VERSION = '1.2.0';
 
 const PATCH_NOTES = [
+  {
+    version: '1.2.0',
+    date: 'April 2026',
+    notes: [
+      { type: 'feature', text: 'Interactive onboarding tutorial for new saves — guides you step-by-step through buying your first factory car, listing it, and completing your first sale. Skippable and can be disabled in Settings.' },
+      { type: 'feature', text: 'Mobile-friendly home screen — menus, save slots, and settings panels now fit properly on small phone screens (320–420 px wide) with responsive padding and layout.' },
+      { type: 'fix', text: 'Tutorial settings toggle added to the main Settings panel so you can re-enable or disable onboarding guidance at any time.' },
+    ],
+  },
   {
     version: '1.1.1',
     date: 'April 2026',
@@ -3903,6 +3912,19 @@ function renderSettings() {
       </div>
 
       <div class="dash-card settings-card">
+        <h3>🎓 Tutorial</h3>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Show Tutorials</div>
+            <div class="setting-desc">Auto-run the onboarding guide when starting a new save.</div>
+          </div>
+          <button class="toggle-btn ${settings.tutorialsEnabled ? 'active' : ''}" onclick="toggleTutorials()" aria-label="Toggle tutorials">
+            <span class="toggle-thumb"></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="dash-card settings-card">
         <h3>${uiIcon('clipboard')} Current Economy Info</h3>
         <div class="stat-row">
           <span>Difficulty</span>
@@ -4074,6 +4096,7 @@ let settings = {
   sfxVolume: 0.22,
   showWordmarks: true,
   showLeasedCars: true,
+  tutorialsEnabled: true,
 };
 
 // ============================================================
@@ -4141,6 +4164,7 @@ function loadSettings() {
     if (raw) settings = { ...settings, ...JSON.parse(raw) };
   } catch (_) {}
   if (settings.showLeasedCars === undefined) settings.showLeasedCars = true;
+  if (settings.tutorialsEnabled === undefined) settings.tutorialsEnabled = true;
   applyDarkMode();
 }
 
@@ -4187,7 +4211,12 @@ function toggleWordmarks() {
   renderAll();
 }
 
-function playSfx(kind = 'click') {
+function toggleTutorials() {
+  settings.tutorialsEnabled = !settings.tutorialsEnabled;
+  saveSettings();
+  renderSettings();
+}
+(kind = 'click') {
   if (settings.sfxMuted) return;
   const config = SFX[kind];
   if (!config) return;
@@ -4434,6 +4463,7 @@ function syncMenuSettings() {
   setToggle('menu-toggle-dark',      settings.darkMode);
   setToggle('menu-toggle-wordmarks', settings.showWordmarks);
   setToggle('menu-toggle-sfx',       !settings.sfxMuted);
+  setToggle('menu-toggle-tutorials', settings.tutorialsEnabled);
 
   // Highlight the active difficulty button
   const isHard = settings.difficulty === 'hard';
@@ -4465,12 +4495,216 @@ function menuToggleSfx() {
   syncMenuSettings();
 }
 
+/** Toggle tutorials from the home-screen settings panel. */
+function menuToggleTutorials() {
+  settings.tutorialsEnabled = !settings.tutorialsEnabled;
+  saveSettings();
+  syncMenuSettings();
+}
+
 /** Set difficulty from the home-screen settings panel. */
 function menuSetDifficulty(level) {
   settings.difficulty = level;
   syncLoanTermsToDifficulty();
   saveSettings();
   syncMenuSettings();
+}
+
+// ============================================================
+// TUTORIAL ENGINE
+// ============================================================
+/**
+ * Step definitions for the new-save onboarding tutorial.
+ * Each step has:
+ *   - message : instruction text shown in the tooltip
+ *   - target  : CSS selector of the element to spotlight (null = no spotlight)
+ *   - tab     : optional tab id to switch to before showing the step
+ *   - action  : optional callback called when this step becomes active
+ */
+function getTutorialSteps() {
+  // Dynamically pick the cheapest factory car model for the beginner tip
+  let cheapestLabel = 'an Economy car';
+  try {
+    let bestPrice = Infinity;
+    for (const [make, models] of Object.entries(CAR_CATALOG)) {
+      for (const [model, data] of Object.entries(models)) {
+        if ((data.basePrice ?? Infinity) < bestPrice) {
+          bestPrice = data.basePrice;
+          cheapestLabel = `${make} ${model}`;
+        }
+      }
+    }
+  } catch (_) {}
+
+  return [
+    {
+      message: '👋 Welcome to DealerSim! This quick tutorial will walk you through making your first car sale. Click Next to begin, or skip at any time.',
+      target: null,
+      tab: 'dashboard',
+    },
+    {
+      message: '🏭 First, head to the Factory tab — click it now. You\'ll order a brand-new car direct from the manufacturer.',
+      target: '#tab-btn-factory',
+      tab: 'factory',
+    },
+    {
+      message: `🚗 Find a beginner-friendly car (e.g. ${cheapestLabel}) and click "Order" to buy it. Economy cars are cheapest and arrive quickly — perfect for your first deal!`,
+      target: '#tab-factory',
+      tab: 'factory',
+    },
+    {
+      message: '📦 Your car is now on its way! Click "Next Day" to advance time until your delivery arrives. Watch the top bar — your car will appear in your Garage once delivered.',
+      target: '#btn-next-day',
+      tab: 'dashboard',
+    },
+    {
+      message: '🔑 Head to the Garage tab to see your delivered car. Here you manage everything in your inventory.',
+      target: '#tab-btn-garage',
+      tab: 'garage',
+    },
+    {
+      message: '🏷️ Find your new car and click "List for Sale". Set a price close to the car\'s estimated value (or a little above) — then confirm. The car will move to your For Sale lot.',
+      target: '#tab-garage',
+      tab: 'garage',
+    },
+    {
+      message: '📋 Now open the For Sale tab to see your listed car. Buyers browse your lot every day.',
+      target: '#tab-btn-forsale',
+      tab: 'forsale',
+    },
+    {
+      message: '⏩ Keep pressing "Next Day" until a buyer accepts your price. A notification will pop up when the car sells. Congratulations — you\'ve made your first deal! 🎉',
+      target: '#btn-next-day',
+      tab: 'forsale',
+    },
+  ];
+}
+
+let _tutorialStep = -1;
+let _tutorialSteps = [];
+
+/** Start the tutorial from step 0. */
+function tutorialStart() {
+  _tutorialSteps = getTutorialSteps();
+  _tutorialStep = 0;
+  _tutorialShowStep();
+}
+
+/** Advance to the next tutorial step, or finish if done. */
+function tutorialNext() {
+  _tutorialStep++;
+  if (_tutorialStep >= _tutorialSteps.length) {
+    tutorialEnd();
+  } else {
+    _tutorialShowStep();
+  }
+}
+
+/** Skip the tutorial entirely for this session. */
+function tutorialSkip() {
+  tutorialEnd();
+}
+
+/** Disable tutorials permanently and close the overlay. */
+function tutorialDisable() {
+  settings.tutorialsEnabled = false;
+  saveSettings();
+  tutorialEnd();
+  showToast('Tutorials disabled. You can re-enable them in Settings.', 'info');
+}
+
+/** Hide the tutorial overlay and clean up. */
+function tutorialEnd() {
+  const overlay = document.getElementById('tutorial-overlay');
+  if (overlay) overlay.classList.add('hidden');
+  _tutorialStep = -1;
+  _tutorialSteps = [];
+}
+
+/** Render and position the current tutorial step. */
+function _tutorialShowStep() {
+  const overlay = document.getElementById('tutorial-overlay');
+  const spotlight = document.getElementById('tutorial-spotlight');
+  const tooltip = document.getElementById('tutorial-tooltip');
+  const stepLabel = document.getElementById('tutorial-step-label');
+  const message = document.getElementById('tutorial-message');
+  const btnNext = document.getElementById('tutorial-btn-next');
+  if (!overlay) return;
+
+  overlay.classList.remove('hidden', 'no-target');
+
+  const step = _tutorialSteps[_tutorialStep];
+  const isLast = _tutorialStep === _tutorialSteps.length - 1;
+
+  stepLabel.textContent = `Step ${_tutorialStep + 1} of ${_tutorialSteps.length}`;
+  message.textContent = step.message;
+  btnNext.textContent = isLast ? 'Finish ✓' : 'Next ▶';
+
+  // Switch to the required tab first so the target element is visible
+  if (step.tab) {
+    switchTab(step.tab);
+  }
+
+  // Position spotlight and tooltip after a short tick so the tab renders
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      _tutorialPositionSpotlight(step, overlay, spotlight, tooltip);
+    });
+  });
+}
+
+/** Position the spotlight around the target element and place the tooltip nearby. */
+function _tutorialPositionSpotlight(step, overlay, spotlight, tooltip) {
+  const PADDING = 6;
+  const target = step.target ? document.querySelector(step.target) : null;
+
+  if (target) {
+    overlay.classList.remove('no-target');
+    const rect = target.getBoundingClientRect();
+    spotlight.style.top    = `${rect.top    - PADDING}px`;
+    spotlight.style.left   = `${rect.left   - PADDING}px`;
+    spotlight.style.width  = `${rect.width  + PADDING * 2}px`;
+    spotlight.style.height = `${rect.height + PADDING * 2}px`;
+
+    // Place tooltip below or above the target depending on space
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const tooltipH = 160; // estimated
+    const maxW = Math.min(340, window.innerWidth * 0.9);
+
+    if (spaceBelow >= tooltipH + 18 || rect.top < tooltipH + 18) {
+      // Place below
+      tooltip.style.top  = `${rect.bottom + PADDING + 12}px`;
+      tooltip.classList.remove('arrow-down');
+      tooltip.classList.add('arrow-up');
+    } else {
+      // Place above
+      tooltip.style.top  = `${rect.top - PADDING - tooltipH - 12}px`;
+      tooltip.classList.remove('arrow-up');
+      tooltip.classList.add('arrow-down');
+    }
+
+    // Horizontal: align left of target, clamp to viewport
+    let leftPos = rect.left - PADDING;
+    leftPos = Math.max(8, Math.min(leftPos, window.innerWidth - maxW - 8));
+    tooltip.style.left = `${leftPos}px`;
+    tooltip.style.maxWidth = `${maxW}px`;
+  } else {
+    // No target — center the tooltip
+    overlay.classList.add('no-target');
+    spotlight.style.width = '0';
+    spotlight.style.height = '0';
+    tooltip.classList.remove('arrow-up', 'arrow-down');
+    const maxW = Math.min(340, window.innerWidth * 0.9);
+    tooltip.style.maxWidth = `${maxW}px`;
+    tooltip.style.top  = '50%';
+    tooltip.style.left = '50%';
+    tooltip.style.transform = 'translate(-50%, -50%)';
+  }
+
+  // Clear transform when positioned normally
+  if (step.target) {
+    tooltip.style.transform = '';
+  }
 }
 
 /**
@@ -4508,7 +4742,13 @@ function launchGame(slot, isNew) {
   // Fade out and hide the home screen
   const hs = document.getElementById('home-screen');
   hs.classList.add('fade-out');
-  setTimeout(() => hs.classList.add('hidden'), 450);
+  setTimeout(() => {
+    hs.classList.add('hidden');
+    // Auto-start tutorial for new saves if tutorials are enabled
+    if (isNew && settings.tutorialsEnabled) {
+      tutorialStart();
+    }
+  }, 450);
 }
 
 // ============================================================
@@ -4582,11 +4822,12 @@ function init() {
     buyUpgrade, detailCar, carWash, basicRepair, partsUpgrade,
     drawLoan, payDownLoan,
     confirmNewGame, exportSave, hireStaff, dismissCandidate,
-    toggleDarkMode, setDifficulty, toggleSfxMuted, setSfxVolume, toggleWordmarks,
+    toggleDarkMode, setDifficulty, toggleSfxMuted, setSfxVolume, toggleWordmarks, toggleTutorials,
     renderGarage, renderForSale, renderUsedMarket, renderFinance, renderAchievements,
-    menuToggleDark, menuToggleWordmarks, menuToggleSfx, menuSetDifficulty,
+    menuToggleDark, menuToggleWordmarks, menuToggleSfx, menuToggleTutorials, menuSetDifficulty,
     returnToMenu,
     showPatchNotesModal, closePatchNotesModal,
+    tutorialNext, tutorialSkip, tutorialDisable,
   });
 
   // Keyboard navigation — arrow keys cycle through visible tabs, ignore when focus is in input/select/textarea

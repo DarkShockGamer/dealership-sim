@@ -601,3 +601,124 @@
 
 /* ── Keyframe shared ─────────────────────────────────────── */
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* ============================================================
+   Small phone responsive overrides (≤ 420 px)
+   ============================================================ */
+@media (max-width: 420px) {
+  /* Reduce top/bottom padding on the main content wrapper */
+  .menu-content {
+    padding: 14px 10px 20px;
+  }
+
+  /* Scale down the title on very narrow screens */
+  .menu-title {
+    font-size: clamp(2.4rem, 13vw, 3.6rem);
+  }
+
+  .menu-subtitle {
+    font-size: .78rem;
+    letter-spacing: 2px;
+  }
+
+  .menu-divider {
+    margin: 12px 0 20px;
+  }
+
+  /* Main menu buttons: tighter padding, slightly smaller text */
+  .menu-buttons {
+    gap: 10px;
+    width: min(290px, 92%);
+  }
+  .menu-btn {
+    padding: 13px 18px;
+    font-size: .9rem;
+    letter-spacing: 1.5px;
+  }
+
+  /* Patch-notes panel: constrain to screen width */
+  .menu-patch-notes {
+    max-width: calc(100% - 20px);
+    padding: 10px 12px;
+    margin-top: 12px;
+  }
+
+  /* Panel header: tighten spacing */
+  .menu-panel-header {
+    margin-bottom: 16px;
+    gap: 8px;
+  }
+  .menu-panel-title {
+    font-size: 1.1rem;
+    letter-spacing: 2px;
+  }
+  .menu-back-btn {
+    padding: 6px 10px;
+    font-size: .75rem;
+  }
+
+  /* Save slot grid: single column, smaller cards */
+  .save-slot-grid {
+    gap: 12px;
+    max-width: calc(100% - 20px);
+  }
+  .save-slot-card {
+    min-height: 220px;
+    padding: 18px 14px 16px;
+    gap: 10px;
+  }
+  .slot-icon { font-size: 2rem; }
+  .slot-name { font-size: .95rem; }
+  .slot-stat-row { font-size: .76rem; padding: 4px 8px; }
+
+  /* Settings wrap: full width with tight padding */
+  .menu-settings-wrap {
+    width: 100%;
+    gap: 10px;
+  }
+  .menu-settings-card {
+    padding: 14px 14px;
+  }
+  .menu-setting-label { font-size: .85rem; }
+  .menu-setting-desc  { font-size: .7rem; }
+
+  /* Difficulty buttons: shrink text */
+  .menu-difficulty-btn {
+    padding: 6px 12px;
+    font-size: .75rem;
+  }
+
+  /* Delete confirm box: full-width on narrow screens */
+  .menu-confirm-box {
+    padding: 20px 18px;
+    max-width: calc(100% - 24px);
+  }
+
+  /* Version tag: smaller */
+  .menu-version {
+    font-size: .62rem;
+    bottom: 8px;
+    right: 10px;
+  }
+}
+
+/* Extra narrow screens ≤ 360 px */
+@media (max-width: 360px) {
+  .menu-title {
+    font-size: clamp(2rem, 14vw, 3rem);
+  }
+  .menu-btn {
+    padding: 11px 14px;
+    font-size: .82rem;
+  }
+  .menu-settings-card {
+    padding: 12px 10px;
+  }
+  .menu-difficulty-btn-group {
+    gap: 5px;
+  }
+  .menu-difficulty-btn {
+    padding: 5px 9px;
+    font-size: .7rem;
+  }
+}

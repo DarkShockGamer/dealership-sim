@@ -117,6 +117,18 @@
             </div>
           </div>
         </div>
+        <div class="menu-settings-card">
+          <h3>Tutorial</h3>
+          <div class="menu-setting-row">
+            <div>
+              <div class="menu-setting-label">Show Tutorials</div>
+              <div class="menu-setting-desc">Auto-run the onboarding guide on a new save.</div>
+            </div>
+            <button class="toggle-btn" id="menu-toggle-tutorials" onclick="menuToggleTutorials()" aria-label="Toggle tutorials">
+              <span class="toggle-thumb"></span>
+            </button>
+          </div>
+        </div>
         <div class="menu-settings-card menu-about-card">
           <h3>About</h3>
           <p class="menu-about-text">
@@ -127,7 +139,7 @@
       </div>
     </div>
 
-    <span class="menu-version" aria-hidden="true">v1.1.0</span>
+    <span class="menu-version" aria-hidden="true">v1.2.0</span>
   </div>
 
   <!-- Delete-slot confirmation dialog -->
@@ -149,6 +161,20 @@
       <div id="patch-notes-content" class="patch-notes-content"></div>
       <div class="modal-actions">
         <button class="btn btn-primary" onclick="closePatchNotesModal()">Got it!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tutorial Overlay -->
+  <div id="tutorial-overlay" class="tutorial-overlay hidden" role="dialog" aria-modal="true" aria-live="polite" aria-label="Tutorial">
+    <div class="tutorial-spotlight" id="tutorial-spotlight" aria-hidden="true"></div>
+    <div class="tutorial-tooltip" id="tutorial-tooltip">
+      <div class="tutorial-step-label" id="tutorial-step-label"></div>
+      <p class="tutorial-message" id="tutorial-message"></p>
+      <div class="tutorial-actions">
+        <button class="tutorial-btn-skip" id="tutorial-btn-skip" onclick="tutorialSkip()">Skip Tutorial</button>
+        <button class="tutorial-btn-disable" id="tutorial-btn-disable" onclick="tutorialDisable()">Don't show again</button>
+        <button class="tutorial-btn-next" id="tutorial-btn-next" onclick="tutorialNext()">Next ▶</button>
       </div>
     </div>
   </div>
