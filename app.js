@@ -9,6 +9,37 @@
 import { CAR_CATALOG } from './data/cars.js';
 
 // ============================================================
+// GAME VERSION & PATCH NOTES
+// ============================================================
+const GAME_VERSION = '1.1.0';
+
+const PATCH_NOTES = [
+  {
+    version: '1.1.0',
+    date: 'April 2026',
+    notes: [
+      { type: 'balance', text: 'Used-car damage rebalanced: Good and Excellent condition cars now rarely have crash damage or mechanical issues. Damage frequency and severity scale with condition grade.' },
+      { type: 'feature', text: 'Patch notes popup shown once after each update. Current patch notes are also visible on the Home screen.' },
+      { type: 'feature', text: 'Garage Tier 5 — expand your lot to 50 slots ($200,000).' },
+      { type: 'feature', text: 'Stolen & no-title cars — some used cars have suspect legal status; police can fine or impound you for holding or selling them.' },
+      { type: 'feature', text: 'Scratched VIN mechanic — altered VINs increase police detection risk when selling.' },
+      { type: 'feature', text: 'Hidden crash damage severity — Minor, Moderate, and Severe tiers with distinct repair costs and resale value impacts.' },
+      { type: 'feature', text: 'New upgrades: DMV Database Access, VIN Scanner Kit, Title Recovery Service, Frame Damage Inspection Tools, Compliance Training.' },
+      { type: 'feature', text: 'New achievements: Big Lot, Not Today, Paperwork Pro, Busted!, Eagle Eye, Crash Rebuilder.' },
+      { type: 'fix', text: 'Buy / Confirm / Accept buttons in used car purchase, trade-ins, and negotiation offers are now reliably clickable.' },
+      { type: 'fix', text: '"Stop Offering Lease" button text now fits correctly at all screen sizes.' },
+    ],
+  },
+  {
+    version: '1.0.0',
+    date: 'March 2026',
+    notes: [
+      { type: 'feature', text: 'Initial release: buy, repair, and sell cars; factory orders; used market with negotiation; leasing; trade-ins; staff management; loan system.' },
+    ],
+  },
+];
+
+// ============================================================
 // DEFAULT STATE
 // ============================================================
 const DEFAULT_STATE = {
@@ -982,13 +1013,30 @@ function pickCondition(weights) {
   return 'C';
 }
 
-/** Generate a random subset of hidden issues based on condition tier. */
+/** Generate a random subset of hidden issues based on condition tier.
+ *  Good (B) and Excellent (A) cars rarely have any mechanical issues.
+ *  Probability and severity increase for Fair (C) and Poor (D). */
 function genHiddenIssues(condition) {
+  const r = Math.random();
   let count;
-  if (condition === 'A')      count = Math.random() < 0.10 ? 1 : 0;
-  else if (condition === 'B') count = Math.random() < 0.35 ? 1 : 0;
-  else if (condition === 'C') count = randomInt(1, 3);
-  else                        count = randomInt(2, 4); // D
+  if (condition === 'A') {
+    // Excellent — 3% chance of a single minor issue
+    count = r < 0.03 ? 1 : 0;
+  } else if (condition === 'B') {
+    // Good — 10% chance of a single issue
+    count = r < 0.10 ? 1 : 0;
+  } else if (condition === 'C') {
+    // Fair — ~35% single issue, ~15% two issues, ~50% none
+    if (r < 0.35)      count = 1;
+    else if (r < 0.50) count = 2;
+    else               count = 0;
+  } else {
+    // Poor — ~40% one issue, ~35% two, ~10% three, ~15% none
+    if (r < 0.40)      count = 1;
+    else if (r < 0.75) count = 2;
+    else if (r < 0.85) count = 3;
+    else               count = 0;
+  }
   const pool = [...HIDDEN_ISSUES];
   const issues = [];
   for (let i = 0; i < count && pool.length; i++) {
@@ -999,26 +1047,31 @@ function genHiddenIssues(condition) {
   return issues;
 }
 
-/** Generate crash damage severity for a used car based on condition. */
+/** Generate crash damage severity for a used car based on condition.
+ *  Good (B) and Excellent (A) cars very rarely have crash damage.
+ *  Severity and frequency increase for Fair (C) and Poor (D). */
 function genCrashDamageSeverity(condition) {
   const roll = Math.random();
   if (condition === 'A') {
-    if (roll < 0.06) return 'minor';
+    // Excellent — ~1% crash, almost always minor
+    if (roll < 0.01) return 'minor';
     return 'none';
   } else if (condition === 'B') {
-    if (roll < 0.20) return 'minor';
+    // Good — ~5% crash, mostly minor, rare moderate
+    if (roll < 0.04) return 'minor';
+    if (roll < 0.05) return 'moderate';
+    return 'none';
+  } else if (condition === 'C') {
+    // Fair — ~32% crash with increasing severity
+    if (roll < 0.18) return 'minor';
     if (roll < 0.30) return 'moderate';
     if (roll < 0.32) return 'severe';
     return 'none';
-  } else if (condition === 'C') {
-    if (roll < 0.25) return 'minor';
-    if (roll < 0.45) return 'moderate';
-    if (roll < 0.52) return 'severe';
-    return 'none';
-  } else { // D
-    if (roll < 0.18) return 'minor';
-    if (roll < 0.50) return 'moderate';
-    if (roll < 0.72) return 'severe';
+  } else { // D — Poor
+    // Poor — ~62% crash, heavy on moderate/severe
+    if (roll < 0.15) return 'minor';
+    if (roll < 0.40) return 'moderate';
+    if (roll < 0.62) return 'severe';
     return 'none';
   }
 }
@@ -3799,8 +3852,70 @@ function showModal(title, message, onConfirm) {
 function closeModal() { document.getElementById('modal').classList.add('hidden'); }
 
 // ============================================================
-// SETTINGS (dark mode, difficulty)  — separate localStorage key
+// PATCH NOTES MODAL
 // ============================================================
+/** Render the patch notes content and show the popup modal. */
+function showPatchNotesModal() {
+  const latest = PATCH_NOTES[0];
+  const TYPE_LABEL = { feature: '✨ New', balance: '⚖️ Balance', fix: '🔧 Fix' };
+  const content = PATCH_NOTES.map(pn => `
+    <div class="pn-version-block">
+      <div class="pn-version-header">
+        <span class="pn-version-tag">v${pn.version}</span>
+        <span class="pn-version-date">${pn.date}</span>
+      </div>
+      <ul class="pn-list">
+        ${pn.notes.map(n => `
+          <li class="pn-item pn-type-${n.type}">
+            <span class="pn-label">${TYPE_LABEL[n.type] || n.type}</span>
+            ${n.text}
+          </li>`).join('')}
+      </ul>
+    </div>`).join('');
+  document.getElementById('patch-notes-content').innerHTML = content;
+  document.getElementById('patch-notes-title').textContent = `📋 What's New in v${latest.version}`;
+  document.getElementById('patch-notes-modal').classList.remove('hidden');
+}
+
+/** Close the patch notes modal and mark this version as seen. */
+function closePatchNotesModal() {
+  document.getElementById('patch-notes-modal').classList.add('hidden');
+  localStorage.setItem('dealerSim_lastSeenVersion', GAME_VERSION);
+}
+
+/** Render the compact patch notes panel on the home screen. */
+function renderMenuPatchNotes() {
+  const latest = PATCH_NOTES[0];
+  const TYPE_ICON = { feature: '✨', balance: '⚖️', fix: '🔧' };
+  const items = latest.notes.slice(0, 5).map(n =>
+    `<li class="menu-pn-item"><span class="menu-pn-icon">${TYPE_ICON[n.type] || '•'}</span>${n.text}</li>`
+  ).join('');
+  const moreCount = latest.notes.length - 5;
+  const moreLink = moreCount > 0
+    ? `<button class="menu-pn-more-btn" onclick="showPatchNotesModal()">+ ${moreCount} more changes</button>`
+    : '';
+  const el = document.getElementById('menu-patch-notes-content');
+  if (el) {
+    el.innerHTML = `
+      <div class="menu-pn-header">
+        <span class="menu-pn-version">v${latest.version}</span>
+        <span class="menu-pn-date">${latest.date}</span>
+      </div>
+      <ul class="menu-pn-list">${items}</ul>
+      ${moreLink}`;
+  }
+}
+
+/** Show the patch notes popup once per version after an update. */
+function checkAndShowPatchNotes() {
+  const lastSeen = localStorage.getItem('dealerSim_lastSeenVersion');
+  if (lastSeen !== GAME_VERSION) {
+    // Slight delay so the menu has finished rendering
+    setTimeout(showPatchNotesModal, 300);
+  }
+}
+
+
 let settings = {
   darkMode: false,
   difficulty: 'normal',
@@ -4036,6 +4151,10 @@ function initHomeScreen() {
   // Show main view initially
   showMenuView('menu-view-main');
 
+  // Render patch notes panel and check for version update
+  renderMenuPatchNotes();
+  checkAndShowPatchNotes();
+
   /** Switch to the load panel with freshly rendered slot cards. */
   function openLoadView() {
     renderSaveSlots();
@@ -4266,6 +4385,9 @@ function returnToMenu() {
 
   // Restart the star animation
   if (window._startMenuStarfield) window._startMenuStarfield();
+
+  // Re-render the patch notes panel (content is always up-to-date)
+  renderMenuPatchNotes();
 }
 
 // ============================================================
@@ -4285,6 +4407,11 @@ function init() {
   document.getElementById('modal-cancel').addEventListener('click', closeModal);
   document.getElementById('modal').addEventListener('click', e => {
     if (e.target === document.getElementById('modal')) closeModal();
+  });
+
+  // Patch notes modal — close on backdrop click
+  document.getElementById('patch-notes-modal').addEventListener('click', e => {
+    if (e.target === document.getElementById('patch-notes-modal')) closePatchNotesModal();
   });
 
   document.getElementById('import-file').addEventListener('change', e => {
@@ -4308,6 +4435,7 @@ function init() {
     renderGarage, renderForSale, renderUsedMarket, renderFinance, renderAchievements,
     menuToggleDark, menuToggleWordmarks, menuToggleSfx, menuSetDifficulty,
     returnToMenu,
+    showPatchNotesModal, closePatchNotesModal,
   });
 
   // Keyboard navigation — arrow keys cycle through visible tabs, ignore when focus is in input/select/textarea
