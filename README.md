@@ -122,7 +122,7 @@ Use **← → Arrow Keys** to cycle through tabs without using the mouse.
 |---|---|---|
 | Garage Tier 2 | $15,000 | 10 slots |
 | Garage Tier 3 | $40,000 | 20 slots |
-| Garage Tier 4 | $90,000 | 35 slots |
+| Garage Tier 4 | $90,000 | 50 slots |
 
 ### Marketing
 | Upgrade | Cost | Effect |
@@ -185,7 +185,7 @@ Your lot isn't free. Every Next Day press deducts:
 | Tier 1 (5 slots) | $300 |
 | Tier 2 (10 slots) | $600 |
 | Tier 3 (20 slots) | $1,200 |
-| Tier 4 (35 slots) | $2,100 |
+| Tier 4 (50 slots) | $2,100 |
 
 The **Cost Efficiency Program** upgrade reduces overhead by $50/day per tier (up to $150/day off).
 
@@ -434,7 +434,7 @@ Lists your cars for sale plus a **Customer Offers inbox**:
 |---|---|---|
 | Garage Tier 2 | $15,000 | 10 slots |
 | Garage Tier 3 | $40,000 | 20 slots |
-| Garage Tier 4 | $90,000 | 35 slots |
+| Garage Tier 4 | $90,000 | 50 slots |
 | Marketing Campaign | $8,000 | +20% daily traffic (×3 stackable) |
 | Inspection Tool | $5,000 | Inspection cost $300 → $150 |
 | Negotiation Training | $8,000 | Better negotiation outcomes (buying & selling) |
@@ -460,7 +460,7 @@ Your lot isn't free. Every Next Day press deducts:
 | Tier 1 (5 slots) | $300 |
 | Tier 2 (10 slots) | $600 |
 | Tier 3 (20 slots) | $1,200 |
-| Tier 4 (35 slots) | $2,100 |
+| Tier 4 (50 slots) | $2,100 |
 
 Expanding your garage means bigger overhead — only upgrade when your sales can cover it.  
 If you hire staff, **daily wages** are added to overhead and can seriously hurt profitability.
