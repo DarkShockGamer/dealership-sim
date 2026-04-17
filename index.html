@@ -45,6 +45,12 @@
         <button class="menu-btn menu-btn-load" id="menu-btn-load">📂 &nbsp;Load</button>
         <button class="menu-btn menu-btn-settings" id="menu-btn-settings">⚙ &nbsp;Settings</button>
       </div>
+      <!-- Latest Update panel -->
+      <div class="menu-patch-notes" id="menu-patch-notes" aria-label="Latest update">
+        <div class="menu-patch-notes-title">📋 Latest Update</div>
+        <div id="menu-patch-notes-content"></div>
+        <button class="menu-pn-view-all" onclick="showPatchNotesModal()">View full patch notes</button>
+      </div>
     </div>
 
     <!-- Load / Save Slots panel -->
@@ -121,7 +127,7 @@
       </div>
     </div>
 
-    <span class="menu-version" aria-hidden="true">v1.0</span>
+    <span class="menu-version" aria-hidden="true">v1.1.0</span>
   </div>
 
   <!-- Delete-slot confirmation dialog -->
@@ -132,6 +138,17 @@
       <div class="menu-confirm-actions">
         <button class="menu-confirm-delete" id="menu-del-yes">Delete</button>
         <button class="menu-confirm-cancel" id="menu-del-no">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Patch Notes Modal -->
+  <div id="patch-notes-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="patch-notes-title">
+    <div class="modal-box patch-notes-box">
+      <h3 id="patch-notes-title">📋 What's New</h3>
+      <div id="patch-notes-content" class="patch-notes-content"></div>
+      <div class="modal-actions">
+        <button class="btn btn-primary" onclick="closePatchNotesModal()">Got it!</button>
       </div>
     </div>
   </div>

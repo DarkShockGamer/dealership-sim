@@ -12,7 +12,8 @@
   align-items: center;
   justify-content: center;
   background: radial-gradient(140% 100% at 50% -10%, #204ea4 0%, #12306e 30%, #071128 70%, #050c1f 100%);
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   transition: opacity 0.45s ease;
 }
 #home-screen.hidden {
@@ -503,6 +504,99 @@
   font-size: .88rem;
   color: rgba(160, 200, 255, .65);
   line-height: 1.55;
+}
+
+/* ── Latest Update / Patch Notes panel (home screen) ─────── */
+.menu-patch-notes {
+  background: rgba(14, 35, 80, 0.6);
+  border: 1px solid rgba(100, 150, 255, 0.28);
+  border-radius: 14px;
+  padding: 14px 18px;
+  max-width: 400px;
+  width: 90%;
+  margin-top: 16px;
+  text-align: left;
+  animation: fadeIn .3s ease;
+}
+
+.menu-patch-notes-title {
+  font-size: .84rem;
+  font-weight: 700;
+  color: rgba(180, 215, 255, .9);
+  margin-bottom: 10px;
+  letter-spacing: .3px;
+}
+
+.menu-pn-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.menu-pn-version {
+  font-size: .78rem;
+  font-weight: 700;
+  color: #80b8ff;
+  background: rgba(77, 139, 255, .18);
+  border-radius: 12px;
+  padding: 1px 9px;
+}
+
+.menu-pn-date {
+  font-size: .76rem;
+  color: rgba(140, 175, 230, .7);
+}
+
+.menu-pn-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 0;
+}
+
+.menu-pn-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: .78rem;
+  color: rgba(170, 205, 255, .8);
+  line-height: 1.4;
+}
+
+.menu-pn-icon {
+  flex-shrink: 0;
+  width: 1.2em;
+  text-align: center;
+}
+
+.menu-pn-more-btn {
+  background: none;
+  border: none;
+  color: rgba(120, 170, 255, .75);
+  font-size: .76rem;
+  cursor: pointer;
+  padding: 4px 0 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.menu-pn-more-btn:hover { color: rgba(160, 200, 255, 1); }
+
+.menu-pn-view-all {
+  background: none;
+  border: 1px solid rgba(100, 150, 255, 0.3);
+  border-radius: 8px;
+  color: rgba(140, 185, 255, .8);
+  font-size: .76rem;
+  cursor: pointer;
+  padding: 5px 12px;
+  margin-top: 10px;
+  transition: background .15s, color .15s;
+}
+.menu-pn-view-all:hover {
+  background: rgba(77, 139, 255, .15);
+  color: rgba(180, 220, 255, 1);
 }
 
 /* ── Keyframe shared ─────────────────────────────────────── */
