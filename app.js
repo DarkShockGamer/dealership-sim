@@ -4216,7 +4216,8 @@ function toggleTutorials() {
   saveSettings();
   renderSettings();
 }
-(kind = 'click') {
+
+function playSfx(kind = 'click') {
   if (settings.sfxMuted) return;
   const config = SFX[kind];
   if (!config) return;
