@@ -2290,7 +2290,9 @@ function buyFromFactory(catalogIdx) {
   const condition  = pickCondition([0.40, 0.45, 0.13, 0.02]);
   const car        = buildCar(entry, condition, 'factory', true);
   car.purchasePrice = entry.basePrice;
-  const days       = Math.max(1, entry.deliveryDays
+  // During the tutorial, fast-deliver the first factory car in 1 day
+  const tutorialActive = _tutorialStep >= 0 && _tutorialSteps.length > 0;
+  const days       = tutorialActive ? 1 : Math.max(1, entry.deliveryDays
     - (state.upgrades.expressDelivery ? 1 : 0)
     - (state.upgrades.factoryAllocation ? 1 : 0));
   const arrivalDay = state.day + days;
@@ -3967,6 +3969,7 @@ function renderAll() {
     case 'achievements':renderAchievements();    break;
     case 'settings':    renderSettings();        break;
   }
+  _tutorialUpdateNextButton();
 }
 
 // ============================================================
@@ -3991,6 +3994,7 @@ function switchTab(name) {
     case 'settings':    renderSettings();        break;
   }
   playSfx('click');
+  _tutorialUpdateNextButton();
 }
 
 // ============================================================
@@ -4517,66 +4521,88 @@ function menuSetDifficulty(level) {
 /**
  * Step definitions for the new-save onboarding tutorial.
  * Each step has:
- *   - message : instruction text shown in the tooltip
- *   - target  : CSS selector of the element to spotlight (null = no spotlight)
- *   - tab     : optional tab id to switch to before showing the step
- *   - action  : optional callback called when this step becomes active
+ *   - message    : instruction text shown in the tooltip
+ *   - target     : CSS selector of the element to spotlight (null = no spotlight)
+ *   - tab        : optional tab id to auto-switch to before showing the step
+ *   - noAutoTab  : if true, don't auto-switch; user must navigate themselves
+ *   - isComplete : optional predicate — Next is disabled until this returns true
  */
 function getTutorialSteps() {
   // Dynamically pick the cheapest factory car model for the beginner tip
   let cheapestLabel = 'an Economy car';
   try {
     let bestPrice = Infinity;
-    for (const [make, models] of Object.entries(CAR_CATALOG)) {
-      for (const [model, data] of Object.entries(models)) {
-        if ((data.basePrice ?? Infinity) < bestPrice) {
-          bestPrice = data.basePrice;
-          cheapestLabel = `${make} ${model}`;
-        }
+    for (const entry of CAR_CATALOG) {
+      if ((entry.basePrice ?? Infinity) < bestPrice) {
+        bestPrice = entry.basePrice;
+        cheapestLabel = `${entry.make} ${entry.model}`;
       }
     }
   } catch (_) {}
 
+  const getActiveTab = () => document.querySelector('.tab-btn.active')?.dataset?.tab ?? null;
+  const initialDeliveryCount = (state.deliveries || []).length;
+  const initialGarageCount   = (state.garage     || []).length;
+  const initialSalesCount    = (state.salesHistory || []).length;
+
   return [
     {
+      // Step 0: Welcome — no spotlight, centered modal
       message: '👋 Welcome to DealerSim! This quick tutorial will walk you through making your first car sale. Click Next to begin, or skip at any time.',
       target: null,
-      tab: 'dashboard',
+      tab: null,
     },
     {
-      message: '🏭 First, head to the Factory tab — click it now. You\'ll order a brand-new car direct from the manufacturer.',
-      target: '#tab-btn-factory',
-      tab: 'factory',
+      // Step 1: Navigate to Factory — user must click the tab themselves
+      message: '🏭 First, head to the Factory tab — click it now in the navigation bar. You\'ll order a brand-new car direct from the manufacturer.',
+      target: '.tab-btn[data-tab="factory"]',
+      tab: null,
+      noAutoTab: true,
+      isComplete: () => getActiveTab() === 'factory',
     },
     {
-      message: `🚗 Find a beginner-friendly car (e.g. ${cheapestLabel}) and click "Order" to buy it. Economy cars are cheapest and arrive quickly — perfect for your first deal!`,
+      // Step 2: Order a car — factory tab is already active
+      message: `🚗 Find a beginner-friendly car (e.g. ${cheapestLabel}) and click "Order" to buy it. Economy cars are cheapest and arrive in just 1 day during the tutorial — perfect for your first deal!`,
       target: '#tab-factory',
       tab: 'factory',
+      isComplete: () => (state.deliveries || []).length > initialDeliveryCount,
     },
     {
-      message: '📦 Your car is now on its way! Click "Next Day" to advance time until your delivery arrives. Watch the top bar — your car will appear in your Garage once delivered.',
+      // Step 3: Wait for delivery — press Next Day
+      message: '📦 Your car is on its way and will arrive tomorrow! Click "Next Day" to advance time. Watch the top bar — your car will appear in Garage once delivered.',
       target: '#btn-next-day',
       tab: 'dashboard',
+      isComplete: () => (state.garage || []).length > initialGarageCount,
     },
     {
-      message: '🔑 Head to the Garage tab to see your delivered car. Here you manage everything in your inventory.',
-      target: '#tab-btn-garage',
-      tab: 'garage',
+      // Step 4: Navigate to Garage — user must click the tab themselves
+      message: '🔑 Great — your car has arrived! Head to the Garage tab now to see your new vehicle.',
+      target: '.tab-btn[data-tab="garage"]',
+      tab: null,
+      noAutoTab: true,
+      isComplete: () => getActiveTab() === 'garage',
     },
     {
-      message: '🏷️ Find your new car and click "List for Sale". Set a price close to the car\'s estimated value (or a little above) — then confirm. The car will move to your For Sale lot.',
+      // Step 5: Mark for Sale — garage tab is active
+      message: '🏷️ Find your new car and click "List for Sale". Set a price close to the car\'s estimated value, then confirm. The car will move to your For Sale lot.',
       target: '#tab-garage',
       tab: 'garage',
+      isComplete: () => (state.garage || []).some(c => c.isForSale && c.listPrice > 0),
     },
     {
+      // Step 6: Navigate to For Sale — user must click the tab themselves
       message: '📋 Now open the For Sale tab to see your listed car. Buyers browse your lot every day.',
-      target: '#tab-btn-forsale',
-      tab: 'forsale',
+      target: '.tab-btn[data-tab="forsale"]',
+      tab: null,
+      noAutoTab: true,
+      isComplete: () => getActiveTab() === 'forsale',
     },
     {
+      // Step 7: Press Next Day until sold
       message: '⏩ Keep pressing "Next Day" until a buyer accepts your price. A notification will pop up when the car sells. Congratulations — you\'ve made your first deal! 🎉',
       target: '#btn-next-day',
       tab: 'forsale',
+      isComplete: () => (state.salesHistory || []).length > initialSalesCount,
     },
   ];
 }
@@ -4593,6 +4619,8 @@ function tutorialStart() {
 
 /** Advance to the next tutorial step, or finish if done. */
 function tutorialNext() {
+  const step = _tutorialSteps[_tutorialStep];
+  if (step && step.isComplete && !step.isComplete()) return; // guard: not yet complete
   _tutorialStep++;
   if (_tutorialStep >= _tutorialSteps.length) {
     tutorialEnd();
@@ -4622,29 +4650,53 @@ function tutorialEnd() {
   _tutorialSteps = [];
 }
 
+/** Enable/disable the Next button based on the current step's completion predicate. */
+function _tutorialUpdateNextButton() {
+  if (_tutorialStep < 0 || !_tutorialSteps.length) return;
+  const btnNext = document.getElementById('tutorial-btn-next');
+  if (!btnNext) return;
+  const step = _tutorialSteps[_tutorialStep];
+  const complete = !step || !step.isComplete || step.isComplete();
+  btnNext.disabled = !complete;
+  btnNext.style.opacity = complete ? '' : '0.45';
+  btnNext.style.cursor  = complete ? '' : 'not-allowed';
+  // Re-position spotlight in case state/layout changed (e.g. user navigated to a tab)
+  if (complete && step && step.noAutoTab) {
+    const overlay   = document.getElementById('tutorial-overlay');
+    const spotlight = document.getElementById('tutorial-spotlight');
+    const tooltip   = document.getElementById('tutorial-tooltip');
+    if (overlay && spotlight && tooltip) {
+      _tutorialPositionSpotlight(step, overlay, spotlight, tooltip);
+    }
+  }
+}
+
 /** Render and position the current tutorial step. */
 function _tutorialShowStep() {
-  const overlay = document.getElementById('tutorial-overlay');
+  const overlay   = document.getElementById('tutorial-overlay');
   const spotlight = document.getElementById('tutorial-spotlight');
-  const tooltip = document.getElementById('tutorial-tooltip');
+  const tooltip   = document.getElementById('tutorial-tooltip');
   const stepLabel = document.getElementById('tutorial-step-label');
-  const message = document.getElementById('tutorial-message');
-  const btnNext = document.getElementById('tutorial-btn-next');
+  const message   = document.getElementById('tutorial-message');
+  const btnNext   = document.getElementById('tutorial-btn-next');
   if (!overlay) return;
 
   overlay.classList.remove('hidden', 'no-target');
 
-  const step = _tutorialSteps[_tutorialStep];
+  const step   = _tutorialSteps[_tutorialStep];
   const isLast = _tutorialStep === _tutorialSteps.length - 1;
 
   stepLabel.textContent = `Step ${_tutorialStep + 1} of ${_tutorialSteps.length}`;
-  message.textContent = step.message;
-  btnNext.textContent = isLast ? 'Finish ✓' : 'Next ▶';
+  message.textContent   = step.message;
+  btnNext.textContent   = isLast ? 'Finish ✓' : 'Next ▶';
 
-  // Switch to the required tab first so the target element is visible
-  if (step.tab) {
+  // Switch to the required tab only when the step doesn't require user navigation
+  if (step.tab && !step.noAutoTab) {
     switchTab(step.tab);
   }
+
+  // Update Next button state immediately
+  _tutorialUpdateNextButton();
 
   // Position spotlight and tooltip after a short tick so the tab renders
   requestAnimationFrame(() => {
@@ -4656,55 +4708,82 @@ function _tutorialShowStep() {
 
 /** Position the spotlight around the target element and place the tooltip nearby. */
 function _tutorialPositionSpotlight(step, overlay, spotlight, tooltip) {
-  const PADDING = 6;
-  const target = step.target ? document.querySelector(step.target) : null;
+  const PADDING  = 6;
+  const MARGIN   = 8;   // min gap from viewport edge
+  const GAP      = 12;  // gap between target and tooltip
+  const target   = step.target ? document.querySelector(step.target) : null;
+  const vw       = window.innerWidth;
+  const vh       = window.innerHeight;
+  const maxW     = Math.min(360, vw - MARGIN * 2);
+  const maxH     = Math.min(520, vh * 0.65);
+
+  // Apply safe max dimensions
+  tooltip.style.maxWidth  = `${maxW}px`;
+  tooltip.style.maxHeight = `${maxH}px`;
+  tooltip.style.overflowY = 'auto';
 
   if (target) {
     overlay.classList.remove('no-target');
     const rect = target.getBoundingClientRect();
+
+    // Spotlight box around the target
     spotlight.style.top    = `${rect.top    - PADDING}px`;
     spotlight.style.left   = `${rect.left   - PADDING}px`;
     spotlight.style.width  = `${rect.width  + PADDING * 2}px`;
     spotlight.style.height = `${rect.height + PADDING * 2}px`;
 
-    // Place tooltip below or above the target depending on space
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const tooltipH = 160; // estimated
-    const maxW = Math.min(340, window.innerWidth * 0.9);
+    // Measure the actual rendered tooltip height (after potential reflows)
+    tooltip.style.visibility = 'hidden';
+    tooltip.style.top  = '0px';
+    tooltip.style.left = '0px';
+    tooltip.style.transform = '';
+    const tooltipH = tooltip.offsetHeight || 160;
+    const tooltipW = Math.min(tooltip.offsetWidth || maxW, maxW);
+    tooltip.style.visibility = '';
 
-    if (spaceBelow >= tooltipH + 18 || rect.top < tooltipH + 18) {
-      // Place below
-      tooltip.style.top  = `${rect.bottom + PADDING + 12}px`;
+    const spaceBelow = vh - rect.bottom - GAP - PADDING;
+    const spaceAbove = rect.top - GAP - PADDING;
+
+    let topPos;
+    if (spaceBelow >= tooltipH || spaceBelow >= spaceAbove) {
+      // Place below target
+      topPos = rect.bottom + PADDING + GAP;
       tooltip.classList.remove('arrow-down');
       tooltip.classList.add('arrow-up');
     } else {
-      // Place above
-      tooltip.style.top  = `${rect.top - PADDING - tooltipH - 12}px`;
+      // Place above target
+      topPos = rect.top - PADDING - GAP - tooltipH;
       tooltip.classList.remove('arrow-up');
       tooltip.classList.add('arrow-down');
     }
 
-    // Horizontal: align left of target, clamp to viewport
-    let leftPos = rect.left - PADDING;
-    leftPos = Math.max(8, Math.min(leftPos, window.innerWidth - maxW - 8));
-    tooltip.style.left = `${leftPos}px`;
-    tooltip.style.maxWidth = `${maxW}px`;
+    // Clamp vertically so tooltip stays within viewport
+    topPos = Math.max(MARGIN, Math.min(topPos, vh - tooltipH - MARGIN));
+
+    // Horizontal: align left edge with target, clamp to viewport
+    const targetCenterX = rect.left + rect.width / 2;
+    let leftPos = targetCenterX - tooltipW / 2;
+    leftPos = Math.max(MARGIN, Math.min(leftPos, vw - tooltipW - MARGIN));
+
+    tooltip.style.top       = `${topPos}px`;
+    tooltip.style.left      = `${leftPos}px`;
+    tooltip.style.transform = '';
+
+    // Position the arrow to point at the target's horizontal center
+    const arrowOffset = Math.round(
+      Math.max(16, Math.min(targetCenterX - leftPos - 8, tooltipW - 24))
+    );
+    tooltip.style.setProperty('--arrow-offset', `${arrowOffset}px`);
+
   } else {
-    // No target — center the tooltip
+    // No target — centered modal with no arrow
     overlay.classList.add('no-target');
-    spotlight.style.width = '0';
+    spotlight.style.width  = '0';
     spotlight.style.height = '0';
     tooltip.classList.remove('arrow-up', 'arrow-down');
-    const maxW = Math.min(340, window.innerWidth * 0.9);
-    tooltip.style.maxWidth = `${maxW}px`;
-    tooltip.style.top  = '50%';
-    tooltip.style.left = '50%';
+    tooltip.style.top       = '50%';
+    tooltip.style.left      = '50%';
     tooltip.style.transform = 'translate(-50%, -50%)';
-  }
-
-  // Clear transform when positioned normally
-  if (step.target) {
-    tooltip.style.transform = '';
   }
 }
 
