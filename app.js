@@ -2652,6 +2652,9 @@ function markForSale(carId) {
   saveState();
   renderGarage();
   renderForSale();
+  // Refresh tutorial after partial renders: re-check completion and resize spotlight
+  _tutorialUpdateNextButton();
+  _tutorialReposition();
 }
 
 function updateListPrice(carId, rawValue) {
@@ -2659,6 +2662,8 @@ function updateListPrice(carId, rawValue) {
   if (!car) return;
   const p = parseFloat(rawValue);
   if (!isNaN(p) && p > 0) { car.listPrice = Math.round(p); saveState(); }
+  // Refresh tutorial Next button in case price change completes the step
+  _tutorialUpdateNextButton();
 }
 
 function setListPriceMultiplier(carId, mult) {
@@ -2667,6 +2672,8 @@ function setListPriceMultiplier(carId, mult) {
   car.listPrice = Math.round(car.marketValue * mult);
   saveState();
   renderForSale();
+  // Refresh tutorial Next button in case price change completes the step
+  _tutorialUpdateNextButton();
 }
 
 function markAllForSale() {
