@@ -1196,7 +1196,7 @@ body.dark .tradein-summary {
   border: 1px solid rgba(100, 165, 255, .45);
   border-radius: 14px;
   padding: 18px 20px 14px;
-  max-width: min(340px, 90vw);
+  max-width: min(360px, calc(100vw - 16px));
   width: max-content;
   box-shadow: 0 12px 40px rgba(2, 8, 28, .6), 0 0 0 1px rgba(80, 140, 255, .15) inset;
   pointer-events: all;
@@ -1209,23 +1209,25 @@ body.dark .tradein-summary {
   to   { opacity: 1; transform: none; }
 }
 
-/* Arrow indicator on the tooltip */
+/* Arrow indicator on the tooltip — hidden by default, shown only with arrow classes */
 .tutorial-tooltip::before {
   content: '';
   position: absolute;
   width: 0;
   height: 0;
   border: 8px solid transparent;
-  border-bottom-color: rgba(100, 165, 255, .45);
+  display: none;
 }
 .tutorial-tooltip.arrow-up::before {
+  display: block;
   top: -17px;
-  left: 24px;
+  left: var(--arrow-offset, 24px);
   border-bottom-color: rgba(100, 165, 255, .45);
 }
 .tutorial-tooltip.arrow-down::before {
+  display: block;
   bottom: -17px;
-  left: 24px;
+  left: var(--arrow-offset, 24px);
   border-top-color: rgba(100, 165, 255, .45);
   border-bottom-color: transparent;
 }
@@ -1268,6 +1270,7 @@ body.dark .tradein-summary {
 .tutorial-btn-next:hover { opacity: .88; }
 .tutorial-btn-next:active { transform: scale(.97); }
 .tutorial-btn-next:focus-visible { outline: 2px solid #8fbbff; outline-offset: 2px; }
+.tutorial-btn-next:disabled { opacity: .45; cursor: not-allowed; transform: none; }
 
 .tutorial-btn-skip,
 .tutorial-btn-disable {
@@ -1287,11 +1290,13 @@ body.dark .tradein-summary {
 .tutorial-btn-disable:focus-visible { outline: 2px solid #8fbbff; outline-offset: 2px; }
 
 /* Tutorial overlay on small phones */
-@media (max-width: 420px) {
+@media (max-width: 480px) {
   .tutorial-tooltip {
     padding: 14px 14px 10px;
     max-width: calc(100vw - 16px) !important;
     font-size: .85rem;
+    max-height: 60vh;
+    overflow-y: auto;
   }
   .tutorial-message {
     font-size: .83rem;
