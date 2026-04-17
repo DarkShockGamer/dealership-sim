@@ -319,7 +319,7 @@ body {
   gap: 12px;
   transition: box-shadow var(--transition), transform var(--transition);
 }
-.car-card:hover { box-shadow: var(--shadow); transform: translateY(-2px); }
+.car-card:hover { box-shadow: var(--shadow); }
 
 .car-card-header {
   display: flex;
@@ -371,6 +371,13 @@ body {
   min-width: 120px;
   position: relative;
   z-index: 1;
+}
+
+@media (max-width: 860px) {
+  .car-actions .btn {
+    white-space: normal;
+    line-height: 1.2;
+  }
 }
 
 @media (max-width: 640px) {
@@ -458,6 +465,36 @@ body {
 .badge-yellow { background: rgba(255, 191, 93, .2); color: #ffe2b5; }
 .badge-red    { background: rgba(255, 102, 112, .2); color: #ffd5d8; }
 .badge-gray   { background: rgba(135, 164, 214, .16); color: #d5e2f6; }
+.badge-orange { background: rgba(255, 140, 50, .22); color: #ffd4a0; }
+.badge-purple { background: rgba(180, 100, 255, .22); color: #e8ccff; }
+
+/* Police / legal event alert */
+.police-alert {
+  background: rgba(255, 80, 90, .18);
+  border: 1px solid rgba(255, 100, 110, .4);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  font-size: .85rem;
+  color: #ffcdd0;
+  margin-top: 6px;
+}
+.police-alert strong { color: #ff9da3; }
+
+/* VIN / legal status warning in used market */
+.legal-warning {
+  background: rgba(255, 140, 50, .16);
+  border: 1px solid rgba(255, 160, 80, .38);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  font-size: .82rem;
+  color: #ffd4a0;
+  margin-top: 4px;
+}
+
+/* Crash damage severity badge */
+.crash-minor    { background: rgba(255, 191, 93, .22); color: #ffe2b5; border: 1px solid rgba(255, 205, 130, .4); }
+.crash-moderate { background: rgba(255, 140, 50, .22); color: #ffd4a0; border: 1px solid rgba(255, 160, 80, .4); }
+.crash-severe   { background: rgba(255, 80, 90, .22); color: #ffd5d8; border: 1px solid rgba(255, 100, 110, .4); }
 
 /* Condition in car-card-header */
 .car-card-header .badge { margin-top: 2px; }

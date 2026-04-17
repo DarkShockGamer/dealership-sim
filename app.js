@@ -12,7 +12,7 @@ import { CAR_CATALOG } from './data/cars.js';
 // DEFAULT STATE
 // ============================================================
 const DEFAULT_STATE = {
-  saveVersion: 9,
+  saveVersion: 10,
   cash: 25000,
   day: 1,
   reputation: 1.0,
@@ -48,6 +48,12 @@ const DEFAULT_STATE = {
     leaseManagement: false,
     factoryAllocation: false,
     reconditioningWorkshop: false,
+    // New upgrades
+    dmvDatabaseAccess: false,
+    vinScanner: false,
+    titleRecovery: false,
+    frameDamageTools: false,
+    complianceTraining: false,
   },
   salesHistory: [],
   notifications: [],
@@ -76,6 +82,12 @@ const DEFAULT_STATE = {
   achievementsUnlocked: {},
   totalDetailsPerformed: 0,
   totalTradeInsAccepted: 0,
+  // New tracking counters
+  stolenCarsAvoided: 0,
+  cleanTitleSalesVerified: 0,
+  crashDamageRebuilds: 0,
+  policeFinesReceived: 0,
+  severeDamageFoundBeforeBuy: 0,
 };
 
 let state = JSON.parse(JSON.stringify(DEFAULT_STATE));
@@ -97,7 +109,20 @@ const TRANSACTION_FEE  = 0.02;
 const PERF_ELIGIBLE = ['Sports', 'SUV', 'Truck']; // categories eligible for parts upgrade
 
 // Daily garage overhead costs by garage level
-const OVERHEAD_BY_LEVEL = { 1: 300, 2: 600, 3: 1200, 4: 2100 };
+const OVERHEAD_BY_LEVEL = { 1: 300, 2: 600, 3: 1200, 4: 1800, 5: 2600 };
+
+// Legal / VIN / stolen car mechanics
+const LEGAL_STATUSES = ['clean', 'noTitle', 'stolen'];
+const VIN_STATUSES   = ['normal', 'scratched'];
+const CRASH_DAMAGE_SEVERITIES = ['none', 'minor', 'moderate', 'severe'];
+const CRASH_DAMAGE_REPAIR_MULT  = { none: 0, minor: 0.12, moderate: 0.40, severe: 0.85 };
+const CRASH_DAMAGE_VALUE_PENALTY = { none: 0, minor: 0.04, moderate: 0.14, severe: 0.28 };
+// Police fine ranges per legal status (min, max)
+const POLICE_FINE = {
+  stolen:  { min: 3000, max: 10000, impound: true  },
+  noTitle: { min: 500,  max: 2500,  impound: false },
+  scratchedVin: { min: 300, max: 1000, impound: false },
+};
 
 // Random market event pool
 const MARKET_EVENTS = [
@@ -362,7 +387,7 @@ const ACHIEVEMENTS = [
     check: s => (s.bankruptcyCount || 0) > 0 && !s.gameOver },
   { id: 'first_upgrade',       icon: ACH_ICONS.layers,     name: 'Investing in the Future',desc: 'Purchase your first dealership upgrade.',
     check: s => Object.values(s.upgrades||{}).some(v => v === true || (typeof v === 'number' && v > 1)) },
-  { id: 'garage_tier4',        icon: ACH_ICONS.map,        name: 'Mega Lot',               desc: 'Expand to Garage Tier 4 (50 slots).',
+  { id: 'garage_tier4',        icon: ACH_ICONS.map,        name: 'Mega Lot',               desc: 'Expand to Garage Tier 4 (35 slots).',
     check: s => (s.upgrades?.garageLevel || 1) >= 4 },
   { id: 'first_lease',         icon: ACH_ICONS.key,        name: 'Lease Launch',           desc: 'Get your first active lease.',
     check: s => (s.garage||[]).some(c => c.leaseStatus === 'active') || (s.salesHistory||[]).some(h => h.wasLease) },
@@ -384,6 +409,19 @@ const ACHIEVEMENTS = [
     check: s => (s.day || 1) >= 50, progress: s => Math.min(s.day||1, 50) + '/50' },
   { id: 'day_200',             icon: ACH_ICONS.map,        name: 'Long Haul',              desc: 'Keep the dealership running to Day 200.',
     check: s => (s.day || 1) >= 200, progress: s => Math.min(s.day||1, 200) + '/200' },
+  // Legal / VIN / stolen mechanics achievements
+  { id: 'garage_tier5',        icon: ACH_ICONS.layers,     name: 'Big Lot',                desc: 'Upgrade garage to Tier 5 (50 slots).',
+    check: s => (s.upgrades?.garageLevel || 1) >= 5 },
+  { id: 'not_today',           icon: ACH_ICONS.shield,     name: 'Not Today',              desc: 'Detect and refuse to buy 10 stolen cars.',
+    check: s => (s.stolenCarsAvoided || 0) >= 10, progress: s => (s.stolenCarsAvoided||0) + '/10' },
+  { id: 'paperwork_pro',       icon: ACH_ICONS.star,       name: 'Paperwork Pro',          desc: 'Sell 25 verified clean-title cars.',
+    check: s => (s.cleanTitleSalesVerified || 0) >= 25, progress: s => (s.cleanTitleSalesVerified||0) + '/25' },
+  { id: 'busted',              icon: ACH_ICONS.alert,      name: 'Busted!',                desc: 'Get fined by police for a stolen or no-title car.',
+    check: s => (s.policeFinesReceived || 0) >= 1 },
+  { id: 'eagle_eye',           icon: ACH_ICONS.lock,       name: 'Eagle Eye',              desc: 'Discover severe hidden crash damage before buying.',
+    check: s => (s.severeDamageFoundBeforeBuy || 0) >= 1 },
+  { id: 'rebuilder',           icon: ACH_ICONS.wrench,     name: 'Crash Rebuilder',        desc: 'Repair and sell 5 cars with moderate or severe crash damage.',
+    check: s => (s.crashDamageRebuilds || 0) >= 5, progress: s => (s.crashDamageRebuilds||0) + '/5' },
 ];
 
 const UPGRADES_CONFIG = [
@@ -401,9 +439,15 @@ const UPGRADES_CONFIG = [
   },
   {
     id: 'garage4', name: 'Garage Tier 4', icon: '🏭', category: 'Garage', cost: 90000,
-    desc: 'Expand to 50 garage slots.',
+    desc: 'Expand to 35 garage slots.',
     requires: u => u.garageLevel === 3,
-    apply: s => { s.upgrades.garageLevel = 4; s.garageSlots = 50; },
+    apply: s => { s.upgrades.garageLevel = 4; s.garageSlots = 35; },
+  },
+  {
+    id: 'garage5', name: 'Garage Tier 5', icon: '🏙️', category: 'Garage', cost: 200000,
+    desc: 'Expand to 50 garage slots. Maximum capacity.',
+    requires: u => u.garageLevel === 4,
+    apply: s => { s.upgrades.garageLevel = 5; s.garageSlots = 50; },
   },
   {
     id: 'marketing', name: 'Marketing Campaign', icon: '📣', category: 'Marketing', cost: 8000,
@@ -530,6 +574,38 @@ const UPGRADES_CONFIG = [
     desc: 'Fully-equipped workshop: reduces in-service time for Basic Repair and Parts Upgrade from 1 day to same-day.',
     requires: u => u.serviceBay && !u.reconditioningWorkshop,
     apply: s => { s.upgrades.reconditioningWorkshop = true; },
+  },
+  // ── Legal / VIN / Stolen-Car Upgrades ─────────────────────
+  {
+    id: 'dmvDatabaseAccess', name: 'DMV Database Access', icon: '🗂️', category: 'Legal & Compliance', cost: 12000,
+    desc: 'Connect to DMV records: inspecting a used car reveals its legal status (clean/no-title/stolen) before purchase.',
+    requires: u => !u.dmvDatabaseAccess,
+    apply: s => { s.upgrades.dmvDatabaseAccess = true; },
+  },
+  {
+    id: 'vinScanner', name: 'VIN Scanner Kit', icon: '🔦', category: 'Legal & Compliance', cost: 8000,
+    desc: 'Blacklight VIN verification kit: reveals scratched or altered VINs during inspection, lowering the risk of buying stolen cars.',
+    requires: u => !u.vinScanner,
+    apply: s => { s.upgrades.vinScanner = true; },
+  },
+  {
+    id: 'titleRecovery', name: 'Title Recovery Service', icon: '📋', category: 'Legal & Compliance', cost: 20000,
+    desc: 'Licensed title agent on retainer: convert no-title cars to clean title for $800/car during inspection.',
+    requires: u => u.dmvDatabaseAccess && !u.titleRecovery,
+    apply: s => { s.upgrades.titleRecovery = true; },
+  },
+  {
+    id: 'complianceTraining', name: 'Compliance Training', icon: '⚖️', category: 'Legal & Compliance', cost: 15000,
+    desc: 'Staff legal training: reduces police fine amounts by 40% and lowers the chance of being caught selling problematic cars.',
+    requires: u => !u.complianceTraining,
+    apply: s => { s.upgrades.complianceTraining = true; },
+  },
+  // ── Inspection / Damage Upgrades ───────────────────────────
+  {
+    id: 'frameDamageTools', name: 'Frame Damage Inspection Tools', icon: '🔭', category: 'Inspection', cost: 10000,
+    desc: 'Advanced frame straightening gauges: reveals exact crash damage severity (minor/moderate/severe) during inspection.',
+    requires: u => u.inspectionTool && !u.frameDamageTools,
+    apply: s => { s.upgrades.frameDamageTools = true; },
   },
 ];
 
@@ -784,13 +860,34 @@ function loadState(slot) {
       }
       if (loaded.saveVersion < 9) {
         loaded.saveVersion = 9;
-        // If the player already has Garage Tier 4, update slots from old 35 → new 50
-        if ((loaded.upgrades?.garageLevel || 1) >= 4 && loaded.garageSlots < 50) {
-          loaded.garageSlots = 50;
+        // Garage Tier 4 was previously changed to 50 slots - restore to 35 (Tier 5 will be 50)
+        if ((loaded.upgrades?.garageLevel || 1) === 4 && loaded.garageSlots >= 50) {
+          loaded.garageSlots = 35;
         }
         loaded.notifications = loaded.notifications || [];
         loaded.notifications.unshift({
-          message: '🏭 Save upgraded to v9 — Garage Tier 4 expanded to 50 slots.',
+          message: '🏭 Save upgraded to v9 — Garage Tier 4 is now 35 slots; new Tier 5 (50 slots) coming!',
+          type: 'info',
+          day: loaded.day ?? 1,
+        });
+      }
+      if (loaded.saveVersion < 10) {
+        loaded.saveVersion = 10;
+        // Add new upgrade flags
+        if (loaded.upgrades.dmvDatabaseAccess === undefined) loaded.upgrades.dmvDatabaseAccess = false;
+        if (loaded.upgrades.vinScanner        === undefined) loaded.upgrades.vinScanner        = false;
+        if (loaded.upgrades.titleRecovery     === undefined) loaded.upgrades.titleRecovery     = false;
+        if (loaded.upgrades.frameDamageTools  === undefined) loaded.upgrades.frameDamageTools  = false;
+        if (loaded.upgrades.complianceTraining=== undefined) loaded.upgrades.complianceTraining= false;
+        // Add new stat counters
+        loaded.stolenCarsAvoided       = loaded.stolenCarsAvoided       ?? 0;
+        loaded.cleanTitleSalesVerified = loaded.cleanTitleSalesVerified ?? 0;
+        loaded.crashDamageRebuilds     = loaded.crashDamageRebuilds     ?? 0;
+        loaded.policeFinesReceived     = loaded.policeFinesReceived     ?? 0;
+        loaded.severeDamageFoundBeforeBuy = loaded.severeDamageFoundBeforeBuy ?? 0;
+        loaded.notifications = loaded.notifications || [];
+        loaded.notifications.unshift({
+          message: '🚔 Save upgraded to v10 — new stolen car mechanics, crash damage severity, and legal upgrades added!',
           type: 'info',
           day: loaded.day ?? 1,
         });
@@ -823,6 +920,16 @@ function loadState(slot) {
       if (loaded.upgrades.leaseManagement        === undefined) loaded.upgrades.leaseManagement        = false;
       if (loaded.upgrades.factoryAllocation      === undefined) loaded.upgrades.factoryAllocation      = false;
       if (loaded.upgrades.reconditioningWorkshop === undefined) loaded.upgrades.reconditioningWorkshop = false;
+      if (loaded.upgrades.dmvDatabaseAccess      === undefined) loaded.upgrades.dmvDatabaseAccess      = false;
+      if (loaded.upgrades.vinScanner             === undefined) loaded.upgrades.vinScanner             = false;
+      if (loaded.upgrades.titleRecovery          === undefined) loaded.upgrades.titleRecovery          = false;
+      if (loaded.upgrades.frameDamageTools       === undefined) loaded.upgrades.frameDamageTools       = false;
+      if (loaded.upgrades.complianceTraining     === undefined) loaded.upgrades.complianceTraining     = false;
+      loaded.stolenCarsAvoided       = loaded.stolenCarsAvoided       ?? 0;
+      loaded.cleanTitleSalesVerified = loaded.cleanTitleSalesVerified ?? 0;
+      loaded.crashDamageRebuilds     = loaded.crashDamageRebuilds     ?? 0;
+      loaded.policeFinesReceived     = loaded.policeFinesReceived     ?? 0;
+      loaded.severeDamageFoundBeforeBuy = loaded.severeDamageFoundBeforeBuy ?? 0;
       // Migrate car objects
       for (const car of loaded.garage || []) migrateCar(car);
       for (const d of loaded.deliveries || []) migrateCar(d.car);
@@ -851,6 +958,14 @@ function migrateCar(car) {
   if (!TITLE_STATUSES.includes(car.titleStatus)) car.titleStatus   = 'clean';
   if (car.hasBeenDetailed    === undefined) car.hasBeenDetailed    = car.reconditionLog.some(r => r.type === 'Detailing');
   if (car.repairCount        === undefined) car.repairCount        = car.reconditionLog.filter(r => r.type === 'Basic Repair').length;
+  // New legal / VIN / crash damage fields (v10)
+  if (!LEGAL_STATUSES.includes(car.legalStatus))     car.legalStatus          = 'clean';
+  if (!VIN_STATUSES.includes(car.vinStatus))         car.vinStatus            = 'normal';
+  if (car.legalDiscovered    === undefined) car.legalDiscovered    = (car.legalStatus === 'clean');
+  if (car.vinDiscovered      === undefined) car.vinDiscovered      = (car.vinStatus === 'normal');
+  if (!CRASH_DAMAGE_SEVERITIES.includes(car.crashDamageSeverity)) car.crashDamageSeverity = 'none';
+  if (car.crashDamageDiscovered === undefined) car.crashDamageDiscovered = false;
+  if (car.hasCrashRepair     === undefined) car.hasCrashRepair     = false;
 }
 
 // ============================================================
@@ -870,10 +985,10 @@ function pickCondition(weights) {
 /** Generate a random subset of hidden issues based on condition tier. */
 function genHiddenIssues(condition) {
   let count;
-  if (condition === 'A')      count = 0;
-  else if (condition === 'B') count = Math.random() < 0.2 ? 1 : 0;
-  else if (condition === 'C') count = randomInt(0, 2);
-  else                        count = randomInt(1, 3); // D
+  if (condition === 'A')      count = Math.random() < 0.10 ? 1 : 0;
+  else if (condition === 'B') count = Math.random() < 0.35 ? 1 : 0;
+  else if (condition === 'C') count = randomInt(1, 3);
+  else                        count = randomInt(2, 4); // D
   const pool = [...HIDDEN_ISSUES];
   const issues = [];
   for (let i = 0; i < count && pool.length; i++) {
@@ -884,6 +999,111 @@ function genHiddenIssues(condition) {
   return issues;
 }
 
+/** Generate crash damage severity for a used car based on condition. */
+function genCrashDamageSeverity(condition) {
+  const roll = Math.random();
+  if (condition === 'A') {
+    if (roll < 0.06) return 'minor';
+    return 'none';
+  } else if (condition === 'B') {
+    if (roll < 0.20) return 'minor';
+    if (roll < 0.30) return 'moderate';
+    if (roll < 0.32) return 'severe';
+    return 'none';
+  } else if (condition === 'C') {
+    if (roll < 0.25) return 'minor';
+    if (roll < 0.45) return 'moderate';
+    if (roll < 0.52) return 'severe';
+    return 'none';
+  } else { // D
+    if (roll < 0.18) return 'minor';
+    if (roll < 0.50) return 'moderate';
+    if (roll < 0.72) return 'severe';
+    return 'none';
+  }
+}
+
+/** Generate legal status for a used car (stolen/no-title/clean). */
+function genLegalStatus(condition, mileage) {
+  const condRisk = { A: 0, B: 1, C: 2, D: 4 }[condition] ?? 1;
+  const mileRisk = mileage > 120000 ? 3 : mileage > 80000 ? 2 : mileage > 50000 ? 1 : 0;
+  const risk = condRisk + mileRisk;
+  let weights;
+  if (risk >= 6)      weights = [0.68, 0.22, 0.10];
+  else if (risk >= 4) weights = [0.80, 0.14, 0.06];
+  else if (risk >= 2) weights = [0.90, 0.07, 0.03];
+  else                weights = [0.96, 0.03, 0.01];
+  const roll = Math.random();
+  if (roll < weights[0]) return 'clean';
+  if (roll < weights[0] + weights[1]) return 'noTitle';
+  return 'stolen';
+}
+
+/** Generate VIN condition for a used car. Scratched VIN more common on stolen/noTitle. */
+function genVinStatus(legalStatus) {
+  const scratchChance = legalStatus === 'stolen' ? 0.72 : legalStatus === 'noTitle' ? 0.30 : 0.04;
+  return Math.random() < scratchChance ? 'scratched' : 'normal';
+}
+
+/** Apply police check when selling/holding a problematic car.
+ *  Returns true if the player was caught and fined.
+ */
+function checkPoliceEvent(car) {
+  if (!car) return false;
+  const legalStatus = car.legalStatus || 'clean';
+  if (legalStatus === 'clean' && (car.vinStatus || 'normal') === 'normal') return false;
+
+  let catchChance = 0;
+  if (legalStatus === 'stolen')  catchChance = 0.45;
+  else if (legalStatus === 'noTitle') catchChance = 0.22;
+  if ((car.vinStatus || 'normal') === 'scratched') catchChance = Math.min(1, catchChance + 0.15);
+  if (state.upgrades.complianceTraining) catchChance = Math.max(0, catchChance - 0.18);
+
+  if (Math.random() > catchChance) return false;
+
+  // Player is caught!
+  const carLabel = `${car.year} ${car.make} ${car.model}`;
+  let fineRange, impound;
+  if (legalStatus === 'stolen') {
+    fineRange = POLICE_FINE.stolen;
+    impound   = true;
+  } else if (legalStatus === 'noTitle') {
+    fineRange = POLICE_FINE.noTitle;
+    impound   = false;
+  } else {
+    fineRange = POLICE_FINE.scratchedVin;
+    impound   = false;
+  }
+  let fine = randomInt(fineRange.min, fineRange.max);
+  if (state.upgrades.complianceTraining) fine = Math.round(fine * 0.60);
+  state.cash -= fine;
+  state.policeFinesReceived = (state.policeFinesReceived || 0) + 1;
+
+  const reason = legalStatus === 'stolen'
+    ? `${carLabel} flagged as stolen by police.`
+    : legalStatus === 'noTitle'
+      ? `${carLabel} sold without a valid title.`
+      : `${carLabel} has an altered VIN — suspicious activity flagged.`;
+
+  const impoundNote = impound
+    ? ' The vehicle has been impounded — it is lost from your inventory.'
+    : '';
+
+  addNote(`🚔 POLICE FINE! ${reason} Fine: ${formatCurrency(fine)}.${impoundNote}`, 'error');
+  showModal(
+    '🚔 Police Action!',
+    `${reason}\n\nFine amount: ${formatCurrency(fine)}${state.upgrades.complianceTraining ? ' (reduced 40% by Compliance Training)' : ''}.${impoundNote}`,
+    () => {}
+  );
+  if (impound && state.garage.find(c => c.id === car.id)) {
+    state.garage = state.garage.filter(c => c.id !== car.id);
+    state.customerOffers  = state.customerOffers.filter(o => o.carId !== car.id);
+    state.tradeInRequests = state.tradeInRequests.filter(r => r.targetCarId !== car.id);
+  }
+  runAchievementChecks();
+  return true;
+}
+
 /** Build a full car object from a catalog entry. */
 function buildCar(entry, condition, source, inspected = false) {
   // Factory cars are always 2026 with near-zero miles
@@ -891,11 +1111,29 @@ function buildCar(entry, condition, source, inspected = false) {
   const mileage = source === 'factory' ? randomInt(5, 50) : randomInt(entry.baseMileage[0], entry.baseMileage[1]);
   const titleStatus = pickTitleStatus(source, condition, mileage);
   const issues  = inspected || source === 'factory' ? [] : genHiddenIssues(condition);
+  // Legal status & VIN — only relevant for used cars
+  const legalStatus = source === 'factory' ? 'clean' : genLegalStatus(condition, mileage);
+  const vinStatus   = source === 'factory' ? 'normal' : genVinStatus(legalStatus);
+  // Crash damage severity — more common for used cars
+  const crashDamageSeverity = source === 'factory' ? 'none' : genCrashDamageSeverity(condition);
+  // Add a crash damage hidden issue if there is crash damage
+  if (crashDamageSeverity !== 'none') {
+    const crashCost = Math.round(
+      entry.marketValue * CONDITION_VALUE[condition] * CRASH_DAMAGE_REPAIR_MULT[crashDamageSeverity]
+    );
+    const crashLabel = `Hidden crash damage (${crashDamageSeverity})`;
+    if (!issues.some(i => i.name === crashLabel)) {
+      issues.push({ name: crashLabel, cost: crashCost, isCrashDamage: true, severity: crashDamageSeverity });
+    }
+  }
   const repairCost = issues.reduce((s, i) => s + i.cost, 0);
+  // Apply crash damage value penalty to market value
+  const crashPenalty = 1 - CRASH_DAMAGE_VALUE_PENALTY[crashDamageSeverity];
   // Apply current market index to base market value
   const marketIdx   = (state.marketIndices || {})[entry.category] ?? 1.0;
   const marketValue = Math.round(
-    entry.marketValue * CONDITION_VALUE[condition] * TITLE_VALUE_MULT[titleStatus] * (1 - mileage / 700000) * marketIdx
+    entry.marketValue * CONDITION_VALUE[condition] * TITLE_VALUE_MULT[titleStatus]
+    * (1 - mileage / 700000) * marketIdx * crashPenalty
   );
   return {
     id: generateId(),
@@ -921,6 +1159,14 @@ function buildCar(entry, condition, source, inspected = false) {
     activeLease: null,
     hasBeenDetailed: false,
     repairCount: 0,
+    // Legal / VIN / crash damage (v10)
+    legalStatus,
+    vinStatus,
+    legalDiscovered: legalStatus === 'clean',
+    vinDiscovered: vinStatus === 'normal',
+    crashDamageSeverity,
+    crashDamageDiscovered: false,
+    hasCrashRepair: false,
   };
 }
 
@@ -1136,6 +1382,15 @@ function recordSaleStats(car, profit) {
   else state.consecutiveCleanSales = 0;
   if (status === 'lemon') state.lemonSales = (state.lemonSales || 0) + 1;
   if (status === 'salvage' && profit > 0) state.salvageProfitSales = (state.salvageProfitSales || 0) + 1;
+  // Track clean legal status sales (verified)
+  if ((car.legalStatus || 'clean') === 'clean' && car.legalDiscovered) {
+    state.cleanTitleSalesVerified = (state.cleanTitleSalesVerified || 0) + 1;
+  }
+  // Track crash damage rebuilds (repaired and sold)
+  const crashSev = car.crashDamageSeverity || 'none';
+  if ((crashSev === 'moderate' || crashSev === 'severe') && car.hasCrashRepair && profit > 0) {
+    state.crashDamageRebuilds = (state.crashDamageRebuilds || 0) + 1;
+  }
 }
 
 function getLiquidationMultiplier(car) {
@@ -1563,6 +1818,9 @@ function processService() {
         const oldCond = car.condition;
         // Repair always restores to excellent condition and clears all issues
         car.condition    = 'A';
+        // Mark crash repair if this car had crash damage
+        if ((car.crashDamageSeverity || 'none') !== 'none') car.hasCrashRepair = true;
+        car.crashDamageSeverity = 'none';
         car.hiddenIssues = [];
         car.repairCost   = 0;
         car.repairCount  = (car.repairCount || 0) + 1;
@@ -1593,10 +1851,22 @@ function processService() {
 
 function processForSale() {
   const soldIds = new Set();
+  const impoundedIds = new Set();
   const remaining = [];
   for (const car of state.garage) {
     if (!car.isForSale || car.listPrice <= 0 || car.inServiceUntilDay || (car.leaseStatus === 'active' && car.activeLease)) {
       remaining.push(car); continue;
+    }
+    // Daily lot audit — only stolen cars risk this; no-title/scratched-VIN risk only at point of sale
+    if ((car.legalStatus || 'clean') === 'stolen') {
+      const auditChance = state.upgrades.complianceTraining ? 0.04 : 0.07;
+      if (Math.random() < auditChance) {
+        const wasCaught = checkPoliceEvent(car);
+        if (wasCaught) {
+          impoundedIds.add(car.id);
+          continue;
+        }
+      }
     }
     const chance = computeSaleChance(car);
     if (Math.random() < chance) {
@@ -1608,6 +1878,9 @@ function processForSale() {
         ? Math.min(state.reputation + 0.02, 2.0)
         : Math.max(state.reputation - 0.01, 0.1);
       recordSaleStats(car, profit);
+      // Police check at point of sale for any problematic car
+      const legalRisk = (car.legalStatus || 'clean') !== 'clean' || (car.vinStatus || 'normal') === 'scratched';
+      if (legalRisk) checkPoliceEvent(car);
       state.salesHistory.unshift({
         ...car, soldDay: state.day, salePrice: car.listPrice, fee, profit,
       });
@@ -1621,10 +1894,11 @@ function processForSale() {
       remaining.push(car);
     }
   }
-  state.garage = remaining;
-  // Remove customer offers / trade-in requests for sold cars
-  state.customerOffers = state.customerOffers.filter(o => !soldIds.has(o.carId));
-  state.tradeInRequests = state.tradeInRequests.filter(r => !soldIds.has(r.targetCarId));
+  state.garage = remaining.filter(c => !impoundedIds.has(c.id));
+  // Remove customer offers / trade-in requests for sold or impounded cars
+  const removedIds = new Set([...soldIds, ...impoundedIds]);
+  state.customerOffers = state.customerOffers.filter(o => !removedIds.has(o.carId));
+  state.tradeInRequests = state.tradeInRequests.filter(r => !removedIds.has(r.targetCarId));
 }
 
 /** Resolve pending counters on customer offers. */
@@ -1680,6 +1954,9 @@ function executeSale(offer, car, salePrice) {
     ? Math.min(state.reputation + 0.015, 2.0)
     : Math.max(state.reputation - 0.01, 0.1);
   recordSaleStats(car, profit);
+  // Police check on sale (customer negotiations / accepted offers)
+  const legalRisk = (car.legalStatus || 'clean') !== 'clean' || (car.vinStatus || 'normal') === 'scratched';
+  if (legalRisk) checkPoliceEvent(car);
   state.salesHistory.unshift({ ...car, soldDay: state.day, salePrice, fee, profit });
   runAchievementChecks();
   state.garage          = state.garage.filter(c => c.id !== car.id);
@@ -1838,12 +2115,22 @@ function acceptUsedOffer(offerId) {
   car.purchasePrice = price;
   state.garage.push(car);
   state.usedMarketOffers = state.usedMarketOffers.filter(o => o.id !== offerId);
-  addNote(`🚗 Bought (Used Market): ${car.year} ${car.make} ${car.model} for ${formatCurrency(price)}.`, 'info');
+  let noteExtra = '';
+  if ((car.legalStatus || 'clean') !== 'clean' && !car.legalDiscovered) {
+    noteExtra = ' ⚠️ Legal status unknown — inspect before selling!';
+  }
+  addNote(`🚗 Bought (Used Market): ${car.year} ${car.make} ${car.model} for ${formatCurrency(price)}.${noteExtra}`, 'info');
   saveState();
   renderAll();
 }
 
 function declineUsedOffer(offerId) {
+  const offer = state.usedMarketOffers.find(o => o.id === offerId);
+  if (offer && (offer.legalStatus || 'clean') === 'stolen') {
+    // Track "detected and avoided stealing" for achievement
+    state.stolenCarsAvoided = (state.stolenCarsAvoided || 0) + 1;
+    runAchievementChecks();
+  }
   state.usedMarketOffers = state.usedMarketOffers.filter(o => o.id !== offerId);
   saveState();
   renderUsedMarket();
@@ -1857,13 +2144,67 @@ function inspectUsedOffer(offerId) {
   state.cash   -= cost;
   offer.inspected = true;
   offer.repairCost = offer.hiddenIssues.reduce((s, i) => s + i.cost, 0);
+
+  // Reveal legal status via DMV access
+  if (state.upgrades.dmvDatabaseAccess && !offer.legalDiscovered) {
+    offer.legalDiscovered = true;
+  }
+  // Reveal VIN status via VIN scanner
+  if (state.upgrades.vinScanner && !offer.vinDiscovered) {
+    offer.vinDiscovered = true;
+  }
+  // Reveal crash damage severity via frame damage tools
+  if (state.upgrades.frameDamageTools && !offer.crashDamageDiscovered) {
+    offer.crashDamageDiscovered = true;
+    if ((offer.crashDamageSeverity || 'none') === 'severe') {
+      state.severeDamageFoundBeforeBuy = (state.severeDamageFoundBeforeBuy || 0) + 1;
+      runAchievementChecks();
+    }
+  } else if (!offer.crashDamageDiscovered) {
+    // Basic inspection reveals crash damage exists but not severity
+    const hasCrash = offer.hiddenIssues.some(i => i.isCrashDamage);
+    if (hasCrash) offer.crashDamageDiscovered = true;
+  }
+
+  // Title recovery: offer to convert no-title to clean
+  if (state.upgrades.titleRecovery && (offer.legalDiscovered || state.upgrades.dmvDatabaseAccess)) {
+    if ((offer.legalStatus || 'clean') === 'noTitle' && state.cash >= 800) {
+      // Auto-offer title recovery during inspection
+      offer.titleRecoveryAvailable = true;
+    }
+  }
+
+  const issueCount  = offer.hiddenIssues.filter(i => !i.isCrashDamage).length;
+  const crashSev    = offer.crashDamageSeverity || 'none';
+  const crashNote   = crashSev !== 'none' ? `, hidden crash damage (${crashSev})` : '';
+  const legalNote   = offer.legalDiscovered && (offer.legalStatus !== 'clean')
+    ? `, ⚠️ ${offer.legalStatus === 'stolen' ? 'STOLEN car!' : 'No title!'}`
+    : '';
+  const vinNote     = offer.vinDiscovered && offer.vinStatus === 'scratched' ? ', scratched VIN!' : '';
+
   addNote(
     `🔍 Inspected ${offer.year} ${offer.make} ${offer.model}: ` +
-    `${offer.hiddenIssues.length} issue(s), repair cost ${formatCurrency(offer.repairCost)}.`,
-    'info'
+    `${issueCount} mechanical issue(s)${crashNote}${legalNote}${vinNote}. Repair cost: ${formatCurrency(offer.repairCost)}.`,
+    legalNote ? 'error' : 'info'
   );
   saveState();
   renderAll();
+}
+
+/** Player applies Title Recovery to a no-title used market offer during inspection ($800). */
+function applyTitleRecovery(offerId) {
+  const offer = state.usedMarketOffers.find(o => o.id === offerId);
+  if (!offer || !state.upgrades.titleRecovery) return;
+  if ((offer.legalStatus || 'clean') !== 'noTitle') return;
+  if (state.cash < 800) { showToast('Not enough cash for title recovery ($800).', 'error'); return; }
+  state.cash -= 800;
+  offer.legalStatus = 'clean';
+  offer.legalDiscovered = true;
+  offer.titleRecoveryAvailable = false;
+  addNote(`📋 Title recovered for ${offer.year} ${offer.make} ${offer.model} — now has clean title.`, 'success');
+  showToast('Title recovered! Car now has clean title.', 'success');
+  saveState();
+  renderUsedMarket();
 }
 
 /** Player submits a counter-offer on a used car. */
@@ -2582,9 +2923,48 @@ function renderUsedMarket() {
     const issuesHtml = offer.inspected
       ? (offer.hiddenIssues.length === 0
           ? `<p class="text-green" style="font-size:.82rem">${uiIcon('check')} No hidden issues found!</p>`
-          : offer.hiddenIssues.map(i =>
-              `<span class="issue-tag">${uiIcon('warning')} ${i.name} (${formatCurrency(i.cost)})</span>`).join(''))
+          : offer.hiddenIssues.map(i => {
+              const crashClass = i.isCrashDamage
+                ? (i.severity === 'severe' ? 'crash-severe' : i.severity === 'moderate' ? 'crash-moderate' : 'crash-minor')
+                : '';
+              return `<span class="issue-tag ${crashClass}">${uiIcon('warning')} ${i.name} (${formatCurrency(i.cost)})</span>`;
+            }).join(''))
       : `<p class="text-muted" style="font-size:.82rem">${uiIcon('search')} Unknown — inspect to reveal issues</p>`;
+
+    // Legal / VIN / crash damage warnings
+    const legalStatus   = offer.legalStatus || 'clean';
+    const vinStatus     = offer.vinStatus   || 'normal';
+    const crashSev      = offer.crashDamageSeverity || 'none';
+    let legalWarningHtml = '';
+    if (offer.legalDiscovered && legalStatus !== 'clean') {
+      const msg = legalStatus === 'stolen'
+        ? '🚨 <strong>STOLEN CAR</strong> — selling this vehicle is illegal. Risk of police fine & impound.'
+        : '⚠️ <strong>No Valid Title</strong> — selling without title risks police fine.';
+      legalWarningHtml += `<div class="legal-warning">${msg}</div>`;
+    }
+    if (offer.vinDiscovered && vinStatus === 'scratched') {
+      legalWarningHtml += `<div class="legal-warning">🔦 <strong>Scratched/Altered VIN</strong> — increases risk of police detection when selling.</div>`;
+    }
+    if (offer.titleRecoveryAvailable) {
+      legalWarningHtml += `<div class="car-actions" style="margin-top:4px">
+        <button class="btn btn-sm btn-secondary" onclick="applyTitleRecovery('${offer.id}')">📋 Recover Title ($800)</button>
+      </div>`;
+    }
+    // Show crash damage severity badge when discovered
+    let crashBadgeHtml = '';
+    if (offer.crashDamageDiscovered && crashSev !== 'none') {
+      const cls = crashSev === 'severe' ? 'crash-severe' : crashSev === 'moderate' ? 'crash-moderate' : 'crash-minor';
+      crashBadgeHtml = `<span class="badge ${cls}" style="border-radius:4px;font-size:.72rem">
+        🔨 ${crashSev.charAt(0).toUpperCase() + crashSev.slice(1)} Crash Damage
+      </span>`;
+    }
+    // Unknown crash damage notice
+    let crashUnknownHtml = '';
+    if (!offer.crashDamageDiscovered && !offer.inspected) {
+      crashUnknownHtml = `<p class="text-muted" style="font-size:.76rem;margin-top:2px">${uiIcon('search')} Crash history unknown — inspect for details${state.upgrades.frameDamageTools ? '' : ' (Frame Damage Tools reveals severity)'}.</p>`;
+    } else if (!offer.crashDamageDiscovered && offer.inspected && !state.upgrades.frameDamageTools) {
+      crashUnknownHtml = `<p class="text-muted" style="font-size:.76rem;margin-top:2px">${uiIcon('search')} Crash severity unclear — upgrade to Frame Damage Inspection Tools for full detail.</p>`;
+    }
 
     const asking        = offer.askingPrice;
     const counterPrice  = offer.sellerCounter ?? null;
@@ -2633,6 +3013,11 @@ function renderUsedMarket() {
         </div>`;
     }
 
+    // Legal badge for header
+    const legalBadge = offer.legalDiscovered && legalStatus !== 'clean'
+      ? `<span class="badge ${legalStatus === 'stolen' ? 'badge-red' : 'badge-orange'}">${legalStatus === 'stolen' ? '🚨 STOLEN' : '⚠️ NO TITLE'}</span>`
+      : (offer.vinDiscovered && vinStatus === 'scratched' ? `<span class="badge badge-yellow">🔦 SCRATCHED VIN</span>` : '');
+
     return `
         <div class="car-card tradein-card">
           <div class="car-card-header">
@@ -2643,6 +3028,7 @@ function renderUsedMarket() {
             <div class="badge-stack">
               ${condBadge(offer.condition)}
               ${titleBadge(offer.titleStatus)}
+              ${legalBadge}
             </div>
           </div>
         <div class="car-details">
@@ -2662,7 +3048,10 @@ function renderUsedMarket() {
               ${formatCurrency(offer.marketValue - offer.repairCost - displayPrice)}
             </span></div>` : ''}
         </div>
+        ${crashBadgeHtml ? `<div>${crashBadgeHtml}</div>` : ''}
         <div class="issues-section">${issuesHtml}</div>
+        ${crashUnknownHtml}
+        ${legalWarningHtml}
         ${negotiationHtml}
         <div class="car-actions">
           ${!offer.inspected
@@ -2681,6 +3070,9 @@ function renderUsedMarket() {
       ${uiIcon('car')} ${state.usedMarketOffers.length} used car(s) available. Listings refresh each day.
       Garage: ${state.garage.length}/${state.garageSlots} slots.
       ${state.upgrades.negotiationTraining ? `${uiIcon('handshake')} Negotiation Training active — better deal outcomes.` : ''}
+      ${state.upgrades.dmvDatabaseAccess ? `🗂️ DMV Database Access active — inspection reveals legal status.` : ''}
+      ${state.upgrades.vinScanner ? `🔦 VIN Scanner active — inspection reveals VIN condition.` : ''}
+      ${state.upgrades.frameDamageTools ? `🔭 Frame Damage Tools active — inspection reveals crash damage severity.` : ''}
     </div>
     <div class="card-grid">${cards}</div>`;
 }
@@ -2789,6 +3181,9 @@ function renderGarage() {
             <div class="badge-stack">
               ${condBadge(car.condition)}
               ${titleBadge(car.titleStatus)}
+              ${(car.legalDiscovered && (car.legalStatus || 'clean') !== 'clean') ? `<span class="badge ${car.legalStatus === 'stolen' ? 'badge-red' : 'badge-orange'}">${car.legalStatus === 'stolen' ? '🚨 STOLEN' : '⚠️ NO TITLE'}</span>` : ''}
+              ${(car.vinDiscovered && (car.vinStatus || 'normal') === 'scratched') ? `<span class="badge badge-yellow">🔦 SCRATCHED VIN</span>` : ''}
+              ${(car.crashDamageDiscovered && (car.crashDamageSeverity || 'none') !== 'none') ? `<span class="badge ${car.crashDamageSeverity === 'severe' ? 'badge-red' : car.crashDamageSeverity === 'moderate' ? 'badge-orange' : 'badge-yellow'}">🔨 ${car.crashDamageSeverity.charAt(0).toUpperCase() + car.crashDamageSeverity.slice(1)} Crash</span>` : ''}
               ${car.leaseStatus === 'available' ? '<span class="badge badge-blue">LEASE AVAILABLE</span>' : ''}
               ${isLeased ? `<span class="badge badge-blue">LEASED (${leaseDaysLeft}d left)</span>` : ''}
             </div>
@@ -2797,9 +3192,15 @@ function renderGarage() {
         ${car.isForSale ? `<div class="for-sale-banner">${uiIcon('tag')} LISTED FOR SALE</div>` : ''}
         ${isLeased ? `<div class="service-banner">${uiIcon('document')} LEASE ACTIVE — ${leaseDaysLeft} day(s) remaining</div>` : ''}
         ${car.washBoostDays > 0 ? `<div class="wash-banner">${uiIcon('droplet')} Wash boost active (${car.washBoostDays} days left)</div>` : ''}
+        ${(car.legalDiscovered && (car.legalStatus || 'clean') === 'stolen') ? `<div class="police-alert">🚨 <strong>STOLEN VEHICLE</strong> — Do NOT list for sale. Police may impound and fine you.</div>` : ''}
+        ${(car.legalDiscovered && (car.legalStatus || 'clean') === 'noTitle') ? `<div class="legal-warning">⚠️ <strong>No Valid Title</strong> — Selling without title risks a police fine.</div>` : ''}
+        ${(car.vinDiscovered && (car.vinStatus || 'normal') === 'scratched') ? `<div class="legal-warning">🔦 <strong>Scratched/Altered VIN</strong> — Increases police detection risk when selling.</div>` : ''}
         <div class="car-details">
           <div class="detail-row"><span>Category</span><span>${car.category}</span></div>
           <div class="detail-row"><span>Title Status</span><span>${TITLE_LABELS[car.titleStatus] || 'Clean'}</span></div>
+          ${car.legalDiscovered ? `<div class="detail-row"><span>Legal Status</span><span class="${(car.legalStatus||'clean') === 'clean' ? 'text-green' : 'text-red'}">${(car.legalStatus||'clean') === 'clean' ? 'Clean' : (car.legalStatus === 'stolen' ? 'STOLEN' : 'No Title')}</span></div>` : ''}
+          ${car.vinDiscovered ? `<div class="detail-row"><span>VIN Condition</span><span class="${(car.vinStatus||'normal') === 'normal' ? 'text-green' : 'text-yellow'}">${(car.vinStatus||'normal') === 'normal' ? 'Intact' : 'Scratched/Altered'}</span></div>` : ''}
+          ${car.crashDamageDiscovered && (car.crashDamageSeverity||'none') !== 'none' ? `<div class="detail-row"><span>Crash Damage</span><span class="text-red">${car.crashDamageSeverity.charAt(0).toUpperCase() + car.crashDamageSeverity.slice(1)}</span></div>` : ''}
           <div class="detail-row"><span>Mileage</span><span>${car.mileage.toLocaleString()} mi</span></div>
           <div class="detail-row"><span>Purchased For</span><span>${formatCurrency(car.purchasePrice)}</span></div>
           <div class="detail-row"><span>Market Value</span><span class="text-green">${formatCurrency(car.marketValue)}</span></div>
@@ -3893,6 +4294,7 @@ function init() {
     buyFromFactory,
     setFactoryMake, setFactoryModel,
     acceptUsedOffer, declineUsedOffer, inspectUsedOffer, submitUsedOffer, updateNegTone,
+    applyTitleRecovery,
     acceptTradeInRequest, rejectTradeInRequest, counterTradeInRequest,
     acceptCustomerOffer, rejectCustomerOffer, counterCustomerOffer, applyStaffSuggestion,
     markForSale, updateListPrice, setListPriceMultiplier, markAllForSale, unlistAllCars, bulkSetListing,
