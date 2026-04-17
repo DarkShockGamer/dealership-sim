@@ -11,9 +11,20 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.2.0';
+const GAME_VERSION = '1.2.1';
 
 const PATCH_NOTES = [
+  {
+    version: '1.2.1',
+    date: 'April 2026',
+    notes: [
+      { type: 'feature', text: 'Easy mode added — zero daily overhead, no loan interest, no minimum principal, and no bankruptcy game-over. Great for a relaxed playthrough.' },
+      { type: 'feature', text: 'Difficulty is now chosen when creating a save slot (Easy / Normal / Hard) and locked for that save — no more mid-run switching.' },
+      { type: 'feature', text: 'Trade-in negotiations are now true back-and-forth — no round limit. NPCs will accept your counter (probability-based), counter back, or walk away. Deals end only when a side accepts or rejects.' },
+      { type: 'fix', text: 'Difficulty removed from in-game Settings and home-screen Settings panel; it is set permanently at save creation.' },
+      { type: 'fix', text: 'Tutorial spotlight now resizes correctly after listing a car for sale, and the Next button enables immediately when the step is completed.' },
+    ],
+  },
   {
     version: '1.2.0',
     date: 'April 2026',
@@ -62,7 +73,8 @@ const PATCH_NOTES = [
 // DEFAULT STATE
 // ============================================================
 const DEFAULT_STATE = {
-  saveVersion: 10,
+  saveVersion: 11,
+  difficulty: 'normal',
   cash: 25000,
   day: 1,
   reputation: 1.0,
@@ -238,6 +250,7 @@ const SFX_FLOOR_GAIN = 0.0002;
 const SFX_VOLUME_SCALE = 0.28;
 const SFX_ATTACK_SECONDS = 0.01;
 const LOAN_TERMS = {
+  easy:   { limit: 60000, apr: 0,    minPrincipalRate: 0 },
   normal: { limit: 60000, apr: 0.12, minPrincipalRate: 0 },
   hard:   { limit: 45000, apr: 0.18, minPrincipalRate: 0.01 },
 };
@@ -702,7 +715,8 @@ function formatCarDisplayName(car) {
 }
 
 function getBaseLoanTerms() {
-  return LOAN_TERMS[settings.difficulty === 'hard' ? 'hard' : 'normal'];
+  const diff = state?.difficulty || 'normal';
+  return LOAN_TERMS[diff] || LOAN_TERMS.normal;
 }
 
 function syncLoanTermsToDifficulty() {
@@ -956,9 +970,20 @@ function loadState(slot) {
           day: loaded.day ?? 1,
         });
       }
+      if (loaded.saveVersion < 11) {
+        loaded.saveVersion = 11;
+        loaded.difficulty = loaded.difficulty ?? 'normal';
+        loaded.notifications = loaded.notifications || [];
+        loaded.notifications.unshift({
+          message: '🎮 Save upgraded to v11 — difficulty is now locked per save slot.',
+          type: 'info',
+          day: loaded.day ?? 1,
+        });
+      }
       loaded.loanBalance = loaded.loanBalance ?? 0;
-      loaded.loanLimit = loaded.loanLimit ?? getBaseLoanTerms().limit;
-      loaded.loanApr = loaded.loanApr ?? getBaseLoanTerms().apr;
+      const _migTerms = LOAN_TERMS[loaded.difficulty || 'normal'] || LOAN_TERMS.normal;
+      loaded.loanLimit = loaded.loanLimit ?? _migTerms.limit;
+      loaded.loanApr = loaded.loanApr ?? _migTerms.apr;
       loaded.loanFrozen = !!loaded.loanFrozen;
       loaded.missedPayments = loaded.missedPayments ?? 0;
       loaded.delinquencyLevel = loaded.delinquencyLevel ?? 0;
@@ -1359,6 +1384,7 @@ function generateTradeInRequests() {
       counterCashDelta: null,
       state: 'pending',   // 'pending' | 'countered'
       expiresDay: state.day + 2,
+      round: 0,           // negotiation round counter (0 = initial offer)
     });
   }
   return newRequests;
@@ -1521,7 +1547,7 @@ function getBuyerTone(offeredPrice, listPrice, patience) {
 function processOverhead() {
   const baseOverhead    = OVERHEAD_BY_LEVEL[state.upgrades.garageLevel] ?? 300;
   const reductionAmount = (state.upgrades.overheadReductions || 0) * 50;
-  const diffMult        = (settings.difficulty === 'hard') ? 1.5 : 1.0;
+  const diffMult        = state.difficulty === 'hard' ? 1.5 : state.difficulty === 'easy' ? 0 : 1.0;
   const staffWages      = getTotalStaffWages();
   const lotCost         = Math.max(0, Math.round(baseOverhead * diffMult) - reductionAmount);
   const total           = lotCost + staffWages;
@@ -1586,7 +1612,7 @@ function getLiquidationMultiplier(car) {
 }
 
 function getLeaseRate(car) {
-  const diffKey = settings.difficulty === 'hard' ? 'hard' : 'normal';
+  const diffKey = state.difficulty === 'hard' ? 'hard' : 'normal';
   return LEASE_RATE_BY_SEGMENT[diffKey][car.category] ?? LEASE_RATE_BY_SEGMENT[diffKey].Sedan;
 }
 
@@ -1655,7 +1681,7 @@ function processLeases() {
     ));
 
     // ── Rare crash event ─────────────────────────────────────────────────────
-    const crashBonus = settings.difficulty === 'hard' ? 0.0002 : 0;
+    const crashBonus = state.difficulty === 'hard' ? 0.0002 : 0;
     if (Math.random() < LEASE_CRASH_PROBABILITY + crashBonus) {
       // Lessee pays out all remaining lease payments immediately
       const remainingDays   = Math.max(0, lease.endDay - state.day);
@@ -1692,7 +1718,7 @@ function processLeases() {
     }
 
     const termProgress = clamp((state.day - lease.startDay) / Math.max(1, lease.termDays), 0, LEASE_TERM_PROGRESS_CAP);
-    const hardBonus = settings.difficulty === 'hard' ? LEASE_ISSUE_BONUS_HARD_DIFFICULTY : 0;
+    const hardBonus = state.difficulty === 'hard' ? LEASE_ISSUE_BONUS_HARD_DIFFICULTY : 0;
     const titleBonus = car.titleStatus === 'lemon' ? LEASE_ISSUE_BONUS_LEMON : car.titleStatus === 'salvage' ? LEASE_ISSUE_BONUS_SALVAGE : 0;
     const issueChance = clamp(0.001 + (termProgress * 0.007) + titleBonus + hardBonus, 0, 0.04);
     if (Math.random() < issueChance) {
@@ -1780,6 +1806,7 @@ function processLeases() {
 }
 
 function processLoanAndDelinquency() {
+  if (state.difficulty === 'easy') return; // Easy mode: no loan interest, no delinquency ladder
   const terms = getBaseLoanTerms();
   let due = 0;
   if (state.loanBalance > 0) {
@@ -1799,7 +1826,7 @@ function processLoanAndDelinquency() {
     }
   }
 
-  if (state.cash < 0 || (due > 0 && state.loanBalance > 0 && settings.difficulty === 'hard' && state.cash < 250)) {
+  if (state.cash < 0 || (due > 0 && state.loanBalance > 0 && state.difficulty === 'hard' && state.cash < 250)) {
     state.missedPayments = (state.missedPayments || 0) + 1;
     state.delinquencyLevel = Math.max(state.delinquencyLevel || 0, state.missedPayments);
     if (state.missedPayments === DELINQUENCY_WARNING_LEVEL) {
@@ -1807,7 +1834,7 @@ function processLoanAndDelinquency() {
       showToast('⚠️ Missed payment warning.', 'warning');
     } else if (state.missedPayments === DELINQUENCY_DEFAULT_LEVEL) {
       state.loanFrozen = true;
-      state.loanApr += settings.difficulty === 'hard' ? 0.08 : 0.05;
+      state.loanApr += state.difficulty === 'hard' ? 0.08 : 0.05;
       addNote(`🚫 Loan default: credit line frozen. APR raised to ${(state.loanApr * 100).toFixed(1)}%.`, 'error');
       showToast('🚫 Loan default. Credit line frozen.', 'error');
     } else if (state.missedPayments >= DELINQUENCY_BANKRUPTCY_LEVEL) {
@@ -1822,7 +1849,7 @@ function processLoanAndDelinquency() {
 
 function triggerBankruptcy() {
   state.delinquencyLevel = DELINQUENCY_BANKRUPTCY_LEVEL;
-  if (settings.difficulty === 'hard') {
+  if (state.difficulty === 'hard') {
     state.gameOver = true;
     addNote('💥 Bankruptcy on Hard mode. Game Over.', 'error');
     showModal('Game Over — Bankruptcy', 'Hard mode bankruptcy ends the run immediately.', () => {
@@ -1875,7 +1902,7 @@ function triggerBankruptcy() {
 
 /** Shift per-segment market indices and occasionally fire a market event. */
 function processMarketVolatility() {
-  const isHard = settings.difficulty === 'hard';
+  const isHard = state.difficulty === 'hard';
   const diffMultiplier = isHard ? 1.4 : 1.0;
   for (const seg of Object.keys(state.marketIndices)) {
     // Daily drift ±0–1.5% on Normal, ±0–2.1% on Hard (was ±2.5% on both)
@@ -2178,35 +2205,48 @@ function executeSale(offer, car, salePrice) {
 function resolveTradeInCounters() {
   const toRemove = new Set();
   for (const req of state.tradeInRequests) {
-    if (req.state === 'countered' && req.counterCashDelta !== null) {
-      const targetCar = state.garage.find(c => c.id === req.targetCarId);
-      if (!targetCar) { toRemove.add(req.id); continue; }
-      if (targetCar.leaseStatus === 'active' && targetCar.activeLease) {
-        addNote(`❌ Trade-in counter expired for ${targetCar.year} ${targetCar.make} ${targetCar.model} because the car is leased.`, 'warning');
-        toRemove.add(req.id);
-        continue;
-      }
-      const totalCustomerCost = req.customerCarValue + req.counterCashDelta;
-      // Hard block: counter exceeding list price cannot be accepted (no exploit path).
-      if (totalCustomerCost > targetCar.listPrice) {
-        addNote(`❌ Trade-in counter for ${targetCar.year} ${targetCar.make} ${targetCar.model} exceeded asking price — rejected.`, 'warning');
-        toRemove.add(req.id);
-        continue;
-      }
-      // Acceptance probability based on market-value fairness (not list price).
-      // customerFairness > 1 means they're paying below market (good for them → accept).
-      // customerFairness < 1 means they're paying above market (bad for them → resist).
-      const customerFairness = targetCar.marketValue / Math.max(totalCustomerCost, 1);
-      const negBonus = state.upgrades.negotiationTraining ? 0.08 : 0;
-      // Steep cubic curve so above-market counters are strongly resisted.
-      const acceptProb = clamp(Math.pow(Math.min(customerFairness, TI_FAIRNESS_CAP), TI_FAIRNESS_EXPONENT) * TI_BASE_ACCEPT_RATE + negBonus, TI_MIN_ACCEPT_PROB, TI_BASE_ACCEPT_RATE);
-      if (Math.random() < acceptProb) {
-        executeTradeIn(req, req.counterCashDelta);
-        addNote(`🤝 Trade-in counter accepted! Got ${req.customerCar.year} ${req.customerCar.make} ${req.customerCar.model}.`, 'success');
-      } else {
-        addNote(`❌ Customer declined your trade-in counter for ${targetCar.year} ${targetCar.make} ${targetCar.model}.`, 'warning');
-      }
+    if (req.state !== 'countered' || req.counterCashDelta === null) continue;
+    const targetCar = state.garage.find(c => c.id === req.targetCarId);
+    if (!targetCar) { toRemove.add(req.id); continue; }
+    if (targetCar.leaseStatus === 'active' && targetCar.activeLease) {
+      addNote(`❌ Trade-in counter expired for ${targetCar.year} ${targetCar.make} ${targetCar.model} because the car is leased.`, 'warning');
       toRemove.add(req.id);
+      continue;
+    }
+    const totalCustomerCost = req.customerCarValue + req.counterCashDelta;
+    // Hard block: counter exceeding list price cannot be accepted (no exploit path).
+    if (totalCustomerCost > targetCar.listPrice) {
+      addNote(`❌ Trade-in counter for ${targetCar.year} ${targetCar.make} ${targetCar.model} exceeded asking price — rejected.`, 'warning');
+      toRemove.add(req.id);
+      continue;
+    }
+    // Acceptance probability based on market-value fairness (not list price).
+    // customerFairness > 1 means they're paying below market (good for them → accept).
+    // customerFairness < 1 means they're paying above market (bad for them → resist).
+    const customerFairness = targetCar.marketValue / Math.max(totalCustomerCost, 1);
+    const negBonus = state.upgrades.negotiationTraining ? 0.08 : 0;
+    // Steep cubic curve so above-market counters are strongly resisted.
+    const acceptProb = clamp(Math.pow(Math.min(customerFairness, TI_FAIRNESS_CAP), TI_FAIRNESS_EXPONENT) * TI_BASE_ACCEPT_RATE + negBonus, TI_MIN_ACCEPT_PROB, TI_BASE_ACCEPT_RATE);
+    const label = `${targetCar.year} ${targetCar.make} ${targetCar.model}`;
+    if (Math.random() < acceptProb) {
+      // NPC accepts player's counter
+      executeTradeIn(req, req.counterCashDelta);
+      addNote(`🤝 Trade-in counter accepted! Got ${req.customerCar.year} ${req.customerCar.make} ${req.customerCar.model}.`, 'success');
+      toRemove.add(req.id);
+    } else if (customerFairness < 0.6 && Math.random() < 0.35) {
+      // Customer walks away — counter is too far below market value for them
+      addNote(`🚶 Customer walked away from trade-in for ${label} — your counter was too far from what they need.`, 'warning');
+      toRemove.add(req.id);
+    } else {
+      // NPC counters back — moves partially toward player's offer (true back-and-forth)
+      const moveBias = randomFloat(0.15, 0.30);
+      const newNpcDelta = Math.round(req.cashDelta + (req.counterCashDelta - req.cashDelta) * moveBias);
+      req.cashDelta = newNpcDelta;
+      req.counterCashDelta = null;
+      req.state = 'pending';
+      req.round = (req.round || 0) + 1;
+      const netFormatted = formatCurrency(req.customerCarValue + newNpcDelta);
+      addNote(`🔄 Customer countered back on trade-in for ${label} — new net value to you: ${netFormatted}. Check For Sale tab.`, 'info');
     }
   }
   state.tradeInRequests = state.tradeInRequests.filter(r => !toRemove.has(r.id));
@@ -2218,8 +2258,10 @@ function expireOffers() {
   state.customerOffers  = state.customerOffers.filter(
     o => o.state === 'countered' || o.expiresDay >= state.day
   );
+  // Trade-in requests have no round limit — they persist until player or NPC accepts/rejects.
+  // Only remove initial (round 0) offers that have been sitting idle past their expiry.
   state.tradeInRequests = state.tradeInRequests.filter(
-    r => r.state === 'countered' || r.expiresDay >= state.day
+    r => r.state === 'countered' || (r.round || 0) > 0 || r.expiresDay >= state.day
   );
 }
 
@@ -2958,7 +3000,7 @@ function renderDashboard() {
   const activeLeases  = state.garage.filter(c => c.leaseStatus === 'active' && c.activeLease).length;
   const leaseIncome   = computeLeaseIncomePerDay();
   const overhead      = OVERHEAD_BY_LEVEL[state.upgrades.garageLevel] ?? 300;
-  const diffMult      = (settings.difficulty === 'hard') ? 1.5 : 1.0;
+  const diffMult      = state.difficulty === 'hard' ? 1.5 : state.difficulty === 'easy' ? 0 : 1.0;
   const wageTotal     = getTotalStaffWages();
 
   const deliveryRows = state.deliveries.length
@@ -3571,6 +3613,9 @@ function renderForSale() {
       if (!targetCar) return '';
       const cashDelta = req.counterCashDelta ?? req.cashDelta;
       const isCountered = req.state === 'countered';
+      const isNpcCounter = !isCountered && (req.round || 0) > 0;
+      const badgeText = isCountered ? 'Your Counter Sent' : isNpcCounter ? 'NPC Counter' : 'New Request';
+      const badgeClass = isCountered ? 'badge-yellow' : isNpcCounter ? 'badge-orange' : 'badge-blue';
       const netValueToYou = req.customerCarValue + cashDelta;
       const canAccept = cashDelta < 0 ? state.cash >= Math.abs(cashDelta) : true;
       const canFit    = state.garage.length <= state.garageSlots || !targetCar; // trade-in removes target first, so full garage is OK
@@ -3578,7 +3623,7 @@ function renderForSale() {
         <div class="car-card tradein-request-card ${isCountered ? 'countered-card disabled-card' : ''}">
           <div class="car-card-header">
             <span class="car-name">Trade-In Offer</span>
-            <span class="badge ${isCountered ? 'badge-yellow' : 'badge-blue'}">${isCountered ? 'Countered' : 'New Request'}</span>
+            <span class="badge ${badgeClass}">${badgeText}</span>
           </div>
           <div class="tradein-split">
             <div class="tradein-half">
@@ -3605,7 +3650,8 @@ function renderForSale() {
               <span>Net Value to You</span>
               <span class="${netValueToYou >= targetCar.listPrice * 0.85 ? 'text-green' : 'text-yellow'}">${formatCurrency(netValueToYou)}</span>
             </div>
-            ${isCountered ? `<p class="text-muted" style="font-size:.8rem;margin-top:6px">Waiting for customer response — resolves next day.</p>` : ''}
+            ${isCountered ? `<p class="text-muted" style="font-size:.8rem;margin-top:6px">Your counter sent — customer will respond next day.</p>` : ''}
+            ${isNpcCounter ? `<p class="text-muted" style="font-size:.8rem;margin-top:6px">Customer countered back. Accept, reject, or send another counter.</p>` : ''}
           </div>
           ${!isCountered ? `
           <div class="neg-input-row" style="margin-top:4px">
@@ -3621,7 +3667,7 @@ function renderForSale() {
     }).join('');
     tradeInHtml = `
       <div class="category-section">
-        <h3>${uiIcon('refresh')} Trade-In Requests (${pendingTIR.length} pending, ${counteredTIR.length} countered)</h3>
+        <h3>${uiIcon('refresh')} Trade-In Requests (${pendingTIR.length} your turn, ${counteredTIR.length} waiting for customer)</h3>
         <div class="card-grid">${tirCards}</div>
       </div>`;
   }
@@ -3780,7 +3826,7 @@ function renderUpgrades() {
 function renderFinance() {
   const available = Math.max(0, state.loanLimit - state.loanBalance);
   const dailyInterest = state.loanBalance > 0 ? Math.max(1, Math.round(state.loanBalance * state.loanApr / 365)) : 0;
-  const minPrincipal = settings.difficulty === 'hard' && state.loanBalance > 0
+  const minPrincipal = state.difficulty === 'hard' && state.loanBalance > 0
     ? Math.max(250, Math.round(state.loanBalance * LOAN_TERMS.hard.minPrincipalRate))
     : 0;
   const report = state.lastBankruptcyReport;
@@ -3829,7 +3875,7 @@ function renderFinance() {
         <h3>${uiIcon('trendingDown')} Delinquency &amp; Bankruptcy Ladder</h3>
         <div class="stat-row"><span>1 Missed Payment</span><strong class="text-yellow">Warning</strong></div>
         <div class="stat-row"><span>2 Missed Payments</span><strong class="text-red">Default: credit freeze + APR increase</strong></div>
-        <div class="stat-row"><span>3 Missed Payments</span><strong class="text-red">${settings.difficulty === 'hard' ? 'Hard: Game Over' : 'Normal: Instant liquidation then continue'}</strong></div>
+        <div class="stat-row"><span>3 Missed Payments</span><strong class="text-red">${state.difficulty === 'hard' ? 'Hard: Game Over' : state.difficulty === 'easy' ? 'Easy: N/A (no delinquency)' : 'Normal: Instant liquidation then continue'}</strong></div>
       </div>
 
       <div class="dash-card dash-card-wide">
@@ -3866,9 +3912,12 @@ function renderAchievements() {
 // ============================================================
 function renderSettings() {
   const isDark = settings.darkMode;
-  const isHard = settings.difficulty === 'hard';
   const sfxMuted = !!settings.sfxMuted;
   const overhead = OVERHEAD_BY_LEVEL[state.upgrades.garageLevel] ?? 300;
+  const diff = state.difficulty || 'normal';
+  const diffMult = diff === 'hard' ? 1.5 : diff === 'easy' ? 0 : 1.0;
+  const diffLabel = diff === 'hard' ? `Hard 💪` : diff === 'easy' ? 'Easy 😎' : 'Normal';
+  const diffClass = diff === 'hard' ? 'text-red' : diff === 'easy' ? 'text-green' : 'text-blue';
 
   document.getElementById('tab-settings').innerHTML = `
     <div class="settings-panel">
@@ -3916,28 +3965,6 @@ function renderSettings() {
       </div>
 
       <div class="dash-card settings-card">
-        <h3>${uiIcon('gear')} Economy Difficulty</h3>
-        <div class="setting-row">
-          <div>
-            <div class="setting-label">Normal</div>
-            <div class="setting-desc">Standard overhead & market volatility. Good for learning.</div>
-          </div>
-          <button class="btn btn-sm ${!isHard ? 'btn-primary' : 'btn-secondary'}" onclick="setDifficulty('normal')">
-            ${!isHard ? '✔ Selected' : 'Select'}
-          </button>
-        </div>
-        <div class="setting-row" style="margin-top:10px">
-          <div>
-            <div class="setting-label">Hard ${uiIcon('dumbbell')}</div>
-            <div class="setting-desc">1.5× overhead, higher APR/min principal pressure, and bankruptcy is Game Over.</div>
-          </div>
-          <button class="btn btn-sm ${isHard ? 'btn-danger' : 'btn-secondary'}" onclick="setDifficulty('hard')">
-            ${isHard ? '✔ Selected' : 'Select'}
-          </button>
-        </div>
-      </div>
-
-      <div class="dash-card settings-card">
         <h3>🎓 Tutorial</h3>
         <div class="setting-row">
           <div>
@@ -3954,11 +3981,11 @@ function renderSettings() {
         <h3>${uiIcon('clipboard')} Current Economy Info</h3>
         <div class="stat-row">
           <span>Difficulty</span>
-          <strong class="${isHard ? 'text-red' : 'text-green'}">${isHard ? `Hard ${uiIcon('dumbbell')}` : 'Normal'}</strong>
+          <strong class="${diffClass}">${diffLabel}</strong>
         </div>
         <div class="stat-row">
           <span>Daily Overhead</span>
-          <strong class="text-red">−${formatCurrency(Math.round(overhead * (isHard ? 1.5 : 1.0)))}/day</strong>
+          <strong class="${diff === 'easy' ? 'text-green' : 'text-red'}">${diff === 'easy' ? 'Free (Easy mode)' : `−${formatCurrency(Math.round(overhead * diffMult))}/day`}</strong>
         </div>
         <div class="stat-row">
           <span>Daily Wages</span>
@@ -3969,7 +3996,7 @@ function renderSettings() {
           <strong>Tier ${state.upgrades.garageLevel} (${state.garageSlots} slots)</strong>
         </div>
         <p class="text-muted" style="font-size:.82rem;margin-top:10px">
-          ${uiIcon('info')} Overhead scales with garage size — only expand when you can handle the extra costs!
+          ${uiIcon('info')} Difficulty is locked for this save. Start a new save slot to choose a different difficulty.
         </p>
       </div>
     </div>`;
@@ -4158,9 +4185,10 @@ function getSlotSummary(slot) {
     if (!raw) return null;
     const d = JSON.parse(raw);
     return {
-      money: d.cash ?? 0,
-      day:   d.day  ?? 1,
-      cars:  (d.garage ?? []).length,
+      money:      d.cash ?? 0,
+      day:        d.day  ?? 1,
+      cars:       (d.garage ?? []).length,
+      difficulty: d.difficulty ?? 'normal',
     };
   } catch (_) {
     return null;
@@ -4213,11 +4241,10 @@ function toggleDarkMode() {
 }
 
 function setDifficulty(level) {
-  settings.difficulty = level;
+  state.difficulty = level;
   syncLoanTermsToDifficulty();
-  saveSettings();
+  saveState();
   renderAll();
-  showToast(`Difficulty set to ${level === 'hard' ? 'Hard (Hard Mode)' : 'Normal'}.`);
   playSfx('click');
 }
 
@@ -4428,6 +4455,63 @@ function fmtSlotMoney(n) {
   return '$' + Math.round(n).toLocaleString();
 }
 
+// ============================================================
+// DIFFICULTY PICKER — shown when creating a new save slot
+// ============================================================
+const DIFFICULTY_OPTIONS = [
+  {
+    key:  'easy',
+    label: 'Easy',
+    desc: 'Zero overhead costs, no loan interest, and no bankruptcy risk. Sit back and enjoy the dealership grind stress-free.',
+  },
+  {
+    key:  'normal',
+    label: 'Normal',
+    desc: 'Standard overhead and market volatility. A balanced challenge for most players.',
+  },
+  {
+    key:  'hard',
+    label: 'Hard',
+    desc: '1.5× overhead costs, higher loan APR, minimum principal payments, and bankruptcy ends the run permanently.',
+  },
+];
+
+let _diffPickerSlot = null;
+let _diffPickerIdx  = 1; // default to Normal
+
+function showDifficultyPicker(slot) {
+  _diffPickerSlot = slot;
+  _diffPickerIdx  = 1; // reset to Normal each time
+  _renderDiffPicker();
+  document.getElementById('difficulty-picker-modal').classList.remove('hidden');
+}
+
+function _renderDiffPicker() {
+  const opt = DIFFICULTY_OPTIONS[_diffPickerIdx];
+  document.getElementById('diff-picker-option').textContent = opt.label;
+  document.getElementById('diff-picker-desc').textContent   = opt.desc;
+}
+
+function diffPickerPrev() {
+  _diffPickerIdx = (_diffPickerIdx - 1 + DIFFICULTY_OPTIONS.length) % DIFFICULTY_OPTIONS.length;
+  _renderDiffPicker();
+}
+
+function diffPickerNext() {
+  _diffPickerIdx = (_diffPickerIdx + 1) % DIFFICULTY_OPTIONS.length;
+  _renderDiffPicker();
+}
+
+function diffPickerConfirm() {
+  const chosen = DIFFICULTY_OPTIONS[_diffPickerIdx].key;
+  document.getElementById('difficulty-picker-modal').classList.add('hidden');
+  launchGame(_diffPickerSlot, true, chosen);
+}
+
+function diffPickerCancel() {
+  document.getElementById('difficulty-picker-modal').classList.add('hidden');
+}
+
 /** Re-render the three save-slot cards into #save-slot-grid. */
 function renderSaveSlots() {
   const grid    = document.getElementById('save-slot-grid');
@@ -4446,6 +4530,7 @@ function renderSaveSlots() {
       : `Save Slot ${slot}: Empty — start new game`);
 
     if (summary) {
+      const diffLabel = summary.difficulty === 'hard' ? '💪 Hard' : summary.difficulty === 'easy' ? '😎 Easy' : '🎮 Normal';
       card.innerHTML = `
         ${isLast ? '<span class="slot-last-badge">Last Played</span>' : ''}
         <div class="slot-label">Save Slot ${slot}</div>
@@ -4455,6 +4540,7 @@ function renderSaveSlots() {
           <div class="slot-stat-row"><span>💰 Money</span><span>${fmtSlotMoney(summary.money)}</span></div>
           <div class="slot-stat-row"><span>📅 Days</span><span>${summary.day}</span></div>
           <div class="slot-stat-row"><span>🚘 Cars</span><span>${summary.cars}</span></div>
+          <div class="slot-stat-row"><span>⚙️ Difficulty</span><span>${diffLabel}</span></div>
         </div>
         <button class="slot-delete-btn" aria-label="Delete Save Slot ${slot}"
           onclick="event.stopPropagation(); window._confirmDeleteSlot(${slot})">🗑 Delete</button>
@@ -4469,7 +4555,7 @@ function renderSaveSlots() {
         <div class="slot-name" style="opacity:.6;">Empty</div>
         <div class="slot-cta">Create Save</div>
       `;
-      const activateNew = () => launchGame(slot, true);
+      const activateNew = () => showDifficultyPicker(slot);
       card.addEventListener('click', activateNew);
       card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activateNew(); } });
     }
@@ -4493,13 +4579,6 @@ function syncMenuSettings() {
   setToggle('menu-toggle-wordmarks', settings.showWordmarks);
   setToggle('menu-toggle-sfx',       !settings.sfxMuted);
   setToggle('menu-toggle-tutorials', settings.tutorialsEnabled);
-
-  // Highlight the active difficulty button
-  const isHard = settings.difficulty === 'hard';
-  document.getElementById('menu-diff-normal')?.classList.toggle('menu-btn-play', !isHard);
-  document.getElementById('menu-diff-normal')?.classList.toggle('menu-btn-load', isHard);
-  document.getElementById('menu-diff-hard')?.classList.toggle('menu-btn-play', isHard);
-  document.getElementById('menu-diff-hard')?.classList.toggle('menu-btn-load', !isHard);
 }
 
 /** Toggle dark mode from the home-screen settings panel. */
@@ -4531,12 +4610,9 @@ function menuToggleTutorials() {
   syncMenuSettings();
 }
 
-/** Set difficulty from the home-screen settings panel. */
-function menuSetDifficulty(level) {
-  settings.difficulty = level;
-  syncLoanTermsToDifficulty();
-  saveSettings();
-  syncMenuSettings();
+/** Set difficulty from the home-screen settings panel — kept for backward compat but no longer wired to any UI. */
+function menuSetDifficulty(_level) {
+  // Difficulty is now locked per save slot; this is a no-op.
 }
 
 // ============================================================
@@ -4892,12 +4968,13 @@ function _tutorialPositionSpotlight(step, overlay, spotlight, tooltip) {
  * @param {number} slot  1–3
  * @param {boolean} isNew  true → create a fresh game; false → load existing save
  */
-function launchGame(slot, isNew) {
+function launchGame(slot, isNew, difficulty) {
   currentSlot = slot;
   setLastSlot(slot);
 
   if (isNew) {
     state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+    state.difficulty = difficulty || 'normal';
     syncLoanTermsToDifficulty();
     state.usedMarketOffers = generateUsedMarket();
     saveState();

@@ -105,19 +105,6 @@
           </div>
         </div>
         <div class="menu-settings-card">
-          <h3>Difficulty</h3>
-          <div class="menu-setting-row" id="menu-difficulty-row">
-            <div>
-              <div class="menu-setting-label">Game Difficulty</div>
-              <div class="menu-setting-desc">Affects loan limits and overhead costs.</div>
-            </div>
-            <div class="menu-difficulty-btn-group">
-              <button class="menu-btn menu-btn-load menu-difficulty-btn" id="menu-diff-normal" onclick="menuSetDifficulty('normal')">Normal</button>
-              <button class="menu-btn menu-btn-load menu-difficulty-btn" id="menu-diff-hard" onclick="menuSetDifficulty('hard')">Hard</button>
-            </div>
-          </div>
-        </div>
-        <div class="menu-settings-card">
           <h3>Tutorial</h3>
           <div class="menu-setting-row">
             <div>
@@ -139,7 +126,7 @@
       </div>
     </div>
 
-    <span class="menu-version" aria-hidden="true">v1.2.0</span>
+    <span class="menu-version" aria-hidden="true">v1.2.1</span>
   </div>
 
   <!-- Delete-slot confirmation dialog -->
@@ -161,6 +148,23 @@
       <div id="patch-notes-content" class="patch-notes-content"></div>
       <div class="modal-actions">
         <button class="btn btn-primary" onclick="closePatchNotesModal()">Got it!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Difficulty Picker Modal — shown when creating a new save slot -->
+  <div id="difficulty-picker-modal" class="diff-picker-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="diff-picker-title">
+    <div class="diff-picker-box">
+      <div class="diff-picker-title" id="diff-picker-title">DIFFICULTY</div>
+      <div class="diff-picker-selector">
+        <button class="diff-picker-arrow" onclick="diffPickerPrev()" aria-label="Previous difficulty">&#8249;</button>
+        <span class="diff-picker-option" id="diff-picker-option">Normal</span>
+        <button class="diff-picker-arrow" onclick="diffPickerNext()" aria-label="Next difficulty">&#8250;</button>
+      </div>
+      <p class="diff-picker-desc" id="diff-picker-desc"></p>
+      <div class="diff-picker-actions">
+        <button class="btn btn-secondary" onclick="diffPickerCancel()">Cancel</button>
+        <button class="btn btn-primary" onclick="diffPickerConfirm()">Create Save ▶</button>
       </div>
     </div>
   </div>
