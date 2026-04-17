@@ -1171,7 +1171,7 @@ body.dark .tradein-summary {
 
 /* Semi-transparent dim background drawn with box-shadow on the spotlight */
 .tutorial-spotlight {
-  position: absolute;
+  position: fixed;
   border-radius: 8px;
   box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.62);
   transition: top 0.35s ease, left 0.35s ease, width 0.35s ease, height 0.35s ease;
@@ -1191,7 +1191,7 @@ body.dark .tradein-summary {
 }
 
 .tutorial-tooltip {
-  position: absolute;
+  position: fixed;
   background: linear-gradient(180deg, rgba(14, 33, 74, .98) 0%, rgba(9, 22, 50, .96) 100%);
   border: 1px solid rgba(100, 165, 255, .45);
   border-radius: 14px;
@@ -1205,8 +1205,8 @@ body.dark .tradein-summary {
 }
 
 @keyframes tutorialFadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: none; }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 /* Arrow indicator on the tooltip — hidden by default, shown only with arrow classes */
@@ -1293,10 +1293,13 @@ body.dark .tradein-summary {
 @media (max-width: 480px) {
   .tutorial-tooltip {
     padding: 14px 14px 10px;
-    max-width: calc(100vw - 16px) !important;
+    max-width: min(92vw, 420px) !important;
     font-size: .85rem;
-    max-height: 60vh;
+    max-height: 70vh;
     overflow-y: auto;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+    padding-left: calc(14px + env(safe-area-inset-left));
+    padding-right: calc(14px + env(safe-area-inset-right));
   }
   .tutorial-message {
     font-size: .83rem;
