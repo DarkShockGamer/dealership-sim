@@ -11,9 +11,19 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.3.0';
+const GAME_VERSION = '1.3.1';
 
 const PATCH_NOTES = [
+  {
+    version: '1.3.1',
+    date: 'April 2026',
+    notes: [
+      { type: 'fix', text: 'Service bay slots are now only occupied for the actual service duration. Clicking "Start Service" begins the job and claims a bay for the repair period; slots free up automatically when the job completes.' },
+      { type: 'fix', text: 'Workers can now assist with trade-in requests — they will evaluate pending deals and suggest whether to accept or counter, matching the same workflow already available for customer offers.' },
+      { type: 'fix', text: 'Workers can now assist with listing cars for sale — a "Staff: List All Cars" action in the Car Lot lets workers instantly price and list every ready, unlisted car at market value.' },
+      { type: 'fix', text: 'Player-owned lot cars and leased cars that need service or have damage now appear in the Garage tab so they can be repaired without switching to the Car Lot.' },
+    ],
+  },
   {
     version: '1.3.0',
     date: 'April 2026',
@@ -87,7 +97,7 @@ const PATCH_NOTES = [
 // DEFAULT STATE
 // ============================================================
 const DEFAULT_STATE = {
-  saveVersion: 12,
+  saveVersion: 13,
   difficulty: 'normal',
   cash: 25000,
   day: 1,
@@ -1056,6 +1066,24 @@ function loadState(slot) {
         loaded.notifications = loaded.notifications || [];
         loaded.notifications.unshift({
           message: '🔧 Save upgraded to v12 — Customer Service Garage, car theft, and security upgrades added!',
+          type: 'info',
+          day: loaded.day ?? 1,
+        });
+      }
+      if (loaded.saveVersion < 13) {
+        loaded.saveVersion = 13;
+        // v1.3.1: migrate existing service jobs to have status fields
+        for (const sc of loaded.serviceGarage || []) {
+          if (sc.status === undefined) {
+            // Old-style jobs have no status — mark as 'ready' so player can still collect
+            sc.status             = 'ready';
+            sc.serviceStartDay    = sc.serviceStartDay    ?? loaded.day ?? 1;
+            sc.serviceCompleteDay = sc.serviceCompleteDay ?? loaded.day ?? 1;
+          }
+        }
+        loaded.notifications = loaded.notifications || [];
+        loaded.notifications.unshift({
+          message: '🔩 Save upgraded to v13 — service bay slot system, worker trade-in/listing assist, and player cars in Garage updated!',
           type: 'info',
           day: loaded.day ?? 1,
         });
@@ -2089,6 +2117,78 @@ function processStaffMode2Recommendations() {
   }
 }
 
+/** Each day: staff evaluates pending trade-in requests and generates acceptance/counter suggestions. */
+function processStaffTradeInSuggestions() {
+  if (!state.staff?.length) return;
+  const pending = (state.tradeInRequests || []).filter(r => r.state === 'pending' && !r.staffSuggestion);
+  if (!pending.length) return;
+  const capacity   = state.staff.reduce((sum, s) => sum + s.speed, 0);
+  const maxActions = Math.min(pending.length, capacity);
+  for (let i = 0; i < maxActions; i++) {
+    const req       = pending[i];
+    const targetCar = state.garage.find(c => c.id === req.targetCarId);
+    if (!targetCar) continue;
+    const staffer   = state.staff[i % state.staff.length];
+    const cashDelta = req.cashDelta;
+    const netValue  = req.customerCarValue + cashDelta;
+    // A deal is "good" if net value covers at least 85% of list price
+    const threshold = targetCar.listPrice * 0.85;
+    const isGoodDeal = netValue >= threshold;
+    // Staff suggests a counter: push cashDelta towards full list parity using negotiation skill
+    const negotiationStrength = clamp((staffer.negotiation / 100) * STAFF_NEGOTIATION_WEIGHT, 0.1, 0.6);
+    const listParity  = targetCar.listPrice - req.customerCarValue; // cashDelta needed for full list
+    const suggestDelta = isGoodDeal
+      ? cashDelta // deal is already good — recommend accepting as-is
+      : Math.round(lerp(cashDelta, listParity, negotiationStrength));
+    const confidence  = isGoodDeal ? 'High' : netValue >= threshold * 0.9 ? 'Medium' : 'Low';
+    req.staffSuggestion = {
+      by: staffer.name,
+      suggestAccept: isGoodDeal,
+      suggestDelta,
+      confidence,
+      note: isGoodDeal
+        ? 'Deal looks good — recommend accepting.'
+        : `Consider countering for ${formatCurrency(req.customerCarValue + suggestDelta)} net value.`,
+    };
+    addStaffActivity(`🤝 ${staffer.name} evaluated trade-in on ${targetCar.year} ${targetCar.make} ${targetCar.model}: ${isGoodDeal ? 'recommend accept' : `suggest counter delta ${formatCurrency(suggestDelta)}`} (${confidence}).`);
+  }
+}
+
+/** Player accepts a staff suggestion on a trade-in request. */
+function applyStaffTradeInSuggestion(requestId) {
+  const req = (state.tradeInRequests || []).find(r => r.id === requestId);
+  if (!req?.staffSuggestion) return;
+  if (req.staffSuggestion.suggestAccept) {
+    acceptTradeInRequest(requestId);
+    addStaffActivity(`📝 You approved ${req.staffSuggestion.by}'s trade-in recommendation — deal accepted.`);
+  } else {
+    counterTradeInRequest(requestId, req.staffSuggestion.suggestDelta);
+    addStaffActivity(`📝 You approved ${req.staffSuggestion.by}'s trade-in counter recommendation.`);
+  }
+}
+
+/** Staff lists all eligible (unlisted, not in service, not leased) cars at market price. */
+function staffListCars() {
+  if (!state.staff?.length) { showToast('No staff available to list cars.', 'error'); return; }
+  const staffer    = state.staff[0];
+  let   listedCount = 0;
+  for (const car of state.garage) {
+    if (car.isForSale || car.inServiceUntilDay || (car.leaseStatus === 'active' && car.activeLease)) continue;
+    car.isForSale  = true;
+    car.listPrice  = car.listPrice > 0 ? car.listPrice : car.marketValue;
+    listedCount++;
+  }
+  if (listedCount === 0) {
+    showToast('No eligible cars to list — all are already listed or unavailable.', 'info'); return;
+  }
+  addStaffActivity(`🏷️ ${staffer.name} listed ${listedCount} car(s) for sale at market price.`);
+  addNote(`🏷️ ${staffer.name} listed ${listedCount} car(s) for sale.`, 'info');
+  saveState();
+  renderCarLot();
+  renderForSale();
+  showToast(`${staffer.name} listed ${listedCount} car(s) for sale!`, 'success');
+}
+
 // ============================================================
 // NEXT DAY — sub-steps
 // ============================================================
@@ -2219,6 +2319,13 @@ function pickServiceIssue() {
   return SERVICE_ISSUE_POOL[0];
 }
 
+/** Returns number of in-game days the service bay is occupied, based on the worst issue type. */
+function getServiceDays(sc) {
+  const typeOrder = { maintenance: 1, moderate: 2, major: 3 };
+  const maxOrder = (sc.issues || []).reduce((m, i) => Math.max(m, typeOrder[i.type] || 1), 1);
+  return maxOrder === 3 ? 3 : maxOrder === 2 ? 2 : 1;
+}
+
 const SERVICE_CAR_MAKES_MODELS = [
   { make: 'Toyota',   model: 'Camry'   }, { make: 'Honda',  model: 'Accord'  },
   { make: 'Ford',     model: 'F-150'   }, { make: 'Chevy',  model: 'Silverado'},
@@ -2255,19 +2362,23 @@ function generateServiceCar() {
     laborCost: totalLabor,
     revenueWhenDone: totalRevenue,
     arrivalDay: state.day,
-    daysAvailable: randomInt(5, 10), // customer picks it up after this many days if not done
+    daysAvailable: randomInt(5, 10), // customer picks it up if not started in time
+    status: 'waiting',              // 'waiting' | 'inProgress' | 'ready'
+    serviceStartDay: null,
+    serviceCompleteDay: null,
   };
 }
 
-/** Each new day: possibly bring in new service cars if there's capacity. */
+/** Each new day: possibly bring in new service cars if there's waiting-queue room. */
 function processIncomingServiceCars() {
-  const capacity = state.serviceGarageCapacity || 3;
-  const current  = (state.serviceGarage || []).length;
-  if (current >= capacity) return;
+  const capacity    = state.serviceGarageCapacity || 3;
+  const queueLimit  = capacity * 2; // waiting-room cap = twice the bay count
+  const totalJobs   = (state.serviceGarage || []).length;
+  if (totalJobs >= queueLimit) return;
   // Chance of a new service car arriving each day (scales with day/reputation)
   const arrivalChance = clamp(0.30 + state.day * 0.003 + (state.reputation - 1) * 0.15, 0.10, 0.85);
-  const slots = capacity - current;
-  for (let i = 0; i < slots; i++) {
+  const openQueueSlots = queueLimit - totalJobs;
+  for (let i = 0; i < openQueueSlots; i++) {
     if (Math.random() < arrivalChance) {
       const sc = generateServiceCar();
       state.serviceGarage.push(sc);
@@ -2276,13 +2387,17 @@ function processIncomingServiceCars() {
   }
 }
 
-/** Each day: expire service cars whose daysAvailable has run out. */
+/** Each day: expire waiting service cars whose daysAvailable has run out; also expire ready jobs after a grace period. */
 function processServiceGarageExpiry() {
   const remaining = [];
   for (const sc of (state.serviceGarage || [])) {
+    const status = sc.status || 'ready'; // legacy entries without status treated as ready
     const age = state.day - sc.arrivalDay;
-    if (age > sc.daysAvailable) {
-      addNote(`⏰ ${sc.ownerName}'s ${sc.year} ${sc.make} ${sc.model} waited too long and was picked up without service.`, 'warning');
+    if (status === 'waiting' && age > sc.daysAvailable) {
+      addNote(`⏰ ${sc.ownerName}'s ${sc.year} ${sc.make} ${sc.model} waited too long and left without service.`, 'warning');
+    } else if (status === 'ready' && sc.serviceCompleteDay !== null && state.day > (sc.serviceCompleteDay + 3)) {
+      // Customer picks up their finished car if payment not collected within 3 days of completion
+      addNote(`⏰ ${sc.ownerName} picked up their ${sc.year} ${sc.make} ${sc.model} — payment window expired.`, 'warning');
     } else {
       remaining.push(sc);
     }
@@ -2290,12 +2405,47 @@ function processServiceGarageExpiry() {
   state.serviceGarage = remaining;
 }
 
-/** Player action: complete a service job on the specified service car. */
+/** Each day: move inProgress service jobs to 'ready' when service duration has elapsed. */
+function processServiceJobCompletion() {
+  for (const sc of (state.serviceGarage || [])) {
+    if ((sc.status || '') === 'inProgress' && sc.serviceCompleteDay !== null && state.day >= sc.serviceCompleteDay) {
+      sc.status = 'ready';
+      addNote(`🔧 Service done: ${sc.ownerName}'s ${sc.year} ${sc.make} ${sc.model} is ready for pickup. Collect payment in the Garage tab.`, 'success');
+    }
+  }
+}
+
+/** Player action: start a service job — claims a bay slot and begins the repair timer. */
+function startServiceJob(serviceCarId) {
+  if (state.gameOver) return;
+  const sc = (state.serviceGarage || []).find(j => j.id === serviceCarId);
+  if (!sc) { showToast('Service job not found.', 'error'); return; }
+  if ((sc.status || 'waiting') !== 'waiting') { showToast('This job is already in progress or complete.', 'error'); return; }
+  const capacity   = state.serviceGarageCapacity || 3;
+  const inProgress = (state.serviceGarage || []).filter(j => (j.status || '') === 'inProgress').length;
+  if (inProgress >= capacity) {
+    showToast(`All ${capacity} bay slot(s) are busy — complete a current job first.`, 'error'); return;
+  }
+  const days = getServiceDays(sc);
+  sc.status             = 'inProgress';
+  sc.serviceStartDay    = state.day;
+  sc.serviceCompleteDay = state.day + days;
+  addNote(`🔩 Started service on ${sc.ownerName}'s ${sc.year} ${sc.make} ${sc.model} — ${days} day(s) in bay. Ready Day ${sc.serviceCompleteDay}.`, 'info');
+  saveState();
+  renderServiceGarage();
+  showToast(`Service started — bay occupied for ${days} day(s).`, 'info');
+}
+
+/** Player action: collect payment when a service job is complete (status === 'ready'). */
 function completeServiceJob(serviceCarId) {
   if (state.gameOver) return;
   const idx = (state.serviceGarage || []).findIndex(sc => sc.id === serviceCarId);
   if (idx === -1) { showToast('Service job not found.', 'error'); return; }
   const sc = state.serviceGarage[idx];
+  const status = sc.status || 'ready'; // legacy entries without status treated as ready
+  if (status !== 'ready') {
+    showToast('Service is not finished yet — wait until the job completes.', 'error'); return;
+  }
   if (state.cash < sc.laborCost) {
     showToast(`Need ${formatCurrency(sc.laborCost)} to cover labor costs!`, 'error'); return;
   }
@@ -2304,8 +2454,8 @@ function completeServiceJob(serviceCarId) {
   const profit = sc.revenueWhenDone - sc.laborCost;
   state.totalServiceJobsCompleted = (state.totalServiceJobsCompleted || 0) + 1;
   state.serviceGarage.splice(idx, 1);
-  addNote(`✅ Completed service for ${sc.ownerName}'s ${sc.year} ${sc.make} ${sc.model}: charged ${formatCurrency(sc.revenueWhenDone)}, labor ${formatCurrency(sc.laborCost)}, profit ${formatCurrency(profit)}.`, 'success');
-  showToast(`Service complete! +${formatCurrency(profit)} profit.`, 'success');
+  addNote(`✅ Collected payment for ${sc.ownerName}'s ${sc.year} ${sc.make} ${sc.model}: charged ${formatCurrency(sc.revenueWhenDone)}, labor ${formatCurrency(sc.laborCost)}, profit ${formatCurrency(profit)}.`, 'success');
+  showToast(`Service paid out! +${formatCurrency(profit)} profit.`, 'success');
   saveState();
   renderAll();
 }
@@ -2548,6 +2698,7 @@ function nextDay() {
   processDeliveries();
   processService();
   processTheft();
+  processServiceJobCompletion();
   processServiceGarageExpiry();
   processIncomingServiceCars();
   syncLoanTermsToDifficulty();
@@ -2568,6 +2719,7 @@ function nextDay() {
   const newOffers = generateCustomerOffers();
   state.customerOffers = [...state.customerOffers, ...newOffers];
   processStaffMode2Recommendations();
+  processStaffTradeInSuggestions();
   ensureStaffCandidates();
   runAchievementChecks();
   saveState();
@@ -3784,26 +3936,74 @@ function renderCarLot() {
         <button class="btn btn-sm btn-secondary" onclick="markAllForSale()">List All Ready Cars</button>
         <button class="btn btn-sm btn-warning" onclick="unlistAllCars()">Unlist All</button>
       </div>` : ''}
+    ${state.staff?.length ? `
+      <div class="bulk-row">
+        <button class="btn btn-sm btn-secondary" onclick="staffListCars()">${uiIcon('person')} Staff: List All Cars</button>
+      </div>` : ''}
     <div class="card-grid">${cards}</div>`;
 }
 
 // ============================================================
-// RENDER — Service Garage (v1.3.0)
+// RENDER — Service Garage (v1.3.1)
 // ============================================================
 function renderServiceGarage() {
   const el = document.getElementById('tab-garage');
-  const capacity = state.serviceGarageCapacity || 3;
-  const jobs     = state.serviceGarage || [];
+  const capacity    = state.serviceGarageCapacity || 3;
+  const jobs        = state.serviceGarage || [];
+  const inProgress  = jobs.filter(j => (j.status || 'ready') === 'inProgress').length;
+  const baysAvail   = capacity - inProgress;
 
   const TYPE_COLOR = { maintenance: 'badge-green', moderate: 'badge-yellow', major: 'badge-red' };
-  const TYPE_LABEL = { maintenance: 'Maintenance', moderate: 'Moderate', major: 'Major' };
 
   const jobCards = jobs.map(sc => {
-    const daysLeft = Math.max(0, sc.daysAvailable - (state.day - sc.arrivalDay));
+    const status    = sc.status || 'ready'; // legacy entries without status treated as ready
     const canAfford = state.cash >= sc.laborCost;
     const issueList = sc.issues.map(i =>
       `<span class="badge ${TYPE_COLOR[i.type] || 'badge-blue'}">${i.label}</span>`
     ).join(' ');
+
+    let statusBadge = '';
+    let statusRow   = '';
+    let actionHtml  = '';
+
+    if (status === 'waiting') {
+      const daysLeft = Math.max(0, sc.daysAvailable - (state.day - sc.arrivalDay));
+      statusBadge = `<span class="badge badge-blue">Waiting</span>`;
+      statusRow   = `<div class="detail-row"><span>Leaves If Not Started</span>
+                       <span class="${daysLeft <= 2 ? 'text-red' : 'text-muted'}">${daysLeft} day(s)</span></div>
+                     <div class="detail-row"><span>Service Duration</span>
+                       <span>${getServiceDays(sc)} day(s) in bay</span></div>`;
+      actionHtml  = `
+        <div class="car-actions">
+          <button class="btn btn-primary" onclick="startServiceJob('${sc.id}')" ${baysAvail > 0 ? '' : 'disabled'}
+            title="${baysAvail <= 0 ? 'All bays busy — finish a current job first' : 'Start service and occupy a bay slot'}">
+            ${uiIcon('wrench')} Start Service
+          </button>
+          <button class="btn btn-danger btn-sm" onclick="dismissServiceJob('${sc.id}')">${uiIcon('xIcon')} Dismiss</button>
+        </div>`;
+    } else if (status === 'inProgress') {
+      const daysLeft = Math.max(0, sc.serviceCompleteDay - state.day);
+      statusBadge = `<span class="badge badge-yellow">In Progress</span>`;
+      statusRow   = `<div class="detail-row"><span>Ready In</span>
+                       <span class="${daysLeft === 0 ? 'text-green' : 'text-muted'}">${daysLeft} day(s)</span></div>
+                     <div class="detail-row"><span>Complete Day</span><span>Day ${sc.serviceCompleteDay}</span></div>`;
+      actionHtml  = `
+        <div class="car-actions">
+          <button class="btn btn-secondary" disabled>${uiIcon('wrench')} In Bay — Day ${sc.serviceCompleteDay}</button>
+          <button class="btn btn-danger btn-sm" onclick="dismissServiceJob('${sc.id}')">${uiIcon('xIcon')} Cancel</button>
+        </div>`;
+    } else { // ready
+      statusBadge = `<span class="badge badge-green">Ready</span>`;
+      statusRow   = `<div class="detail-row"><span>Status</span><span class="text-green">Service complete — collect payment!</span></div>`;
+      actionHtml  = `
+        <div class="car-actions">
+          <button class="btn btn-success" onclick="completeServiceJob('${sc.id}')" ${canAfford ? '' : 'disabled'}>
+            ${uiIcon('check')} Collect (−${formatCurrency(sc.laborCost)})
+          </button>
+          <button class="btn btn-danger btn-sm" onclick="dismissServiceJob('${sc.id}')">${uiIcon('xIcon')} Dismiss</button>
+        </div>`;
+    }
+
     return `
       <div class="car-card service-car-card">
         <div class="car-card-header">
@@ -3811,9 +4011,7 @@ function renderServiceGarage() {
             <span class="car-name">${sc.year} ${sc.make} ${sc.model}</span>
             <span class="text-muted" style="font-size:.8rem"> — ${sc.ownerName}</span>
           </div>
-          <div class="badge-stack">
-            <span class="badge badge-blue">Service</span>
-          </div>
+          <div class="badge-stack">${statusBadge}</div>
         </div>
         <div class="car-details">
           <div class="detail-row"><span>Mileage</span><span>${sc.mileage.toLocaleString()} mi</span></div>
@@ -3825,15 +4023,53 @@ function renderServiceGarage() {
               ${formatCurrency(sc.revenueWhenDone - sc.laborCost)}
             </span>
           </div>
-          <div class="detail-row"><span>Days Until Pickup</span>
-            <span class="${daysLeft <= 2 ? 'text-red' : 'text-muted'}">${daysLeft} day(s)</span>
+          ${statusRow}
+        </div>
+        ${actionHtml}
+      </div>`;
+  }).join('');
+
+  // Player-owned cars that need service or have damage
+  const playerServiceCars = state.upgrades.serviceBay
+    ? (state.garage || []).filter(car => {
+        if (car.leaseStatus === 'active' && car.activeLease) return true; // leased but may need service
+        const repairNeeded = car.hiddenIssues.length > 0 || (car.condition !== 'A' && car.condition !== 'B');
+        return repairNeeded;
+      })
+    : [];
+
+  const playerCarCards = playerServiceCars.map(car => {
+    const inService  = !!car.inServiceUntilDay;
+    const isLeased   = car.leaseStatus === 'active' && !!car.activeLease;
+    const repairCost = computeRepairCost(car);
+    const canRepair  = !inService && !isLeased && state.cash >= repairCost;
+    const issueHtml  = car.hiddenIssues.length
+      ? car.hiddenIssues.map(i => `<span class="issue-tag">${uiIcon('warning')} ${i.name}</span>`).join('')
+      : `<span class="text-muted">${car.condition !== 'A' && car.condition !== 'B' ? 'Poor condition' : 'No issues'}</span>`;
+
+    return `
+      <div class="car-card service-car-card">
+        <div class="car-card-header">
+          <div>
+            ${settings.showWordmarks ? renderBrandWordmark(car.make) : ''}
+            <span class="car-name">${formatCarDisplayName(car)}</span>
+          </div>
+          <div class="badge-stack">
+            ${condBadge(car.condition)}
+            ${isLeased ? '<span class="badge badge-blue">LEASED</span>' : '<span class="badge badge-orange">Your Car</span>'}
           </div>
         </div>
+        ${inService ? `<div class="service-banner">${uiIcon('wrench')} IN SERVICE — Ready Day ${car.inServiceUntilDay}</div>` : ''}
+        <div class="car-details">
+          <div class="detail-row"><span>Issues</span><span>${issueHtml}</span></div>
+          <div class="detail-row"><span>Repair Estimate</span><span class="text-red">${formatCurrency(repairCost)}</span></div>
+          ${isLeased ? `<div class="detail-row"><span>Note</span><span class="text-muted">Repair unavailable while lease active</span></div>` : ''}
+        </div>
         <div class="car-actions">
-          <button class="btn btn-success" onclick="completeServiceJob('${sc.id}')" ${canAfford ? '' : 'disabled'}>
-            ${uiIcon('wrench')} Complete (−${formatCurrency(sc.laborCost)})
+          <button class="btn btn-secondary" onclick="basicRepair('${car.id}')" ${canRepair ? '' : 'disabled'}
+            title="${inService ? 'Already in service' : isLeased ? 'Lease active' : !state.cash >= repairCost ? 'Not enough cash' : '1 day: fixes all issues, restores condition'}">
+            ${uiIcon('wrench')} Repair (${formatCurrency(repairCost)})
           </button>
-          <button class="btn btn-danger btn-sm" onclick="dismissServiceJob('${sc.id}')">${uiIcon('xIcon')} Dismiss</button>
         </div>
       </div>`;
   }).join('');
@@ -3842,14 +4078,33 @@ function renderServiceGarage() {
   const theftInfo = getTheftChancePerCar();
   const theftPct  = (theftInfo * 100).toFixed(2);
 
+  const customerSection = jobs.length === 0
+    ? `<div class="empty-state"><p>No customer service jobs right now. New jobs arrive daily.</p></div>`
+    : `<div class="card-grid">${jobCards}</div>`;
+
+  const playerSection = state.upgrades.serviceBay
+    ? (playerServiceCars.length === 0
+        ? `<div class="empty-state"><p>All your cars are in good shape — no repairs needed right now.</p></div>`
+        : `<div class="card-grid">${playerCarCards}</div>`)
+    : `<div class="empty-state"><p>Purchase the <strong>Service Bay</strong> upgrade to repair your own inventory here.</p></div>`;
+
   el.innerHTML = `
     <div class="tab-info">
-      ${uiIcon('wrench')} Service Garage: ${jobs.length}/${capacity} active jobs.
-      ${jobs.length < capacity ? `<span class="text-green">${capacity - jobs.length} slot(s) available.</span>` : `<span class="text-red">At capacity — complete or dismiss jobs to accept new ones.</span>`}
+      ${uiIcon('wrench')} Bays: <strong>${inProgress}/${capacity}</strong> occupied.
+      ${baysAvail > 0 ? `<span class="text-green">${baysAvail} bay slot(s) free.</span>` : `<span class="text-red">All bays busy — complete a job to free a slot.</span>`}
+      &nbsp;|&nbsp; Waiting: <strong>${jobs.filter(j => (j.status||'ready') === 'waiting').length}</strong>
+      &nbsp;|&nbsp; Ready to collect: <strong>${jobs.filter(j => (j.status||'ready') === 'ready').length}</strong>
       <br>🔒 Security Level: <strong>${secLevel}</strong> — Theft chance/car/day: <strong>${theftPct}%</strong>
       ${secLevel === 0 && state.day >= 50 ? `<span class="text-red"> ⚠️ Consider Security upgrades to protect your lot.</span>` : ''}
     </div>
-    ${jobs.length === 0 ? `<div class="empty-state"><p>No customer service jobs right now. New jobs arrive daily.</p></div>` : `<div class="card-grid">${jobCards}</div>`}`;
+    <div class="category-section">
+      <h3>${uiIcon('wrench')} Customer Service Jobs (${jobs.length})</h3>
+      ${customerSection}
+    </div>
+    <div class="category-section">
+      <h3>${uiIcon('home')} Your Cars Needing Service (${playerServiceCars.length})</h3>
+      ${playerSection}
+    </div>`;
 }
 
 // ============================================================
@@ -3976,10 +4231,12 @@ function renderForSale() {
             ${isNpcCounter ? `<p class="text-muted" style="font-size:.8rem;margin-top:6px">Customer countered back. Accept, reject, or send another counter.</p>` : ''}
           </div>
           ${!isCountered ? `
+          ${req.staffSuggestion ? `<p class="text-muted" style="font-size:.78rem;margin-top:4px">${uiIcon('person')} ${req.staffSuggestion.by}: ${req.staffSuggestion.note}</p>` : ''}
           <div class="neg-input-row" style="margin-top:4px">
             <label style="color:var(--text-muted);font-size:.82rem;white-space:nowrap">Counter cash:</label>
             <input type="number" class="price-input" id="tir-${req.id}" placeholder="${Math.abs(cashDelta)}" value="${cashDelta}">
             <button class="btn btn-warning" onclick="counterTradeInRequest('${req.id}', document.getElementById('tir-${req.id}').value)">Counter</button>
+            ${req.staffSuggestion ? `<button class="btn btn-secondary" onclick="applyStaffTradeInSuggestion('${req.id}')">Use Staff</button>` : ''}
           </div>
           <div class="car-actions">
             <button class="btn btn-success" onclick="acceptTradeInRequest('${req.id}')" ${canAccept && canFit ? '' : 'disabled'}>${uiIcon('check')} Accept Deal</button>
