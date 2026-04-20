@@ -11,9 +11,17 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.3.1';
+const GAME_VERSION = '1.3.2';
 
 const PATCH_NOTES = [
+  {
+    version: '1.3.2',
+    date: 'April 2026',
+    notes: [
+      { type: 'fix', text: 'Player inventory cars and leased cars that need service or have damage now always appear in the Garage tab, regardless of whether the Service Bay upgrade has been purchased. The repair button is still gated on the upgrade.' },
+      { type: 'fix', text: 'Start Service button now works correctly — the function was not accessible to inline onclick handlers due to a missing entry in the global function registry.' },
+    ],
+  },
   {
     version: '1.3.1',
     date: 'April 2026',
@@ -1149,6 +1157,7 @@ function loadState(slot) {
 
 function migrateCar(car) {
   if (!car) return;
+  if (!Array.isArray(car.hiddenIssues)) car.hiddenIssues = [];
   if (car.inServiceUntilDay  === undefined) car.inServiceUntilDay  = null;
   if (car.pendingService     === undefined) car.pendingService     = null;
   if (car.reconditionLog     === undefined) car.reconditionLog     = [];
@@ -4029,23 +4038,33 @@ function renderServiceGarage() {
       </div>`;
   }).join('');
 
-  // Player-owned cars that need service or have damage
-  const playerServiceCars = state.upgrades.serviceBay
-    ? (state.garage || []).filter(car => {
-        if (car.leaseStatus === 'active' && car.activeLease) return true; // leased but may need service
-        const repairNeeded = car.hiddenIssues.length > 0 || (car.condition !== 'A' && car.condition !== 'B');
-        return repairNeeded;
-      })
-    : [];
+  // Player-owned cars that need service or have damage — always visible regardless of serviceBay upgrade
+  const playerServiceCars = (state.garage || []).filter(car => {
+    if (car.leaseStatus === 'active' && car.activeLease) return true; // leased cars always appear
+    const issues = car.hiddenIssues || [];
+    const repairNeeded = issues.length > 0
+      || (car.condition !== 'A' && car.condition !== 'B')
+      || (car.crashDamageSeverity && car.crashDamageSeverity !== 'none'); // catch old saves
+    return repairNeeded;
+  });
+
+  const hasBay = !!state.upgrades.serviceBay;
 
   const playerCarCards = playerServiceCars.map(car => {
     const inService  = !!car.inServiceUntilDay;
     const isLeased   = car.leaseStatus === 'active' && !!car.activeLease;
     const repairCost = computeRepairCost(car);
-    const canRepair  = !inService && !isLeased && state.cash >= repairCost;
-    const issueHtml  = car.hiddenIssues.length
-      ? car.hiddenIssues.map(i => `<span class="issue-tag">${uiIcon('warning')} ${i.name}</span>`).join('')
+    const canRepair  = hasBay && !inService && !isLeased && state.cash >= repairCost;
+    const issues     = car.hiddenIssues || [];
+    const issueHtml  = issues.length
+      ? issues.map(i => `<span class="issue-tag">${uiIcon('warning')} ${i.name}</span>`).join('')
       : `<span class="text-muted">${car.condition !== 'A' && car.condition !== 'B' ? 'Poor condition' : 'No issues'}</span>`;
+
+    const repairTitle = !hasBay ? 'Purchase the Service Bay upgrade to repair your inventory'
+      : inService ? 'Already in service'
+      : isLeased  ? 'Lease active — repair unavailable'
+      : state.cash < repairCost ? 'Not enough cash'
+      : '1 day: fixes all issues, restores condition';
 
     return `
       <div class="car-card service-car-card">
@@ -4067,7 +4086,7 @@ function renderServiceGarage() {
         </div>
         <div class="car-actions">
           <button class="btn btn-secondary" onclick="basicRepair('${car.id}')" ${canRepair ? '' : 'disabled'}
-            title="${inService ? 'Already in service' : isLeased ? 'Lease active' : !state.cash >= repairCost ? 'Not enough cash' : '1 day: fixes all issues, restores condition'}">
+            title="${repairTitle}">
             ${uiIcon('wrench')} Repair (${formatCurrency(repairCost)})
           </button>
         </div>
@@ -4082,11 +4101,10 @@ function renderServiceGarage() {
     ? `<div class="empty-state"><p>No customer service jobs right now. New jobs arrive daily.</p></div>`
     : `<div class="card-grid">${jobCards}</div>`;
 
-  const playerSection = state.upgrades.serviceBay
-    ? (playerServiceCars.length === 0
-        ? `<div class="empty-state"><p>All your cars are in good shape — no repairs needed right now.</p></div>`
-        : `<div class="card-grid">${playerCarCards}</div>`)
-    : `<div class="empty-state"><p>Purchase the <strong>Service Bay</strong> upgrade to repair your own inventory here.</p></div>`;
+  const playerSection = playerServiceCars.length === 0
+    ? `<div class="empty-state"><p>All your cars are in good shape — no repairs needed right now.</p></div>`
+    : (hasBay ? '' : `<div class="tab-info"><span class="text-yellow">⚠️ Purchase the <strong>Service Bay</strong> upgrade (Upgrades tab) to repair these cars.</span></div>`)
+      + `<div class="card-grid">${playerCarCards}</div>`;
 
   el.innerHTML = `
     <div class="tab-info">
@@ -5693,7 +5711,7 @@ function init() {
     returnToMenu,
     showPatchNotesModal, closePatchNotesModal,
     tutorialNext, tutorialSkip, tutorialDisable,
-    completeServiceJob, dismissServiceJob,
+    startServiceJob, completeServiceJob, dismissServiceJob,
     toggleMenuChangelog,
   });
 
