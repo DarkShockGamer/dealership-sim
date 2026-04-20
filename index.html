@@ -45,11 +45,8 @@
         <button class="menu-btn menu-btn-load" id="menu-btn-load">📂 &nbsp;Load</button>
         <button class="menu-btn menu-btn-settings" id="menu-btn-settings">⚙ &nbsp;Settings</button>
       </div>
-      <!-- Latest Update panel -->
+      <!-- Latest Update panel — collapsible -->
       <div class="menu-patch-notes" id="menu-patch-notes" aria-label="Latest update">
-        <div class="menu-patch-notes-title">📋 Latest Update</div>
-        <div id="menu-patch-notes-content"></div>
-        <button class="menu-pn-view-all" onclick="showPatchNotesModal()">View full patch notes</button>
       </div>
     </div>
 
@@ -126,7 +123,7 @@
       </div>
     </div>
 
-    <span class="menu-version" aria-hidden="true">v1.2.1</span>
+    <span class="menu-version" aria-hidden="true">v1.3.0</span>
   </div>
 
   <!-- Delete-slot confirmation dialog -->
@@ -191,7 +188,7 @@
       <div class="stat-chip" id="stat-cash"><img class="ui-icon" src="assets/icons/cash.svg" alt="Cash"> $25,000</div>
       <div class="stat-chip" id="stat-day"><img class="ui-icon" src="assets/icons/calendar.svg" alt="Day"> Day 1</div>
       <div class="stat-chip" id="stat-rep"><img class="ui-icon" src="assets/icons/star.svg" alt="Rep"> Rep 1.00</div>
-      <div class="stat-chip" id="stat-garage"><img class="ui-icon" src="assets/icons/home.svg" alt="Garage"> 0 / 5</div>
+      <div class="stat-chip" id="stat-garage"><img class="ui-icon" src="assets/icons/home.svg" alt="Lot"> 0 / 5</div>
       <div class="stat-chip" id="stat-debt"><img class="ui-icon" src="assets/icons/bank.svg" alt="Debt"> Debt $0</div>
       <div class="stat-chip" id="stat-lease"><img class="ui-icon" src="assets/icons/document.svg" alt="Leases"> Leases 0 · $0/day</div>
     </div>
@@ -206,7 +203,8 @@
       <button class="tab-btn active" id="tab-btn-dashboard" data-tab="dashboard"  role="tab" aria-selected="true" aria-controls="tab-dashboard"><img class="ui-icon" src="assets/icons/chart-bar.svg" alt=""> Dashboard</button>
       <button class="tab-btn"        id="tab-btn-factory" data-tab="factory"    role="tab" aria-selected="false" aria-controls="tab-factory"><img class="ui-icon" src="assets/icons/factory.svg" alt=""> Factory</button>
       <button class="tab-btn"        id="tab-btn-usedmarket" data-tab="usedmarket" role="tab" aria-selected="false" aria-controls="tab-usedmarket"><img class="ui-icon" src="assets/icons/car.svg" alt=""> Used Market</button>
-      <button class="tab-btn"        id="tab-btn-garage" data-tab="garage"     role="tab" aria-selected="false" aria-controls="tab-garage"><img class="ui-icon" src="assets/icons/key.svg" alt=""> Garage</button>
+      <button class="tab-btn"        id="tab-btn-carlot" data-tab="carlot"     role="tab" aria-selected="false" aria-controls="tab-carlot"><img class="ui-icon" src="assets/icons/key.svg" alt=""> Car Lot</button>
+      <button class="tab-btn"        id="tab-btn-garage" data-tab="garage"     role="tab" aria-selected="false" aria-controls="tab-garage"><img class="ui-icon" src="assets/icons/wrench.svg" alt=""> Garage</button>
       <button class="tab-btn"        id="tab-btn-forsale" data-tab="forsale"    role="tab" aria-selected="false" aria-controls="tab-forsale"><img class="ui-icon" src="assets/icons/tag.svg" alt=""> For Sale</button>
       <button class="tab-btn"        id="tab-btn-finance" data-tab="finance"    role="tab" aria-selected="false" aria-controls="tab-finance"><img class="ui-icon" src="assets/icons/bank.svg" alt=""> Finance</button>
       <button class="tab-btn"        id="tab-btn-upgrades" data-tab="upgrades"   role="tab" aria-selected="false" aria-controls="tab-upgrades"><img class="ui-icon" src="assets/icons/arrow-up.svg" alt=""> Upgrades</button>
@@ -219,6 +217,7 @@
       <div id="tab-dashboard"  class="tab-panel active"  role="tabpanel" aria-labelledby="tab-btn-dashboard"></div>
       <div id="tab-factory"    class="tab-panel"         role="tabpanel" aria-labelledby="tab-btn-factory"></div>
       <div id="tab-usedmarket" class="tab-panel"         role="tabpanel" aria-labelledby="tab-btn-usedmarket"></div>
+      <div id="tab-carlot"     class="tab-panel"         role="tabpanel" aria-labelledby="tab-btn-carlot"></div>
       <div id="tab-garage"     class="tab-panel"         role="tabpanel" aria-labelledby="tab-btn-garage"></div>
       <div id="tab-forsale"    class="tab-panel"         role="tabpanel" aria-labelledby="tab-btn-forsale"></div>
       <div id="tab-finance"    class="tab-panel"         role="tabpanel" aria-labelledby="tab-btn-finance"></div>
