@@ -11,9 +11,23 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.2.1';
+const GAME_VERSION = '1.3.0';
 
 const PATCH_NOTES = [
+  {
+    version: '1.3.0',
+    date: 'April 2026',
+    notes: [
+      { type: 'feature', text: 'Car Lot vs Garage: the inventory page is now called "Car Lot" and a new dedicated "Garage" page handles customer service & repair jobs.' },
+      { type: 'feature', text: 'Customer service system — customer cars return for maintenance and repairs. Oil changes and small maintenance (brakes, tires, alignment) are common; crash damage and major work are rare. Complete jobs to earn revenue.' },
+      { type: 'feature', text: 'Concurrent repair limit — only a set number of customer cars can be serviced at once. Upgrade your service capacity to take on more jobs simultaneously.' },
+      { type: 'feature', text: 'Car theft system — cars on the lot can be stolen in the late game. Theft chance starts near zero and ramps up with progression, so early play is safe.' },
+      { type: 'feature', text: 'Dealership Security upgrades — three expensive end-game tiers (Security Camera System, Guard Station, Elite Security Suite) that slash theft chance by 25 / 50 / 75 %.' },
+      { type: 'feature', text: 'Service Garage Capacity upgrades — expand from 3 to 5 / 8 / 12 concurrent customer service slots.' },
+      { type: 'feature', text: 'Keybind — press N to advance to the next day from the main game screen.' },
+      { type: 'feature', text: 'Changelog UI — the home screen patch notes panel is now a compact collapsible button: click "v1.3.0 · Change Log" to toggle the scrollable history open or closed.' },
+    ],
+  },
   {
     version: '1.2.1',
     date: 'April 2026',
@@ -73,7 +87,7 @@ const PATCH_NOTES = [
 // DEFAULT STATE
 // ============================================================
 const DEFAULT_STATE = {
-  saveVersion: 11,
+  saveVersion: 12,
   difficulty: 'normal',
   cash: 25000,
   day: 1,
@@ -116,6 +130,9 @@ const DEFAULT_STATE = {
     titleRecovery: false,
     frameDamageTools: false,
     complianceTraining: false,
+    // v1.3.0
+    securityLevel: 0,
+    serviceCapacityLevel: 0,
   },
   salesHistory: [],
   notifications: [],
@@ -150,6 +167,11 @@ const DEFAULT_STATE = {
   crashDamageRebuilds: 0,
   policeFinesReceived: 0,
   severeDamageFoundBeforeBuy: 0,
+  // v1.3.0 — service garage + theft
+  serviceGarage: [],
+  serviceGarageCapacity: 3,
+  totalServiceJobsCompleted: 0,
+  totalCarsStolen: 0,
 };
 
 let state = JSON.parse(JSON.stringify(DEFAULT_STATE));
@@ -380,6 +402,8 @@ const _P = {
   receipt:      '<path d="M3 3h18v18H3z"/><path d="M9 9h6"/><path d="M9 12h6"/><path d="M9 15h4"/><path d="M3 3v18l3-3 3 3 3-3 3 3 3-3V3"/>',
   layers:       '<polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>',
   info:         '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
+  lock:         '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  shield:       '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
 };
 // Returns a 16px UI icon SVG by key
 function uiIcon(key, ariaLabel) { return uiSvg(_P[key] || _P.info, ariaLabel); }
@@ -393,6 +417,8 @@ const UPGRADE_ICON_MAP = {
   '🧠': 'brain', '🥂': 'wine', '🏦': 'bank', '💳': 'creditCard',
   '💳💳': 'creditCard', '🏛️': 'pillar', '📉': 'trendingDown', '📸': 'camera',
   '📝': 'document', '🛠️': 'toolbox', '⭐': 'star',
+  // v1.3.0 — security + service garage
+  '📹': 'camera', '💂': 'lock', '🛡️': 'shield', '🏙️': 'building',
 };
 const ACH_ICONS = {
   star:       achSvg('<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>'),
@@ -489,25 +515,25 @@ const ACHIEVEMENTS = [
 
 const UPGRADES_CONFIG = [
   {
-    id: 'garage2', name: 'Garage Tier 2', icon: '🏗️', category: 'Garage', cost: 15000,
+    id: 'garage2', name: 'Garage Tier 2', icon: '🏗️', category: 'Car Lot', cost: 15000,
     desc: 'Expand to 10 garage slots.',
     requires: u => u.garageLevel === 1,
     apply: s => { s.upgrades.garageLevel = 2; s.garageSlots = 10; },
   },
   {
-    id: 'garage3', name: 'Garage Tier 3', icon: '🏢', category: 'Garage', cost: 40000,
+    id: 'garage3', name: 'Garage Tier 3', icon: '🏢', category: 'Car Lot', cost: 40000,
     desc: 'Expand to 20 garage slots.',
     requires: u => u.garageLevel === 2,
     apply: s => { s.upgrades.garageLevel = 3; s.garageSlots = 20; },
   },
   {
-    id: 'garage4', name: 'Garage Tier 4', icon: '🏭', category: 'Garage', cost: 90000,
+    id: 'garage4', name: 'Garage Tier 4', icon: '🏭', category: 'Car Lot', cost: 90000,
     desc: 'Expand to 35 garage slots.',
     requires: u => u.garageLevel === 3,
     apply: s => { s.upgrades.garageLevel = 4; s.garageSlots = 35; },
   },
   {
-    id: 'garage5', name: 'Garage Tier 5', icon: '🏙️', category: 'Garage', cost: 200000,
+    id: 'garage5', name: 'Garage Tier 5', icon: '🏙️', category: 'Car Lot', cost: 200000,
     desc: 'Expand to 50 garage slots. Maximum capacity.',
     requires: u => u.garageLevel === 4,
     apply: s => { s.upgrades.garageLevel = 5; s.garageSlots = 50; },
@@ -669,6 +695,44 @@ const UPGRADES_CONFIG = [
     desc: 'Advanced frame straightening gauges: reveals exact crash damage severity (minor/moderate/severe) during inspection.',
     requires: u => u.inspectionTool && !u.frameDamageTools,
     apply: s => { s.upgrades.frameDamageTools = true; },
+  },
+  // ── Security Upgrades (v1.3.0) ────────────────────────────
+  {
+    id: 'security1', name: 'Security Camera System', icon: '📹', category: 'Security', cost: 75000,
+    desc: 'HD cameras covering the entire lot. Reduces car theft chance by 25%. Requires Day 50+ to unlock.',
+    requires: u => (u.securityLevel || 0) === 0,
+    apply: s => { s.upgrades.securityLevel = 1; },
+  },
+  {
+    id: 'security2', name: 'Guard Station', icon: '💂', category: 'Security', cost: 175000,
+    desc: 'On-site security guard on overnight patrol. Reduces theft chance by 50% total.',
+    requires: u => (u.securityLevel || 0) === 1,
+    apply: s => { s.upgrades.securityLevel = 2; },
+  },
+  {
+    id: 'security3', name: 'Elite Security Suite', icon: '🛡️', category: 'Security', cost: 400000,
+    desc: 'Armed response team, GPS trackers on every car, and a private monitoring center. Reduces theft chance by 75% total.',
+    requires: u => (u.securityLevel || 0) === 2,
+    apply: s => { s.upgrades.securityLevel = 3; },
+  },
+  // ── Service Garage Capacity (v1.3.0) ──────────────────────
+  {
+    id: 'serviceCapacity1', name: 'Expanded Service Bays', icon: '🔧', category: 'Service Garage', cost: 30000,
+    desc: 'Add two extra service bays: handle up to 5 customer repair jobs at once.',
+    requires: u => (u.serviceCapacityLevel || 0) === 0,
+    apply: s => { s.upgrades.serviceCapacityLevel = 1; s.serviceGarageCapacity = 5; },
+  },
+  {
+    id: 'serviceCapacity2', name: 'Service Center Expansion', icon: '🏗️', category: 'Service Garage', cost: 80000,
+    desc: 'Full service center build-out: up to 8 customer repair jobs simultaneously.',
+    requires: u => (u.serviceCapacityLevel || 0) === 1,
+    apply: s => { s.upgrades.serviceCapacityLevel = 2; s.serviceGarageCapacity = 8; },
+  },
+  {
+    id: 'serviceCapacity3', name: 'Flagship Service Department', icon: '🏢', category: 'Service Garage', cost: 180000,
+    desc: 'Full-scale flagship service operation: up to 12 customer repair jobs at once.',
+    requires: u => (u.serviceCapacityLevel || 0) === 2,
+    apply: s => { s.upgrades.serviceCapacityLevel = 3; s.serviceGarageCapacity = 12; },
   },
 ];
 
@@ -980,6 +1044,22 @@ function loadState(slot) {
           day: loaded.day ?? 1,
         });
       }
+      if (loaded.saveVersion < 12) {
+        loaded.saveVersion = 12;
+        // v1.3.0: service garage + security
+        if (loaded.upgrades.securityLevel       === undefined) loaded.upgrades.securityLevel       = 0;
+        if (loaded.upgrades.serviceCapacityLevel=== undefined) loaded.upgrades.serviceCapacityLevel= 0;
+        loaded.serviceGarage         = loaded.serviceGarage         ?? [];
+        loaded.serviceGarageCapacity = loaded.serviceGarageCapacity ?? 3;
+        loaded.totalServiceJobsCompleted = loaded.totalServiceJobsCompleted ?? 0;
+        loaded.totalCarsStolen           = loaded.totalCarsStolen           ?? 0;
+        loaded.notifications = loaded.notifications || [];
+        loaded.notifications.unshift({
+          message: '🔧 Save upgraded to v12 — Customer Service Garage, car theft, and security upgrades added!',
+          type: 'info',
+          day: loaded.day ?? 1,
+        });
+      }
       loaded.loanBalance = loaded.loanBalance ?? 0;
       const _migTerms = LOAN_TERMS[loaded.difficulty || 'normal'] || LOAN_TERMS.normal;
       loaded.loanLimit = loaded.loanLimit ?? _migTerms.limit;
@@ -1014,11 +1094,17 @@ function loadState(slot) {
       if (loaded.upgrades.titleRecovery          === undefined) loaded.upgrades.titleRecovery          = false;
       if (loaded.upgrades.frameDamageTools       === undefined) loaded.upgrades.frameDamageTools       = false;
       if (loaded.upgrades.complianceTraining     === undefined) loaded.upgrades.complianceTraining     = false;
+      if (loaded.upgrades.securityLevel          === undefined) loaded.upgrades.securityLevel          = 0;
+      if (loaded.upgrades.serviceCapacityLevel   === undefined) loaded.upgrades.serviceCapacityLevel   = 0;
       loaded.stolenCarsAvoided       = loaded.stolenCarsAvoided       ?? 0;
       loaded.cleanTitleSalesVerified = loaded.cleanTitleSalesVerified ?? 0;
       loaded.crashDamageRebuilds     = loaded.crashDamageRebuilds     ?? 0;
       loaded.policeFinesReceived     = loaded.policeFinesReceived     ?? 0;
       loaded.severeDamageFoundBeforeBuy = loaded.severeDamageFoundBeforeBuy ?? 0;
+      loaded.serviceGarage             = loaded.serviceGarage             ?? [];
+      loaded.serviceGarageCapacity     = loaded.serviceGarageCapacity     ?? 3;
+      loaded.totalServiceJobsCompleted = loaded.totalServiceJobsCompleted ?? 0;
+      loaded.totalCarsStolen           = loaded.totalCarsStolen           ?? 0;
       // Migrate car objects
       for (const car of loaded.garage || []) migrateCar(car);
       for (const d of loaded.deliveries || []) migrateCar(d.car);
@@ -2064,6 +2150,174 @@ function processService() {
   }
 }
 
+// ============================================================
+// CAR THEFT — v1.3.0
+// ============================================================
+
+/** Returns the theft chance per car per day based on game progression. */
+function getTheftChancePerCar() {
+  const dayProgress = Math.max(0, state.day - 50);
+  const baseChance  = clamp(dayProgress / 300, 0, 1) * 0.025;
+  const secLevel    = state.upgrades.securityLevel || 0;
+  const reduction   = secLevel === 1 ? 0.25 : secLevel === 2 ? 0.50 : secLevel === 3 ? 0.75 : 0;
+  return baseChance * (1 - reduction);
+}
+
+/** Each night check if any car on the lot gets stolen. */
+function processTheft() {
+  const diffMult = state.difficulty === 'hard' ? 1.5 : state.difficulty === 'easy' ? 0.3 : 1.0;
+  const chancePerCar = getTheftChancePerCar() * diffMult;
+  if (chancePerCar <= 0) return;
+
+  const remaining = [];
+  for (const car of state.garage) {
+    if (Math.random() < chancePerCar) {
+      // Car stolen
+      const value = car.marketValue || car.purchasePrice || 5000;
+      state.totalCarsStolen = (state.totalCarsStolen || 0) + 1;
+      addNote(`🚨 THEFT: Your ${car.year} ${car.make} ${car.model} was stolen from the lot overnight! (Value: ${formatCurrency(value)})`, 'warning');
+      showToast(`🚨 Your ${car.year} ${car.make} ${car.model} was stolen!`, 'error');
+    } else {
+      remaining.push(car);
+    }
+  }
+  state.garage = remaining;
+}
+
+// ============================================================
+// SERVICE GARAGE — v1.3.0
+// ============================================================
+
+const SERVICE_ISSUE_POOL = [
+  // Common — small maintenance
+  { label: 'Oil Change',         type: 'maintenance', labor: 80,   revenue: 150,   weight: 30 },
+  { label: 'Brake Service',      type: 'maintenance', labor: 150,  revenue: 280,   weight: 20 },
+  { label: 'Tire Rotation',      type: 'maintenance', labor: 60,   revenue: 120,   weight: 20 },
+  { label: 'Wheel Alignment',    type: 'maintenance', labor: 90,   revenue: 175,   weight: 15 },
+  { label: 'Fluid Top-off',      type: 'maintenance', labor: 50,   revenue: 100,   weight: 15 },
+  { label: 'Filter Replacement', type: 'maintenance', labor: 70,   revenue: 130,   weight: 12 },
+  { label: 'Wiper Blades',       type: 'maintenance', labor: 40,   revenue: 80,    weight: 10 },
+  // Uncommon — moderate work
+  { label: 'Battery Replacement',type: 'moderate',    labor: 200,  revenue: 380,   weight: 8  },
+  { label: 'Suspension Repair',  type: 'moderate',    labor: 400,  revenue: 700,   weight: 6  },
+  { label: 'Exhaust Repair',     type: 'moderate',    labor: 350,  revenue: 600,   weight: 6  },
+  { label: 'AC Recharge',        type: 'moderate',    labor: 250,  revenue: 450,   weight: 7  },
+  // Rare — major work
+  { label: 'Engine Overhaul',    type: 'major',       labor: 1500, revenue: 2500,  weight: 3  },
+  { label: 'Transmission Work',  type: 'major',       labor: 1200, revenue: 2000,  weight: 3  },
+  { label: 'Crash Damage Repair',type: 'major',       labor: 2000, revenue: 3200,  weight: 2  },
+  { label: 'Frame Straightening',type: 'major',       labor: 1800, revenue: 2800,  weight: 1  },
+];
+
+function pickServiceIssue() {
+  const totalWeight = SERVICE_ISSUE_POOL.reduce((s, i) => s + i.weight, 0);
+  let r = Math.random() * totalWeight;
+  for (const issue of SERVICE_ISSUE_POOL) {
+    r -= issue.weight;
+    if (r <= 0) return issue;
+  }
+  return SERVICE_ISSUE_POOL[0];
+}
+
+const SERVICE_CAR_MAKES_MODELS = [
+  { make: 'Toyota',   model: 'Camry'   }, { make: 'Honda',  model: 'Accord'  },
+  { make: 'Ford',     model: 'F-150'   }, { make: 'Chevy',  model: 'Silverado'},
+  { make: 'BMW',      model: '3 Series'}, { make: 'Audi',   model: 'A4'      },
+  { make: 'Nissan',   model: 'Altima'  }, { make: 'Hyundai',model: 'Elantra' },
+  { make: 'Kia',      model: 'Sorento' }, { make: 'Jeep',   model: 'Wrangler'},
+  { make: 'Mercedes', model: 'C-Class' }, { make: 'Dodge',  model: 'Charger' },
+];
+const CUSTOMER_NAMES = [
+  'Alex P.', 'Jordan K.', 'Sam R.', 'Taylor B.', 'Morgan L.', 'Casey H.',
+  'Riley M.', 'Quinn T.', 'Avery S.', 'Drew C.', 'Parker W.', 'Logan N.',
+];
+
+function generateServiceCar() {
+  const mm    = randomFrom(SERVICE_CAR_MAKES_MODELS);
+  const year  = 2016 + randomInt(0, 9);
+  const mileage = randomInt(20000, 180000);
+  // Pick 1–3 issues, first one may be major (rare), rest are small
+  const issueCount = Math.random() < 0.2 ? randomInt(2, 3) : 1;
+  const issues = [];
+  for (let i = 0; i < issueCount; i++) {
+    issues.push({ ...pickServiceIssue() });
+  }
+  const totalLabor   = issues.reduce((s, i) => s + i.labor, 0);
+  const totalRevenue = issues.reduce((s, i) => s + i.revenue, 0);
+  return {
+    id: generateId(),
+    make: mm.make,
+    model: mm.model,
+    year,
+    mileage,
+    ownerName: randomFrom(CUSTOMER_NAMES),
+    issues,
+    laborCost: totalLabor,
+    revenueWhenDone: totalRevenue,
+    arrivalDay: state.day,
+    daysAvailable: randomInt(5, 10), // customer picks it up after this many days if not done
+  };
+}
+
+/** Each new day: possibly bring in new service cars if there's capacity. */
+function processIncomingServiceCars() {
+  const capacity = state.serviceGarageCapacity || 3;
+  const current  = (state.serviceGarage || []).length;
+  if (current >= capacity) return;
+  // Chance of a new service car arriving each day (scales with day/reputation)
+  const arrivalChance = clamp(0.30 + state.day * 0.003 + (state.reputation - 1) * 0.15, 0.10, 0.85);
+  const slots = capacity - current;
+  for (let i = 0; i < slots; i++) {
+    if (Math.random() < arrivalChance) {
+      const sc = generateServiceCar();
+      state.serviceGarage.push(sc);
+      addNote(`🔧 Service job arrived: ${sc.year} ${sc.make} ${sc.model} — ${sc.ownerName} needs ${sc.issues.map(i => i.label).join(', ')}.`, 'info');
+    }
+  }
+}
+
+/** Each day: expire service cars whose daysAvailable has run out. */
+function processServiceGarageExpiry() {
+  const remaining = [];
+  for (const sc of (state.serviceGarage || [])) {
+    const age = state.day - sc.arrivalDay;
+    if (age > sc.daysAvailable) {
+      addNote(`⏰ ${sc.ownerName}'s ${sc.year} ${sc.make} ${sc.model} waited too long and was picked up without service.`, 'warning');
+    } else {
+      remaining.push(sc);
+    }
+  }
+  state.serviceGarage = remaining;
+}
+
+/** Player action: complete a service job on the specified service car. */
+function completeServiceJob(serviceCarId) {
+  if (state.gameOver) return;
+  const idx = (state.serviceGarage || []).findIndex(sc => sc.id === serviceCarId);
+  if (idx === -1) { showToast('Service job not found.', 'error'); return; }
+  const sc = state.serviceGarage[idx];
+  if (state.cash < sc.laborCost) {
+    showToast(`Need ${formatCurrency(sc.laborCost)} to cover labor costs!`, 'error'); return;
+  }
+  state.cash -= sc.laborCost;
+  state.cash += sc.revenueWhenDone;
+  const profit = sc.revenueWhenDone - sc.laborCost;
+  state.totalServiceJobsCompleted = (state.totalServiceJobsCompleted || 0) + 1;
+  state.serviceGarage.splice(idx, 1);
+  addNote(`✅ Completed service for ${sc.ownerName}'s ${sc.year} ${sc.make} ${sc.model}: charged ${formatCurrency(sc.revenueWhenDone)}, labor ${formatCurrency(sc.laborCost)}, profit ${formatCurrency(profit)}.`, 'success');
+  showToast(`Service complete! +${formatCurrency(profit)} profit.`, 'success');
+  saveState();
+  renderAll();
+}
+
+/** Player action: dismiss/reject a service job (car leaves without service). */
+function dismissServiceJob(serviceCarId) {
+  state.serviceGarage = (state.serviceGarage || []).filter(sc => sc.id !== serviceCarId);
+  addNote('🚗 Service car dismissed — no job done.', 'info');
+  saveState();
+  renderAll();
+}
+
 function processForSale() {
   const soldIds = new Set();
   const impoundedIds = new Set();
@@ -2293,6 +2547,9 @@ function nextDay() {
   state.day++;
   processDeliveries();
   processService();
+  processTheft();
+  processServiceGarageExpiry();
+  processIncomingServiceCars();
   syncLoanTermsToDifficulty();
   processOverhead();          // daily lot/garage/staff costs
   processLoanAndDelinquency();// daily debt service and delinquency ladder
@@ -2342,7 +2599,7 @@ function buyFromFactory(catalogIdx) {
   if (state.cash < entry.basePrice) { showToast('Not enough cash!', 'error'); return; }
   const occupied = state.garage.length + state.deliveries.length;
   if (occupied >= state.garageSlots) {
-    showToast('No garage space (including pending deliveries)!', 'error'); return;
+    showToast('No lot space (including pending deliveries)!', 'error'); return;
   }
   state.cash -= entry.basePrice;
   const condition  = pickCondition([0.40, 0.45, 0.13, 0.02]);
@@ -2692,7 +2949,7 @@ function markForSale(carId) {
     state.tradeInRequests = state.tradeInRequests.filter(r => r.targetCarId !== carId);
   }
   saveState();
-  renderGarage();
+  renderCarLot();
   renderForSale();
   // Refresh tutorial after partial renders: re-check completion and resize spotlight
   _tutorialUpdateNextButton();
@@ -2873,7 +3130,7 @@ function makeLeaseAvailable(carId) {
   if (car.isForSale) { showToast('Unlist the car before offering lease.', 'error'); return; }
   car.leaseStatus = 'available';
   saveState();
-  renderGarage();
+  renderCarLot();
 }
 
 function stopOfferingLease(carId) {
@@ -2882,7 +3139,7 @@ function stopOfferingLease(carId) {
   if (car.leaseStatus !== 'available') return;
   car.leaseStatus = 'none';
   saveState();
-  renderGarage();
+  renderCarLot();
 }
 
 function viewLeaseDetails(carId) {
@@ -2908,7 +3165,7 @@ function viewLeaseDetails(carId) {
 function toggleShowLeasedCars() {
   settings.showLeasedCars = !settings.showLeasedCars;
   saveSettings();
-  renderGarage();
+  renderCarLot();
 }
 
 // ============================================================
@@ -3054,7 +3311,7 @@ function renderDashboard() {
         <div class="stat-row"><span>Cash</span><strong>${formatCurrency(state.cash)}</strong></div>
         <div class="stat-row"><span>Day</span><strong>${state.day}</strong></div>
         <div class="stat-row"><span>Reputation</span><strong>${state.reputation.toFixed(2)}</strong></div>
-        <div class="stat-row"><span>Garage</span><strong>${state.garage.length} / ${state.garageSlots} slots</strong></div>
+        <div class="stat-row"><span>Car Lot</span><strong>${state.garage.length} / ${state.garageSlots} slots</strong></div>
         <div class="stat-row"><span>Daily Overhead</span>
           <strong class="text-red">−${formatCurrency(Math.round(overhead * diffMult))}/day</strong></div>
         <div class="stat-row"><span>Daily Wages</span><strong class="text-red">−${formatCurrency(wageTotal)}/day</strong></div>
@@ -3177,7 +3434,7 @@ function renderFactory() {
           <div class="detail-row"><span>Delivery</span><span>${delivDays} day${delivDays !== 1 ? 's' : ''}</span></div>
         </div>
         <button class="btn btn-primary btn-full" onclick="buyFromFactory(${car.idx})" ${canBuy ? '' : 'disabled'}>
-          ${garageFull ? `${uiIcon('ban')} Garage Full` : state.cash < car.basePrice ? `${uiIcon('warning')} Need ${formatCurrency(car.basePrice - state.cash)} more` : `Order — ${formatCurrency(car.basePrice)}`}
+          ${garageFull ? `${uiIcon('ban')} Lot Full` : state.cash < car.basePrice ? `${uiIcon('warning')} Need ${formatCurrency(car.basePrice - state.cash)} more` : `Order — ${formatCurrency(car.basePrice)}`}
         </button>
       </div>`;
   }
@@ -3348,7 +3605,7 @@ function renderUsedMarket() {
   el.innerHTML = `
     <div class="tab-info">
       ${uiIcon('car')} ${state.usedMarketOffers.length} used car(s) available. Listings refresh each day.
-      Garage: ${state.garage.length}/${state.garageSlots} slots.
+      Car Lot: ${state.garage.length}/${state.garageSlots} slots.
       ${state.upgrades.negotiationTraining ? `${uiIcon('handshake')} Negotiation Training active — better deal outcomes.` : ''}
       ${state.upgrades.dmvDatabaseAccess ? `🗂️ DMV Database Access active — inspection reveals legal status.` : ''}
       ${state.upgrades.vinScanner ? `🔦 VIN Scanner active — inspection reveals VIN condition.` : ''}
@@ -3358,15 +3615,15 @@ function renderUsedMarket() {
 }
 
 // ============================================================
-// RENDER — Garage
+// RENDER — Car Lot (formerly Garage)
 // ============================================================
-function renderGarage() {
-  const el = document.getElementById('tab-garage');
+function renderCarLot() {
+  const el = document.getElementById('tab-carlot');
   const showLeased = settings.showLeasedCars !== false;
 
   if (!state.garage.length) {
     el.innerHTML = `<div class="empty-state">
-      <p>Your garage is empty. Order from the <strong>Factory</strong> tab or buy from <strong>Used Market</strong>.</p></div>`;
+      <p>Your lot is empty. Order from the <strong>Factory</strong> tab or buy from <strong>Used Market</strong>.</p></div>`;
     return;
   }
 
@@ -3496,7 +3753,7 @@ function renderGarage() {
           <div class="price-input-row">
             <label>List Price:</label>
             <input type="number" class="price-input" value="${car.listPrice}" min="1"
-              onchange="updateListPrice('${car.id}', this.value); renderGarage()">
+              onchange="updateListPrice('${car.id}', this.value); renderCarLot()">
           </div>` : ''}
         ${reconHtml}
         <div class="car-actions" style="margin-top:4px">
@@ -3512,7 +3769,7 @@ function renderGarage() {
   const activeLeases = state.garage.filter(c => c.leaseStatus === 'active' && c.activeLease).length;
   el.innerHTML = `
     <div class="tab-info">
-      ${uiIcon('home')} Garage: ${state.garage.length}/${state.garageSlots} slots.
+      ${uiIcon('home')} Car Lot: ${state.garage.length}/${state.garageSlots} slots.
       ${state.garage.filter(c => c.isForSale).length} listed for sale.
       ${state.garage.filter(c => c.inServiceUntilDay).length ? `${uiIcon('wrench')} ${state.garage.filter(c => c.inServiceUntilDay).length} in service.` : ''}
       ${activeLeases ? `${uiIcon('document')} ${activeLeases} active lease(s).` : ''}
@@ -3528,6 +3785,71 @@ function renderGarage() {
         <button class="btn btn-sm btn-warning" onclick="unlistAllCars()">Unlist All</button>
       </div>` : ''}
     <div class="card-grid">${cards}</div>`;
+}
+
+// ============================================================
+// RENDER — Service Garage (v1.3.0)
+// ============================================================
+function renderServiceGarage() {
+  const el = document.getElementById('tab-garage');
+  const capacity = state.serviceGarageCapacity || 3;
+  const jobs     = state.serviceGarage || [];
+
+  const TYPE_COLOR = { maintenance: 'badge-green', moderate: 'badge-yellow', major: 'badge-red' };
+  const TYPE_LABEL = { maintenance: 'Maintenance', moderate: 'Moderate', major: 'Major' };
+
+  const jobCards = jobs.map(sc => {
+    const daysLeft = Math.max(0, sc.daysAvailable - (state.day - sc.arrivalDay));
+    const canAfford = state.cash >= sc.laborCost;
+    const issueList = sc.issues.map(i =>
+      `<span class="badge ${TYPE_COLOR[i.type] || 'badge-blue'}">${i.label}</span>`
+    ).join(' ');
+    return `
+      <div class="car-card service-car-card">
+        <div class="car-card-header">
+          <div>
+            <span class="car-name">${sc.year} ${sc.make} ${sc.model}</span>
+            <span class="text-muted" style="font-size:.8rem"> — ${sc.ownerName}</span>
+          </div>
+          <div class="badge-stack">
+            <span class="badge badge-blue">Service</span>
+          </div>
+        </div>
+        <div class="car-details">
+          <div class="detail-row"><span>Mileage</span><span>${sc.mileage.toLocaleString()} mi</span></div>
+          <div class="detail-row"><span>Issues</span><span>${issueList}</span></div>
+          <div class="detail-row"><span>Labor Cost</span><span class="text-red">−${formatCurrency(sc.laborCost)}</span></div>
+          <div class="detail-row"><span>Customer Pays</span><span class="text-green">+${formatCurrency(sc.revenueWhenDone)}</span></div>
+          <div class="detail-row"><span>Your Profit</span>
+            <span class="${sc.revenueWhenDone - sc.laborCost >= 0 ? 'text-green' : 'text-red'}">
+              ${formatCurrency(sc.revenueWhenDone - sc.laborCost)}
+            </span>
+          </div>
+          <div class="detail-row"><span>Days Until Pickup</span>
+            <span class="${daysLeft <= 2 ? 'text-red' : 'text-muted'}">${daysLeft} day(s)</span>
+          </div>
+        </div>
+        <div class="car-actions">
+          <button class="btn btn-success" onclick="completeServiceJob('${sc.id}')" ${canAfford ? '' : 'disabled'}>
+            ${uiIcon('wrench')} Complete (−${formatCurrency(sc.laborCost)})
+          </button>
+          <button class="btn btn-danger btn-sm" onclick="dismissServiceJob('${sc.id}')">${uiIcon('xIcon')} Dismiss</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  const secLevel = state.upgrades.securityLevel || 0;
+  const theftInfo = getTheftChancePerCar();
+  const theftPct  = (theftInfo * 100).toFixed(2);
+
+  el.innerHTML = `
+    <div class="tab-info">
+      ${uiIcon('wrench')} Service Garage: ${jobs.length}/${capacity} active jobs.
+      ${jobs.length < capacity ? `<span class="text-green">${capacity - jobs.length} slot(s) available.</span>` : `<span class="text-red">At capacity — complete or dismiss jobs to accept new ones.</span>`}
+      <br>🔒 Security Level: <strong>${secLevel}</strong> — Theft chance/car/day: <strong>${theftPct}%</strong>
+      ${secLevel === 0 && state.day >= 50 ? `<span class="text-red"> ⚠️ Consider Security upgrades to protect your lot.</span>` : ''}
+    </div>
+    ${jobs.length === 0 ? `<div class="empty-state"><p>No customer service jobs right now. New jobs arrive daily.</p></div>` : `<div class="card-grid">${jobCards}</div>`}`;
 }
 
 // ============================================================
@@ -3677,7 +3999,7 @@ function renderForSale() {
       ${offersHtml || ''}
       ${tradeInHtml}
       <div class="empty-state">
-        <p>No cars are listed for sale. Go to <strong>Garage</strong> and click "Mark for Sale".</p></div>`;
+        <p>No cars are listed for sale. Go to <strong>Car Lot</strong> and click "Mark for Sale".</p></div>`;
     return;
   }
 
@@ -3992,7 +4314,7 @@ function renderSettings() {
           <strong class="text-red">−${formatCurrency(getTotalStaffWages())}/day</strong>
         </div>
         <div class="stat-row">
-          <span>Garage Level</span>
+          <span>Car Lot Level</span>
           <strong>Tier ${state.upgrades.garageLevel} (${state.garageSlots} slots)</strong>
         </div>
         <p class="text-muted" style="font-size:.82rem;margin-top:10px">
@@ -4013,7 +4335,8 @@ function renderAll() {
     case 'dashboard':   renderDashboard();       break;
     case 'factory':     renderFactory();         break;
     case 'usedmarket':  renderUsedMarket();      break;
-    case 'garage':      renderGarage();          break;
+    case 'carlot':      renderCarLot();          break;
+    case 'garage':      renderServiceGarage();   break;
     case 'forsale':     renderForSale();         break;
     case 'finance':     renderFinance();         break;
     case 'upgrades':    renderUpgrades();        break;
@@ -4037,7 +4360,8 @@ function switchTab(name) {
     case 'dashboard':   renderDashboard();       break;
     case 'factory':     renderFactory();         break;
     case 'usedmarket':  renderUsedMarket();      break;
-    case 'garage':      renderGarage();          break;
+    case 'carlot':      renderCarLot();          break;
+    case 'garage':      renderServiceGarage();   break;
     case 'forsale':     renderForSale();         break;
     case 'finance':     renderFinance();         break;
     case 'upgrades':    renderUpgrades();        break;
@@ -4111,27 +4435,47 @@ function closePatchNotesModal() {
   localStorage.setItem('dealerSim_lastSeenVersion', GAME_VERSION);
 }
 
-/** Render the compact patch notes panel on the home screen. */
+/** Render the compact patch notes panel on the home screen (collapsible). */
 function renderMenuPatchNotes() {
   const latest = PATCH_NOTES[0];
-  const TYPE_ICON = { feature: '✨', balance: '⚖️', fix: '🔧' };
-  const items = latest.notes.slice(0, 5).map(n =>
-    `<li class="menu-pn-item"><span class="menu-pn-icon">${TYPE_ICON[n.type] || '•'}</span>${n.text}</li>`
-  ).join('');
-  const moreCount = latest.notes.length - 5;
-  const moreLink = moreCount > 0
-    ? `<button class="menu-pn-more-btn" onclick="showPatchNotesModal()">+ ${moreCount} more changes</button>`
-    : '';
-  const el = document.getElementById('menu-patch-notes-content');
-  if (el) {
-    el.innerHTML = `
-      <div class="menu-pn-header">
-        <span class="menu-pn-version">v${latest.version}</span>
-        <span class="menu-pn-date">${latest.date}</span>
+  const TYPE_LABEL = { feature: '✨ New', balance: '⚖️ Balance', fix: '🔧 Fix' };
+  const content = PATCH_NOTES.map(pn => `
+    <div class="pn-version-block">
+      <div class="pn-version-header">
+        <span class="pn-version-tag">v${pn.version}</span>
+        <span class="pn-version-date">${pn.date}</span>
       </div>
-      <ul class="menu-pn-list">${items}</ul>
-      ${moreLink}`;
-  }
+      <ul class="pn-list">
+        ${pn.notes.map(n => `
+          <li class="pn-item pn-type-${n.type}">
+            <span class="pn-label">${TYPE_LABEL[n.type] || n.type}</span>
+            ${n.text}
+          </li>`).join('')}
+      </ul>
+    </div>`).join('');
+
+  const wrapper = document.getElementById('menu-patch-notes');
+  if (!wrapper) return;
+  wrapper.innerHTML = `
+    <button class="menu-changelog-btn" id="menu-changelog-toggle" onclick="toggleMenuChangelog()" aria-expanded="false" aria-controls="menu-changelog-body">
+      <span class="menu-changelog-version">v${latest.version}</span>
+      <span class="menu-changelog-label">Change Log</span>
+      <span class="menu-changelog-arrow" id="menu-changelog-arrow">▼</span>
+    </button>
+    <div class="menu-changelog-body hidden" id="menu-changelog-body">
+      <div class="menu-changelog-scroll patch-notes-content">${content}</div>
+    </div>`;
+}
+
+function toggleMenuChangelog() {
+  const body  = document.getElementById('menu-changelog-body');
+  const arrow = document.getElementById('menu-changelog-arrow');
+  const btn   = document.getElementById('menu-changelog-toggle');
+  if (!body) return;
+  const isOpen = !body.classList.contains('hidden');
+  body.classList.toggle('hidden', isOpen);
+  if (arrow) arrow.textContent = isOpen ? '▼' : '▲';
+  if (btn)   btn.setAttribute('aria-expanded', String(!isOpen));
 }
 
 /** Show the patch notes popup once per version after an update. */
@@ -4675,24 +5019,24 @@ function getTutorialSteps() {
     },
     {
       // Step 3: Wait for delivery — press Next Day
-      message: '📦 Your car is on its way and will arrive tomorrow! Click "Next Day" to advance time. Watch the top bar — your car will appear in Garage once delivered.',
+      message: '📦 Your car is on its way and will arrive tomorrow! Click "Next Day" to advance time. Watch the top bar — your car will appear in Car Lot once delivered.',
       target: '#btn-next-day',
       tab: 'dashboard',
       isComplete: () => (state.garage || []).length > initialGarageCount,
     },
     {
-      // Step 4: Navigate to Garage — user must click the tab themselves
-      message: '🔑 Great — your car has arrived! Head to the Garage tab now to see your new vehicle.',
-      target: '.tab-btn[data-tab="garage"]',
+      // Step 4: Navigate to Car Lot — user must click the tab themselves
+      message: '🔑 Great — your car has arrived! Head to the Car Lot tab now to see your new vehicle.',
+      target: '.tab-btn[data-tab="carlot"]',
       tab: null,
       noAutoTab: true,
-      isComplete: () => getActiveTab() === 'garage',
+      isComplete: () => getActiveTab() === 'carlot',
     },
     {
-      // Step 5: Mark for Sale — garage tab is active
+      // Step 5: Mark for Sale — car lot tab is active
       message: '🏷️ Find your new car and click "List for Sale". Set a price close to the car\'s estimated value (within +10%), then confirm. The tutorial will advance as soon as you list the car.',
-      target: '#tab-garage',
-      tab: 'garage',
+      target: '#tab-carlot',
+      tab: 'carlot',
       isComplete: () => (state.garage || []).some(c => c.isForSale && c.listPrice > 0),
     },
     {
@@ -5087,17 +5431,27 @@ function init() {
     drawLoan, payDownLoan,
     confirmNewGame, exportSave, hireStaff, dismissCandidate,
     toggleDarkMode, setDifficulty, toggleSfxMuted, setSfxVolume, toggleWordmarks, toggleTutorials,
-    renderGarage, renderForSale, renderUsedMarket, renderFinance, renderAchievements,
+    renderCarLot, renderServiceGarage, renderForSale, renderUsedMarket, renderFinance, renderAchievements,
     menuToggleDark, menuToggleWordmarks, menuToggleSfx, menuToggleTutorials, menuSetDifficulty,
     returnToMenu,
     showPatchNotesModal, closePatchNotesModal,
     tutorialNext, tutorialSkip, tutorialDisable,
+    completeServiceJob, dismissServiceJob,
+    toggleMenuChangelog,
   });
 
   // Keyboard navigation — arrow keys cycle through visible tabs, ignore when focus is in input/select/textarea
   document.addEventListener('keydown', e => {
     const tag = document.activeElement?.tagName?.toLowerCase();
     if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+    // N key — advance to next day
+    if (e.key === 'n' || e.key === 'N') {
+      const gameShell = document.getElementById('home-screen');
+      if (gameShell && !gameShell.classList.contains('hidden') && gameShell.style.display !== 'none') return;
+      e.preventDefault();
+      nextDay();
+      return;
+    }
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
     const tabs = [...document.querySelectorAll('.tab-btn:not([style*="display: none"]):not([style*="display:none"])')];
     if (!tabs.length) return;

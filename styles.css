@@ -1313,3 +1313,14 @@ body.dark .tradein-summary {
     font-size: .7rem;
   }
 }
+
+/* ============================================================
+   Service Garage — v1.3.0
+   ============================================================ */
+.service-car-card {
+  border-left: 3px solid var(--warning, #f59e0b);
+}
+
+.service-car-card .car-card-header {
+  background: rgba(245, 158, 11, 0.06);
+}
