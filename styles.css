@@ -1324,3 +1324,72 @@ body.dark .tradein-summary {
 .service-car-card .car-card-header {
   background: rgba(245, 158, 11, 0.06);
 }
+
+
+/* ============================================================
+   Service Tab — Locked Overlay (v1.3.3)
+   ============================================================ */
+.service-locked-wrapper {
+  position: relative;
+  min-height: 400px;
+}
+
+/* The greyed-out background content — not interactive */
+.service-locked-backdrop {
+  pointer-events: none;
+  user-select: none;
+  opacity: 0.25;
+  filter: blur(2px) grayscale(0.6);
+}
+
+/* Full-area overlay that blocks all clicks */
+.service-locked-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: var(--radius, 8px);
+  pointer-events: all;
+  z-index: 10;
+}
+
+.service-locked-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 36px 40px;
+  background: var(--card-bg, #1e2535);
+  border: 2px solid var(--border, #2d3a52);
+  border-radius: var(--radius, 8px);
+  max-width: 380px;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.service-lock-icon {
+  width: 72px;
+  height: 72px;
+  color: var(--warning, #f59e0b);
+  stroke-width: 1.5;
+}
+
+.service-locked-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--text, #e2e8f0);
+  margin: 0;
+}
+
+.service-locked-msg {
+  font-size: 0.92rem;
+  color: var(--text-muted, #94a3b8);
+  margin: 0;
+  line-height: 1.55;
+}
+
+.service-locked-msg strong {
+  color: var(--warning, #f59e0b);
+}

@@ -11,14 +11,24 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.3.2';
+const GAME_VERSION = '1.3.3';
 
 const PATCH_NOTES = [
+  {
+    version: '1.3.3',
+    date: 'April 2026',
+    notes: [
+      { type: 'feature', text: 'Renamed Garage tab to Service — all navigation labels and headings now say "Service".' },
+      { type: 'feature', text: 'Service tab locked until Service Bay upgrade is purchased — the tab shows a greyed-out overlay with a lock icon and message. Once the upgrade is bought the overlay disappears and full service functionality is available.' },
+      { type: 'fix', text: 'Fixed service payout collection — the Collect button now always works when a job is marked Ready; removed the erroneous upfront-cash block that sometimes prevented collecting.' },
+      { type: 'fix', text: 'Corrected Collect button label — now shows the actual net payout ("+$X profit") instead of the labor cost.' },
+    ],
+  },
   {
     version: '1.3.2',
     date: 'April 2026',
     notes: [
-      { type: 'fix', text: 'Player inventory cars and leased cars that need service or have damage now always appear in the Garage tab, regardless of whether the Service Bay upgrade has been purchased. The repair button is still gated on the upgrade.' },
+      { type: 'fix', text: 'Player inventory cars and leased cars that need service or have damage now always appear in the Service tab, regardless of whether the Service Bay upgrade has been purchased. The repair button is still gated on the upgrade.' },
       { type: 'fix', text: 'Start Service button now works correctly — the function was not accessible to inline onclick handlers due to a missing entry in the global function registry.' },
     ],
   },
@@ -2419,7 +2429,7 @@ function processServiceJobCompletion() {
   for (const sc of (state.serviceGarage || [])) {
     if ((sc.status || '') === 'inProgress' && sc.serviceCompleteDay !== null && state.day >= sc.serviceCompleteDay) {
       sc.status = 'ready';
-      addNote(`🔧 Service done: ${sc.ownerName}'s ${sc.year} ${sc.make} ${sc.model} is ready for pickup. Collect payment in the Garage tab.`, 'success');
+      addNote(`🔧 Service done: ${sc.ownerName}'s ${sc.year} ${sc.make} ${sc.model} is ready for pickup. Collect payment in the Service tab.`, 'success');
     }
   }
 }
@@ -2455,12 +2465,9 @@ function completeServiceJob(serviceCarId) {
   if (status !== 'ready') {
     showToast('Service is not finished yet — wait until the job completes.', 'error'); return;
   }
-  if (state.cash < sc.laborCost) {
-    showToast(`Need ${formatCurrency(sc.laborCost)} to cover labor costs!`, 'error'); return;
-  }
-  state.cash -= sc.laborCost;
-  state.cash += sc.revenueWhenDone;
-  const profit = sc.revenueWhenDone - sc.laborCost;
+  const net = sc.revenueWhenDone - sc.laborCost;
+  state.cash += net;
+  const profit = net;
   state.totalServiceJobsCompleted = (state.totalServiceJobsCompleted || 0) + 1;
   state.serviceGarage.splice(idx, 1);
   addNote(`✅ Collected payment for ${sc.ownerName}'s ${sc.year} ${sc.make} ${sc.model}: charged ${formatCurrency(sc.revenueWhenDone)}, labor ${formatCurrency(sc.laborCost)}, profit ${formatCurrency(profit)}.`, 'success');
@@ -3953,7 +3960,7 @@ function renderCarLot() {
 }
 
 // ============================================================
-// RENDER — Service Garage (v1.3.1)
+// RENDER — Service (v1.3.3)
 // ============================================================
 function renderServiceGarage() {
   const el = document.getElementById('tab-garage');
@@ -3966,7 +3973,7 @@ function renderServiceGarage() {
 
   const jobCards = jobs.map(sc => {
     const status    = sc.status || 'ready'; // legacy entries without status treated as ready
-    const canAfford = state.cash >= sc.laborCost;
+    const netProfit = sc.revenueWhenDone - sc.laborCost;
     const issueList = sc.issues.map(i =>
       `<span class="badge ${TYPE_COLOR[i.type] || 'badge-blue'}">${i.label}</span>`
     ).join(' ');
@@ -4006,8 +4013,8 @@ function renderServiceGarage() {
       statusRow   = `<div class="detail-row"><span>Status</span><span class="text-green">Service complete — collect payment!</span></div>`;
       actionHtml  = `
         <div class="car-actions">
-          <button class="btn btn-success" onclick="completeServiceJob('${sc.id}')" ${canAfford ? '' : 'disabled'}>
-            ${uiIcon('check')} Collect (−${formatCurrency(sc.laborCost)})
+          <button class="btn btn-success" onclick="completeServiceJob('${sc.id}')">
+            ${uiIcon('check')} Collect +${formatCurrency(netProfit)}
           </button>
           <button class="btn btn-danger btn-sm" onclick="dismissServiceJob('${sc.id}')">${uiIcon('xIcon')} Dismiss</button>
         </div>`;
@@ -4054,14 +4061,13 @@ function renderServiceGarage() {
     const inService  = !!car.inServiceUntilDay;
     const isLeased   = car.leaseStatus === 'active' && !!car.activeLease;
     const repairCost = computeRepairCost(car);
-    const canRepair  = hasBay && !inService && !isLeased && state.cash >= repairCost;
+    const canRepair  = !inService && !isLeased && state.cash >= repairCost;
     const issues     = car.hiddenIssues || [];
     const issueHtml  = issues.length
       ? issues.map(i => `<span class="issue-tag">${uiIcon('warning')} ${i.name}</span>`).join('')
       : `<span class="text-muted">${car.condition !== 'A' && car.condition !== 'B' ? 'Poor condition' : 'No issues'}</span>`;
 
-    const repairTitle = !hasBay ? 'Purchase the Service Bay upgrade to repair your inventory'
-      : inService ? 'Already in service'
+    const repairTitle = inService ? 'Already in service'
       : isLeased  ? 'Lease active — repair unavailable'
       : state.cash < repairCost ? 'Not enough cash'
       : '1 day: fixes all issues, restores condition';
@@ -4103,10 +4109,9 @@ function renderServiceGarage() {
 
   const playerSection = playerServiceCars.length === 0
     ? `<div class="empty-state"><p>All your cars are in good shape — no repairs needed right now.</p></div>`
-    : (hasBay ? '' : `<div class="tab-info"><span class="text-yellow">⚠️ Purchase the <strong>Service Bay</strong> upgrade (Upgrades tab) to repair these cars.</span></div>`)
-      + `<div class="card-grid">${playerCarCards}</div>`;
+    : `<div class="card-grid">${playerCarCards}</div>`;
 
-  el.innerHTML = `
+  const tabContent = `
     <div class="tab-info">
       ${uiIcon('wrench')} Bays: <strong>${inProgress}/${capacity}</strong> occupied.
       ${baysAvail > 0 ? `<span class="text-green">${baysAvail} bay slot(s) free.</span>` : `<span class="text-red">All bays busy — complete a job to free a slot.</span>`}
@@ -4123,6 +4128,25 @@ function renderServiceGarage() {
       <h3>${uiIcon('home')} Your Cars Needing Service (${playerServiceCars.length})</h3>
       ${playerSection}
     </div>`;
+
+  if (!hasBay) {
+    el.innerHTML = `
+      <div class="service-locked-wrapper">
+        <div class="service-locked-backdrop" aria-hidden="true">${tabContent}</div>
+        <div class="service-locked-overlay" role="status" aria-live="polite">
+          <div class="service-locked-box">
+            <svg class="service-lock-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+            <h2 class="service-locked-title">Service Bay Locked</h2>
+            <p class="service-locked-msg">Purchase the <strong>Service Bay</strong> upgrade in the <strong>Upgrades</strong> tab to unlock the Service department.</p>
+          </div>
+        </div>
+      </div>`;
+  } else {
+    el.innerHTML = tabContent;
+  }
 }
 
 // ============================================================
