@@ -11,9 +11,25 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.3.3';
+const GAME_VERSION = '1.3.4';
 
 const PATCH_NOTES = [
+  {
+    version: '1.3.4',
+    date: 'April 2026',
+    notes: [
+      { type: 'fix',     text: 'Service tab lock overlay now covers the full Service panel to its edges; navigation is unaffected.' },
+      { type: 'fix',     text: 'Service tab button is now disabled (greyed-out, unclickable) until the Service Bay upgrade is purchased.' },
+      { type: 'fix',     text: '"Stop Offering Lease" button text no longer overflows on large screens — it wraps to two lines cleanly.' },
+      { type: 'feature', text: 'New achievements: Coupon Clipper, Overconfidence Tax, Detailing Addiction, One More Upgrade, Just Looking, The Spreadsheet Won, Service With a Smile, The Floor Model, Overnight Millions, and a secret easter egg.' },
+      { type: 'feature', text: 'Easter eggs: a hidden header click sequence and small random daily surprises.' },
+      { type: 'feature', text: 'New Game / Reset button removed from the Dashboard.' },
+      { type: 'feature', text: 'Export Save and Import Save moved from Dashboard to the Settings tab.' },
+      { type: 'fix',     text: 'Finance page: "Delinquency" renamed to "Past Due" throughout the UI.' },
+      { type: 'feature', text: 'Missed payment recovery: credit now rebuilds over time after consecutive solvent days — 3 days on Easy, 7 on Normal; Hard mode has no recovery.' },
+      { type: 'feature', text: 'Hard mode bankruptcy now shows a dedicated Game Over screen (View Stats / Back to Title) instead of an auto-reset dialog.' },
+    ],
+  },
   {
     version: '1.3.3',
     date: 'April 2026',
@@ -200,6 +216,14 @@ const DEFAULT_STATE = {
   serviceGarageCapacity: 3,
   totalServiceJobsCompleted: 0,
   totalCarsStolen: 0,
+  // v1.3.4
+  consecutiveOnTimePayments: 0,
+  lastFinanceVisitDay: 0,
+  consecutiveFinanceVisitDays: 0,
+  justLookingCount: 0,
+  upgradeBoughtLowCashCount: 0,
+  peakCash: 25000,
+  easterEggFound: false,
 };
 
 let state = JSON.parse(JSON.stringify(DEFAULT_STATE));
@@ -472,20 +496,32 @@ const ACH_ICONS = {
   key:        achSvg('<path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>'),
 };
 const ACHIEVEMENTS = [
+  // ── First Steps ───────────────────────────────────────────
   { id: 'first_sale',          icon: ACH_ICONS.tag,        name: 'First Deal Done',        desc: 'Complete your first car sale.',
-    check: s => (s.salesHistory || []).length >= 1, progress: s => Math.min(1, (s.salesHistory||[]).length) },
+    check: s => (s.salesHistory || []).length >= 1 },
+  { id: 'first_tradein',       icon: ACH_ICONS.car,        name: 'Swap Deal',              desc: 'Accept your first trade-in.',
+    check: s => (s.salesHistory||[]).some(h => h.tradeInAccepted) || (s.garage||[]).some(c => c.source === 'tradein') },
+  { id: 'first_lease',         icon: ACH_ICONS.key,        name: 'Lease Launch',           desc: 'Get your first active lease.',
+    check: s => (s.garage||[]).some(c => c.leaseStatus === 'active') || (s.salesHistory||[]).some(h => h.wasLease) },
+  { id: 'first_upgrade',       icon: ACH_ICONS.layers,     name: 'Investing in the Future',desc: 'Purchase your first dealership upgrade.',
+    check: s => Object.values(s.upgrades||{}).some(v => v === true || (typeof v === 'number' && v > 1)) },
+  // ── Sales Volume ─────────────────────────────────────────
   { id: 'ten_sales',           icon: ACH_ICONS.star,       name: 'Dealership Regular',     desc: 'Sell 10 cars total.',
     check: s => (s.salesHistory || []).length >= 10, progress: s => (s.salesHistory||[]).length + '/10' },
   { id: 'fifty_sales',         icon: ACH_ICONS.trophy,     name: 'Volume Dealer',          desc: 'Sell 50 cars total.',
     check: s => (s.salesHistory || []).length >= 50, progress: s => (s.salesHistory||[]).length + '/50' },
   { id: 'hundred_sales',       icon: ACH_ICONS.award,      name: 'Century Club',           desc: 'Sell 100 cars. The lot never sleeps.',
     check: s => (s.salesHistory || []).length >= 100, progress: s => (s.salesHistory||[]).length + '/100' },
+  // ── Money Milestones ─────────────────────────────────────
   { id: 'net_worth_100k',      icon: ACH_ICONS.dollar,     name: 'Six Figures',            desc: 'Reach $100,000 in cash.',
     check: s => (s.cash || 0) >= 100000, progress: s => formatCurrency(Math.min(s.cash||0, 100000)) + '/$100k' },
   { id: 'net_worth_500k',      icon: ACH_ICONS.trending,   name: 'Half a Million',         desc: 'Accumulate $500,000 in cash.',
     check: s => (s.cash || 0) >= 500000, progress: s => formatCurrency(Math.min(s.cash||0, 500000)) + '/$500k' },
   { id: 'net_worth_1m',        icon: ACH_ICONS.flame,      name: 'Millionaire Mogul',      desc: 'Hit $1,000,000 in cash. You made it.',
     check: s => (s.cash || 0) >= 1000000, progress: s => formatCurrency(Math.min(s.cash||0, 1000000)) + '/$1M' },
+  { id: 'overnight_millions',  icon: ACH_ICONS.zap,        name: 'Overnight Millions',     desc: 'Make over $50,000 profit on a single sale.',
+    check: s => (s.salesHistory||[]).some(h => (h.profit||0) >= 50000) },
+  // ── Title & Legal ────────────────────────────────────────
   { id: 'title_clean_start',   icon: ACH_ICONS.shield,     name: 'Flawless Paperwork',     desc: 'Sell your first clean-title car.',
     check: s => !!s.achievementsUnlocked?.title_clean_start || (s.salesHistory||[]).some(h => h.titleStatus === 'clean') },
   { id: 'title_clean_streak',  icon: ACH_ICONS.repeat,     name: 'Clean Sweep',            desc: 'Sell 5 clean-title cars in a row.',
@@ -494,6 +530,17 @@ const ACHIEVEMENTS = [
     check: s => (s.salvageProfitSales || 0) >= 1 },
   { id: 'lemonade_stand',      icon: ACH_ICONS.alert,      name: 'Lemon Vendor',           desc: 'Sell 3 lemon-title cars. Sweet and sour.',
     check: s => (s.lemonSales || 0) >= 3, progress: s => (s.lemonSales||0) + '/3' },
+  { id: 'paperwork_pro',       icon: ACH_ICONS.star,       name: 'Paperwork Pro',          desc: 'Sell 25 verified clean-title cars.',
+    check: s => (s.cleanTitleSalesVerified || 0) >= 25, progress: s => (s.cleanTitleSalesVerified||0) + '/25' },
+  { id: 'not_today',           icon: ACH_ICONS.shield,     name: 'Not Today',              desc: 'Detect and refuse to buy 10 stolen cars.',
+    check: s => (s.stolenCarsAvoided || 0) >= 10, progress: s => (s.stolenCarsAvoided||0) + '/10' },
+  { id: 'eagle_eye',           icon: ACH_ICONS.lock,       name: 'Eagle Eye',              desc: 'Discover severe hidden crash damage before buying.',
+    check: s => (s.severeDamageFoundBeforeBuy || 0) >= 1 },
+  { id: 'busted',              icon: ACH_ICONS.alert,      name: 'Busted!',                desc: 'Get fined by police for a stolen or no-title car.',
+    check: s => (s.policeFinesReceived || 0) >= 1 },
+  { id: 'rebuilder',           icon: ACH_ICONS.wrench,     name: 'Crash Rebuilder',        desc: 'Repair and sell 5 cars with moderate or severe crash damage.',
+    check: s => (s.crashDamageRebuilds || 0) >= 5, progress: s => (s.crashDamageRebuilds||0) + '/5' },
+  // ── Finance ──────────────────────────────────────────────
   { id: 'loan_interest_paid',  icon: ACH_ICONS.creditcard, name: 'Bank Relationship',      desc: 'Pay at least $2,500 in loan interest.',
     check: s => (s.totalInterestPaid || 0) >= 2500, progress: s => formatCurrency(Math.min(s.totalInterestPaid||0,2500)) + '/$2.5k' },
   { id: 'interest_enthusiast', icon: ACH_ICONS.dollar,     name: 'Interest Connoisseur',   desc: 'Pay $10,000 in total interest — you love the bank.',
@@ -502,43 +549,53 @@ const ACHIEVEMENTS = [
     check: s => (s.totalLoanDrawn || 0) > 0 && Math.round(s.loanBalance || 0) <= 0 },
   { id: 'bankruptcy_survivor', icon: ACH_ICONS.flame,      name: 'Back From The Brink',    desc: 'Survive a bankruptcy and keep the doors open.',
     check: s => (s.bankruptcyCount || 0) > 0 && !s.gameOver },
-  { id: 'first_upgrade',       icon: ACH_ICONS.layers,     name: 'Investing in the Future',desc: 'Purchase your first dealership upgrade.',
-    check: s => Object.values(s.upgrades||{}).some(v => v === true || (typeof v === 'number' && v > 1)) },
+  // ── Lot Expansion ────────────────────────────────────────
   { id: 'garage_tier4',        icon: ACH_ICONS.map,        name: 'Mega Lot',               desc: 'Expand to Garage Tier 4 (35 slots).',
     check: s => (s.upgrades?.garageLevel || 1) >= 4 },
-  { id: 'first_lease',         icon: ACH_ICONS.key,        name: 'Lease Launch',           desc: 'Get your first active lease.',
-    check: s => (s.garage||[]).some(c => c.leaseStatus === 'active') || (s.salesHistory||[]).some(h => h.wasLease) },
+  { id: 'garage_tier5',        icon: ACH_ICONS.layers,     name: 'Big Lot',                desc: 'Upgrade garage to Tier 5 (50 slots).',
+    check: s => (s.upgrades?.garageLevel || 1) >= 5 },
+  // ── Leasing & Trade-Ins ──────────────────────────────────
   { id: 'five_leases',         icon: ACH_ICONS.repeat,     name: 'Fleet Manager',          desc: 'Run 5 simultaneous active leases.',
     check: s => (s.garage||[]).filter(c => c.leaseStatus === 'active').length >= 5,
     progress: s => (s.garage||[]).filter(c => c.leaseStatus === 'active').length + '/5' },
-  { id: 'first_tradein',       icon: ACH_ICONS.car,        name: 'Swap Deal',              desc: 'Accept your first trade-in.',
-    check: s => (s.salesHistory||[]).some(h => h.tradeInAccepted) || (s.garage||[]).some(c => c.source === 'tradein') },
   { id: 'five_tradeins',       icon: ACH_ICONS.handshake,  name: 'Trade-In Tycoon',        desc: 'Accept 5 trade-ins.',
     check: s => (s.totalTradeInsAccepted || 0) >= 5, progress: s => (s.totalTradeInsAccepted||0) + '/5' },
+  // ── Reconditioning ───────────────────────────────────────
   { id: 'detail_ten',          icon: ACH_ICONS.star,       name: 'Detail Fanatic',         desc: 'Detail 10 cars in total.',
     check: s => (s.totalDetailsPerformed || 0) >= 10, progress: s => (s.totalDetailsPerformed||0) + '/10' },
+  { id: 'detailing_addiction', icon: ACH_ICONS.zap,        name: 'Detailing Addiction',    desc: 'Detail 25 cars in total. That showroom shine is a lifestyle.',
+    check: s => (s.totalDetailsPerformed || 0) >= 25, progress: s => (s.totalDetailsPerformed||0) + '/25' },
+  // ── Service ──────────────────────────────────────────────
+  { id: 'service_smile',       icon: ACH_ICONS.wrench,     name: 'Service With a Smile',   desc: 'Complete 10 customer service jobs.',
+    check: s => (s.totalServiceJobsCompleted || 0) >= 10, progress: s => (s.totalServiceJobsCompleted||0) + '/10' },
+  // ── Longevity ────────────────────────────────────────────
+  { id: 'day_50',              icon: ACH_ICONS.clock,      name: 'Grind Begins',           desc: 'Reach Day 50.',
+    check: s => (s.day || 1) >= 50, progress: s => Math.min(s.day||1, 50) + '/50' },
+  { id: 'day_200',             icon: ACH_ICONS.map,        name: 'Long Haul',              desc: 'Keep the dealership running to Day 200.',
+    check: s => (s.day || 1) >= 200, progress: s => Math.min(s.day||1, 200) + '/200' },
+  // ── Specialist ───────────────────────────────────────────
   { id: 'luxury_seller',       icon: ACH_ICONS.award,      name: 'Luxury Lane',            desc: 'Sell 5 Luxury category cars.',
     check: s => (s.salesHistory||[]).filter(h => h.category === 'Luxury').length >= 5,
     progress: s => (s.salesHistory||[]).filter(h => h.category === 'Luxury').length + '/5' },
   { id: 'supercar_seller',     icon: ACH_ICONS.zap,        name: 'Supercar Broker',        desc: 'Sell a car worth over $500,000.',
     check: s => (s.salesHistory||[]).some(h => h.salePrice >= 500000) },
-  { id: 'day_50',              icon: ACH_ICONS.clock,      name: 'Grind Begins',           desc: 'Reach Day 50.',
-    check: s => (s.day || 1) >= 50, progress: s => Math.min(s.day||1, 50) + '/50' },
-  { id: 'day_200',             icon: ACH_ICONS.map,        name: 'Long Haul',              desc: 'Keep the dealership running to Day 200.',
-    check: s => (s.day || 1) >= 200, progress: s => Math.min(s.day||1, 200) + '/200' },
-  // Legal / VIN / stolen mechanics achievements
-  { id: 'garage_tier5',        icon: ACH_ICONS.layers,     name: 'Big Lot',                desc: 'Upgrade garage to Tier 5 (50 slots).',
-    check: s => (s.upgrades?.garageLevel || 1) >= 5 },
-  { id: 'not_today',           icon: ACH_ICONS.shield,     name: 'Not Today',              desc: 'Detect and refuse to buy 10 stolen cars.',
-    check: s => (s.stolenCarsAvoided || 0) >= 10, progress: s => (s.stolenCarsAvoided||0) + '/10' },
-  { id: 'paperwork_pro',       icon: ACH_ICONS.star,       name: 'Paperwork Pro',          desc: 'Sell 25 verified clean-title cars.',
-    check: s => (s.cleanTitleSalesVerified || 0) >= 25, progress: s => (s.cleanTitleSalesVerified||0) + '/25' },
-  { id: 'busted',              icon: ACH_ICONS.alert,      name: 'Busted!',                desc: 'Get fined by police for a stolen or no-title car.',
-    check: s => (s.policeFinesReceived || 0) >= 1 },
-  { id: 'eagle_eye',           icon: ACH_ICONS.lock,       name: 'Eagle Eye',              desc: 'Discover severe hidden crash damage before buying.',
-    check: s => (s.severeDamageFoundBeforeBuy || 0) >= 1 },
-  { id: 'rebuilder',           icon: ACH_ICONS.wrench,     name: 'Crash Rebuilder',        desc: 'Repair and sell 5 cars with moderate or severe crash damage.',
-    check: s => (s.crashDamageRebuilds || 0) >= 5, progress: s => (s.crashDamageRebuilds||0) + '/5' },
+  { id: 'floor_model',         icon: ACH_ICONS.clock,      name: 'The Floor Model',        desc: 'Sell a car that sat on your lot for 20+ days.',
+    check: s => (s.salesHistory||[]).some(h => (h.daysInLot || 0) >= 20) },
+  // ── Funny / Silly ────────────────────────────────────────
+  { id: 'coupon_clipper',      icon: ACH_ICONS.dollar,     name: 'Coupon Clipper',         desc: 'Make between $1 and $100 profit on a sale. Technically a profit.',
+    check: s => (s.salesHistory||[]).some(h => h.profit >= 1 && h.profit <= 100) },
+  { id: 'overconfidence_tax',  icon: ACH_ICONS.trending,   name: 'Overconfidence Tax',     desc: 'Sell a car at a loss. Bold strategy.',
+    check: s => (s.salesHistory||[]).some(h => h.profit < 0 && (h.salePrice||0) > 0) },
+  { id: 'just_looking',        icon: ACH_ICONS.alert,      name: 'Just Looking',           desc: 'Have a customer walk away after you countered 3 or more times.',
+    check: s => (s.justLookingCount || 0) >= 1 },
+  { id: 'one_more_upgrade',    icon: ACH_ICONS.layers,     name: 'One More Upgrade…',      desc: 'End a day with less than $10,000 after buying an upgrade.',
+    check: s => (s.upgradeBoughtLowCashCount || 0) >= 1 },
+  { id: 'spreadsheet_won',     icon: ACH_ICONS.trending,   name: 'The Spreadsheet Won',    desc: 'Open the Finance tab 5 days in a row.',
+    check: s => (s.consecutiveFinanceVisitDays || 0) >= 5,
+    progress: s => (s.consecutiveFinanceVisitDays||0) + '/5' },
+  // ── Secret / Easter Egg ──────────────────────────────────
+  { id: 'easter_egg',          icon: ACH_ICONS.star,       name: 'It\'s a Secret',         desc: '🥚 You found the Easter egg. The developer says hi!',
+    check: s => !!s.easterEggFound },
 ];
 
 const UPGRADES_CONFIG = [
@@ -789,6 +846,19 @@ const TI_MIN_ACCEPT_PROB     = 0.03; // floor so there is always a tiny chance e
 const formatCurrency = n => '$' + Math.round(n).toLocaleString();
 const generateId  = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 let factorySelection = { make: null, model: null };
+// Session-only flags (not persisted)
+let _boughtUpgradeToday   = false;
+let _headerBrandClicks    = 0;
+let _headerBrandClickTimer = null;
+
+const MYSTERY_PACKAGE_MSGS = [
+  'A customer left behind a box of donuts on their trade-in',
+  'Your accountant found a forgotten check in the filing cabinet',
+  'A repair job\'s parts were over-ordered and you got a refund',
+  'Someone slid a "customer appreciation" envelope under your door',
+  'A check from an old warranty claim finally arrived',
+  'The vending machine in the break room dispensed an extra snack and a lucky coin',
+];
 
 function getBrandWordmarkStyle(make) {
   return BRAND_WORDMARK_STYLES[make] || BRAND_WORDMARK_STYLES.default;
@@ -1106,6 +1176,25 @@ function loadState(slot) {
           day: loaded.day ?? 1,
         });
       }
+      if (loaded.saveVersion < 14) {
+        loaded.saveVersion = 14;
+        loaded.consecutiveOnTimePayments  = loaded.consecutiveOnTimePayments  ?? 0;
+        loaded.lastFinanceVisitDay        = loaded.lastFinanceVisitDay        ?? 0;
+        loaded.consecutiveFinanceVisitDays= loaded.consecutiveFinanceVisitDays?? 0;
+        loaded.justLookingCount           = loaded.justLookingCount           ?? 0;
+        loaded.upgradeBoughtLowCashCount  = loaded.upgradeBoughtLowCashCount  ?? 0;
+        loaded.peakCash                   = loaded.peakCash                   ?? loaded.cash ?? 25000;
+        loaded.easterEggFound             = loaded.easterEggFound             ?? false;
+        for (const offer of loaded.customerOffers || []) {
+          if (offer.playerCounterCount === undefined) offer.playerCounterCount = 0;
+        }
+        loaded.notifications = loaded.notifications || [];
+        loaded.notifications.unshift({
+          message: '🎉 Save upgraded to v14 — new achievements, credit rebuild, and Easter eggs added!',
+          type: 'info',
+          day: loaded.day ?? 1,
+        });
+      }
       loaded.loanBalance = loaded.loanBalance ?? 0;
       const _migTerms = LOAN_TERMS[loaded.difficulty || 'normal'] || LOAN_TERMS.normal;
       loaded.loanLimit = loaded.loanLimit ?? _migTerms.limit;
@@ -1151,6 +1240,16 @@ function loadState(slot) {
       loaded.serviceGarageCapacity     = loaded.serviceGarageCapacity     ?? 3;
       loaded.totalServiceJobsCompleted = loaded.totalServiceJobsCompleted ?? 0;
       loaded.totalCarsStolen           = loaded.totalCarsStolen           ?? 0;
+      loaded.consecutiveOnTimePayments  = loaded.consecutiveOnTimePayments  ?? 0;
+      loaded.lastFinanceVisitDay        = loaded.lastFinanceVisitDay        ?? 0;
+      loaded.consecutiveFinanceVisitDays= loaded.consecutiveFinanceVisitDays?? 0;
+      loaded.justLookingCount           = loaded.justLookingCount           ?? 0;
+      loaded.upgradeBoughtLowCashCount  = loaded.upgradeBoughtLowCashCount  ?? 0;
+      loaded.peakCash                   = loaded.peakCash                   ?? loaded.cash ?? 25000;
+      loaded.easterEggFound             = loaded.easterEggFound             ?? false;
+      for (const offer of loaded.customerOffers || []) {
+        if (offer.playerCounterCount === undefined) offer.playerCounterCount = 0;
+      }
       // Migrate car objects
       for (const car of loaded.garage || []) migrateCar(car);
       for (const d of loaded.deliveries || []) migrateCar(d.car);
@@ -1961,9 +2060,10 @@ function processLoanAndDelinquency() {
 
   if (state.cash < 0 || (due > 0 && state.loanBalance > 0 && state.difficulty === 'hard' && state.cash < 250)) {
     state.missedPayments = (state.missedPayments || 0) + 1;
+    state.consecutiveOnTimePayments = 0; // reset rebuild streak on missed payment
     state.delinquencyLevel = Math.max(state.delinquencyLevel || 0, state.missedPayments);
     if (state.missedPayments === DELINQUENCY_WARNING_LEVEL) {
-      addNote('⚠️ Delinquency warning: cash is negative after obligations.', 'warning');
+      addNote('⚠️ Past due warning: cash is negative after obligations.', 'warning');
       showToast('⚠️ Missed payment warning.', 'warning');
     } else if (state.missedPayments === DELINQUENCY_DEFAULT_LEVEL) {
       state.loanFrozen = true;
@@ -1973,10 +2073,32 @@ function processLoanAndDelinquency() {
     } else if (state.missedPayments >= DELINQUENCY_BANKRUPTCY_LEVEL) {
       triggerBankruptcy();
     }
-  } else if (state.missedPayments > 0) {
-    state.missedPayments = 0;
-    if (state.delinquencyLevel < DELINQUENCY_DEFAULT_LEVEL) state.loanFrozen = false;
-    addNote('✅ Delinquency cleared — account back in good standing.', 'success');
+  } else if ((state.missedPayments || 0) > 0 || (state.delinquencyLevel || 0) > 0) {
+    // Solvent day while still in past-due status — credit rebuild logic
+    if (state.difficulty === 'hard') {
+      // Hard mode: no credit recovery whatsoever
+    } else {
+      state.consecutiveOnTimePayments = (state.consecutiveOnTimePayments || 0) + 1;
+      const rebuildThreshold = state.difficulty === 'easy' ? 3 : 7;
+      if (state.consecutiveOnTimePayments >= rebuildThreshold) {
+        state.consecutiveOnTimePayments = 0;
+        state.missedPayments   = Math.max(0, (state.missedPayments   || 0) - 1);
+        state.delinquencyLevel = Math.max(0, (state.delinquencyLevel || 0) - 1);
+        if ((state.delinquencyLevel || 0) === 0) {
+          state.loanFrozen = false;
+          addNote('✅ Past due cleared — credit fully restored after consistent payments.', 'success');
+        } else if ((state.delinquencyLevel || 0) < DELINQUENCY_DEFAULT_LEVEL) {
+          state.loanFrozen = false;
+          addNote(`📈 Credit rebuilding — past due down to level ${state.delinquencyLevel}.`, 'info');
+        } else {
+          addNote(`📈 Credit improving — past due level ${state.delinquencyLevel}.`, 'info');
+        }
+      } else {
+        addNote(`📊 Solvent day ${state.consecutiveOnTimePayments}/${rebuildThreshold} toward credit rebuild.`, 'info');
+      }
+    }
+  } else {
+    state.consecutiveOnTimePayments = 0;
   }
 }
 
@@ -1985,14 +2107,8 @@ function triggerBankruptcy() {
   if (state.difficulty === 'hard') {
     state.gameOver = true;
     addNote('💥 Bankruptcy on Hard mode. Game Over.', 'error');
-    showModal('Game Over — Bankruptcy', 'Hard mode bankruptcy ends the run immediately.', () => {
-      state = JSON.parse(JSON.stringify(DEFAULT_STATE));
-      syncLoanTermsToDifficulty();
-      state.usedMarketOffers = generateUsedMarket();
-      saveState();
-      renderAll();
-      showToast('New game started after bankruptcy.', 'warning');
-    });
+    saveState();
+    showGameOverScreen();
     return;
   }
 
@@ -2031,6 +2147,22 @@ function triggerBankruptcy() {
   addNote(`💸 Bankruptcy liquidation executed: sold ${liquidationLog.length} car(s). Cash now ${formatCurrency(state.cash)}.`, 'error');
   showToast('💸 Bankruptcy liquidation completed. See Finance tab.', 'warning');
   runAchievementChecks();
+}
+
+function showGameOverScreen() {
+  const el    = document.getElementById('gameover-screen');
+  if (!el) return;
+  const stats = document.getElementById('gameover-stats');
+  if (stats) {
+    const totalProfit = (state.salesHistory || []).reduce((s, h) => s + (h.profit || 0), 0);
+    stats.innerHTML = `
+      <div class="stat-row"><span>Days Survived</span><strong>${state.day}</strong></div>
+      <div class="stat-row"><span>Total Cars Sold</span><strong>${(state.salesHistory||[]).length}</strong></div>
+      <div class="stat-row"><span>Cumulative Profit</span><strong class="${totalProfit >= 0 ? 'text-green' : 'text-red'}">${formatCurrency(totalProfit)}</strong></div>
+      <div class="stat-row"><span>Peak Cash</span><strong>${formatCurrency(state.peakCash || 0)}</strong></div>
+    `;
+  }
+  el.classList.remove('hidden');
 }
 
 /** Shift per-segment market indices and occasionally fire a market event. */
@@ -2594,6 +2726,9 @@ function resolveCustomerOfferCounters() {
       addNote(`💬 Buyer countered on ${car.year} ${car.make} ${car.model}: ${formatCurrency(offer.offeredPrice)}.`, 'info');
     } else {
       // Buyer walks away
+      if ((offer.playerCounterCount || 0) >= 3) {
+        state.justLookingCount = (state.justLookingCount || 0) + 1;
+      }
       addNote(`❌ Buyer walked away from ${car.year} ${car.make} ${car.model} — counter was too high.`, 'warning');
       toRemove.add(offer.id);
     }
@@ -2728,6 +2863,21 @@ function nextDay() {
   processForSale();
   processLeases();
   tickDaysInLot();
+  // Mystery Package easter egg (~0.8% chance per day)
+  if (Math.random() < 0.008) {
+    const amount = randomInt(50, 500) * (Math.random() < 0.2 ? -1 : 1); // 20% chance it costs you
+    state.cash += amount;
+    const msg = randomFrom(MYSTERY_PACKAGE_MSGS);
+    addNote(`🎁 Mystery: ${msg}. ${amount >= 0 ? '+' : ''}${formatCurrency(amount)}.`, amount >= 0 ? 'success' : 'warning');
+    showToast(`🎁 Mystery! ${amount >= 0 ? '+' : ''}${formatCurrency(amount)}`);
+  }
+  // Track upgrade-bought-then-low-cash achievement trigger
+  if (_boughtUpgradeToday && state.cash >= 0 && state.cash < 10000) {
+    state.upgradeBoughtLowCashCount = (state.upgradeBoughtLowCashCount || 0) + 1;
+  }
+  _boughtUpgradeToday = false;
+  // Track peak cash
+  if (state.cash > (state.peakCash || 0)) state.peakCash = state.cash;
   // Generate new offers for the new day
   state.usedMarketOffers = generateUsedMarket();
   const newTIR = generateTradeInRequests();
@@ -3193,6 +3343,7 @@ function buyUpgrade(upgradeId) {
   if (state.cash < upg.cost)         { showToast('Not enough cash!', 'error'); return; }
   state.cash -= upg.cost;
   upg.apply(state);
+  _boughtUpgradeToday = true;
   syncLoanTermsToDifficulty();   // recompute loan limit/APR after any upgrade
   if (upgradeId === 'staffOffice') ensureStaffCandidates();
   addNote(`⬆️ Purchased: ${upg.name}`, 'success');
