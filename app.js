@@ -11,9 +11,25 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.3.3';
+const GAME_VERSION = '1.3.4';
 
 const PATCH_NOTES = [
+  {
+    version: '1.3.4',
+    date: 'April 2026',
+    notes: [
+      { type: 'fix',     text: 'Service tab lock overlay now extends fully to the edges of the Service panel — no more gap around the blurred background.' },
+      { type: 'fix',     text: 'Service tab button is now disabled/unclickable when the Service Bay upgrade has not been purchased.' },
+      { type: 'fix',     text: '"Stop Offering Lease" button text now wraps to two lines sooner instead of barely overflowing on large screens.' },
+      { type: 'feature', text: 'New funny achievements added and all achievements reorganised into a progression order: Coupon Clipper, Overconfidence Tax, One More Upgrade, Just Looking, Penny Pincher, Detailing Addiction, Service With a Smile, The Spreadsheet Won, The Lemon Experience, Insurance Policy, Grease Monkey.' },
+      { type: 'feature', text: 'Easter eggs added: click the version label 7 times for a developer message; type "DEALER" on your keyboard to toggle retro accent mode; rare flavour events in the activity log and service jobs.' },
+      { type: 'feature', text: 'New Game / Reset button removed from the dashboard.' },
+      { type: 'feature', text: 'Export Save and Import Save moved into the Settings tab (gear icon in navigation).' },
+      { type: 'fix',     text: 'Finance page now says "Past Due" everywhere instead of "Delinquency".' },
+      { type: 'feature', text: 'Credit recovery added: on Easy mode your past-due level drops by 1 every 3 good-payment days; on Normal every 7 days. Hard mode has no recovery — missed payments are permanent.' },
+      { type: 'feature', text: 'Hard mode bankruptcy now shows a dedicated Game Over screen with "View Stats" and "Back to Title" options instead of the generic modal.' },
+    ],
+  },
   {
     version: '1.3.3',
     date: 'April 2026',
@@ -200,6 +216,16 @@ const DEFAULT_STATE = {
   serviceGarageCapacity: 3,
   totalServiceJobsCompleted: 0,
   totalCarsStolen: 0,
+  // v1.3.4 — achievement tracking
+  consecutiveDetailDays: 0,
+  lastDetailDay: 0,
+  financeViewStreak: 0,
+  financeOpenedToday: false,
+  boughtUpgradeAndLowCash: false,
+  justLookingOccurred: false,
+  serviceJobsNoMissedStreak: 0,
+  lowestCashEver: 25000,
+  goodPaymentDays: 0,
 };
 
 let state = JSON.parse(JSON.stringify(DEFAULT_STATE));

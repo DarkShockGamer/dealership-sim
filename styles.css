@@ -1331,6 +1331,10 @@ body.dark .tradein-summary {
    ============================================================ */
 .service-locked-wrapper {
   position: relative;
+  /* Pull the wrapper out to the edges of the tab-panel by cancelling its padding */
+  margin: -24px -20px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
   min-height: 400px;
 }
 
@@ -1350,7 +1354,6 @@ body.dark .tradein-summary {
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.45);
-  border-radius: var(--radius, 8px);
   pointer-events: all;
   z-index: 10;
 }
@@ -1393,3 +1396,130 @@ body.dark .tradein-summary {
 .service-locked-msg strong {
   color: var(--warning, #f59e0b);
 }
+
+/* ============================================================
+   Lease Stop Button — allow wrapping on large screens
+   ============================================================ */
+.btn-lease-stop {
+  white-space: normal;
+  min-width: 130px;
+  max-width: 200px;
+  line-height: 1.35;
+  text-align: center;
+}
+
+/* Responsive: cancel padding-offset for service locked wrapper */
+@media (max-width: 640px) {
+  .service-locked-wrapper {
+    margin: -16px -12px;
+  }
+}
+
+/* ============================================================
+   Disabled tab button
+   ============================================================ */
+.tab-btn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ============================================================
+   Game Over Overlay (Hard mode bankruptcy)
+   ============================================================ */
+.game-over-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.88);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeIn .3s ease;
+}
+.game-over-overlay.hidden { display: none; }
+
+.game-over-box {
+  background: var(--card-bg, #1e2535);
+  border: 2px solid rgba(255, 80, 80, .45);
+  border-radius: var(--radius-lg, 16px);
+  padding: 44px 52px;
+  max-width: 480px;
+  width: 92%;
+  text-align: center;
+  box-shadow: 0 0 60px rgba(255, 60, 60, .25), 0 16px 48px rgba(0,0,0,.6);
+}
+
+.game-over-skull {
+  font-size: 3.5rem;
+  line-height: 1;
+  margin-bottom: 12px;
+}
+
+.game-over-title {
+  font-size: 2.4rem;
+  font-weight: 900;
+  letter-spacing: .06em;
+  color: #ff5555;
+  margin: 0 0 6px;
+  text-shadow: 0 0 20px rgba(255, 60, 60, .5);
+}
+
+.game-over-subtitle {
+  font-size: .95rem;
+  color: var(--text-muted, #94a3b8);
+  margin: 0 0 22px;
+}
+
+.game-over-stats {
+  background: rgba(255,255,255,.05);
+  border: 1px solid var(--border, #2d3a52);
+  border-radius: var(--radius-sm, 6px);
+  padding: 14px 18px;
+  margin-bottom: 22px;
+  text-align: left;
+}
+
+.go-stat {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+  font-size: .88rem;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.go-stat:last-child { border-bottom: none; }
+.go-stat span { color: var(--text-muted, #94a3b8); }
+.go-stat strong { color: var(--text, #e2e8f0); }
+
+.game-over-actions {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+}
+
+.game-over-btn {
+  min-width: 140px;
+}
+
+/* ============================================================
+   Easter egg: retro mode accent
+   ============================================================ */
+body.retro-mode {
+  --primary: #f5c518;
+  --primary-hover: #f0b800;
+  --accent: #e63946;
+  --card-bg: #1a1208;
+  --border: #4a3800;
+  --surface: rgba(26, 18, 8, 0.92);
+  --header-bg: rgba(10, 8, 2, 0.95);
+}
+body.retro-mode .tab-btn.active {
+  background: linear-gradient(145deg, #f5c518, #e0a800);
+  color: #1a1208;
+  border-color: rgba(245, 197, 24, .55);
+}
+body.retro-mode .btn-primary {
+  background: linear-gradient(145deg, #f5c518, #e0a800);
+  color: #1a1208;
+}
+

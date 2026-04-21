@@ -123,7 +123,7 @@
       </div>
     </div>
 
-    <span class="menu-version" aria-hidden="true">v1.3.3</span>
+    <span class="menu-version" id="menu-version-text" aria-hidden="true">v1.3.4</span>
   </div>
 
   <!-- Delete-slot confirmation dialog -->
@@ -176,6 +176,20 @@
         <button class="tutorial-btn-skip" id="tutorial-btn-skip" onclick="tutorialSkip()">Skip Tutorial</button>
         <button class="tutorial-btn-disable" id="tutorial-btn-disable" onclick="tutorialDisable()">Don't show again</button>
         <button class="tutorial-btn-next" id="tutorial-btn-next" onclick="tutorialNext()">Next ▶</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Game Over Overlay (Hard mode bankruptcy) ────────── -->
+  <div id="game-over-overlay" class="game-over-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="game-over-title">
+    <div class="game-over-box">
+      <div class="game-over-skull" aria-hidden="true">💀</div>
+      <h1 class="game-over-title" id="game-over-title">GAME OVER</h1>
+      <p class="game-over-subtitle">Hard mode bankruptcy — the dealership is done.</p>
+      <div class="game-over-stats" id="game-over-stats-content"></div>
+      <div class="game-over-actions">
+        <button class="btn btn-secondary game-over-btn" id="go-view-stats">📊 View Stats</button>
+        <button class="btn btn-primary game-over-btn" id="go-back-title">⌂ Back to Title</button>
       </div>
     </div>
   </div>
