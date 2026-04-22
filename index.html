@@ -123,7 +123,7 @@
       </div>
     </div>
 
-    <span class="menu-version" aria-hidden="true">v1.3.3</span>
+    <span class="menu-version" aria-hidden="true">v1.3.4</span>
   </div>
 
   <!-- Delete-slot confirmation dialog -->
@@ -244,6 +244,19 @@
 
   <!-- Hidden file input for save import -->
   <input type="file" id="import-file" accept=".json" style="display:none" />
+
+  <!-- ── Game Over Screen (Hard Bankruptcy) ──────────────── -->
+  <div id="game-over-screen" class="hidden" role="dialog" aria-modal="true" aria-labelledby="game-over-title-text">
+    <div class="game-over-box">
+      <h1 class="game-over-title" id="game-over-title-text">GAME OVER</h1>
+      <p class="game-over-subtitle" id="game-over-subtitle">Hard mode bankruptcy — your dealership has closed its doors.</p>
+      <div class="game-over-stats" id="game-over-stats"></div>
+      <div class="game-over-actions">
+        <button class="btn btn-primary" onclick="gameOverReturnToMenu()">⌂ Return to Menu</button>
+        <button class="btn btn-secondary" onclick="gameOverNewGame()">▶ New Game</button>
+      </div>
+    </div>
+  </div>
 
   <script type="module" src="app.js"></script>
 </body>
