@@ -2058,7 +2058,8 @@ function processLoanAndDelinquency() {
         if (state.delinquencyLevel < DELINQUENCY_DEFAULT_LEVEL && state.loanFrozen && state.loanBalance <= 0) {
           state.loanFrozen = false;
         }
-        addNote(`📈 Credit improving — late payment level reduced to ${state.delinquencyLevel}.${state.delinquencyLevel === 0 ? ' Account fully restored!' : ' Keep it up!'}`, 'success');
+        const recoveryMsg = state.delinquencyLevel === 0 ? ' Account fully restored!' : ' Keep it up!';
+        addNote(`📈 Credit improving — late payment level reduced to ${state.delinquencyLevel}.${recoveryMsg}`, 'success');
       }
     }
   } else {
@@ -4607,7 +4608,11 @@ function renderFinance() {
         <h3>${uiIcon('trendingDown')} Late Payments &amp; Bankruptcy Ladder</h3>
         <div class="stat-row"><span>1 Missed Payment</span><strong class="text-yellow">Warning</strong></div>
         <div class="stat-row"><span>2 Missed Payments</span><strong class="text-red">Default: credit freeze + APR increase</strong></div>
-        <div class="stat-row"><span>3 Missed Payments</span><strong class="text-red">${state.difficulty === 'hard' ? 'Hard: Game Over' : state.difficulty === 'easy' ? 'Easy: N/A (no late payments)' : 'Normal: Instant liquidation then continue'}</strong></div>
+        <div class="stat-row"><span>3 Missed Payments</span><strong class="text-red">${(() => {
+          if (state.difficulty === 'hard') return 'Hard: Game Over';
+          if (state.difficulty === 'easy') return 'Easy: N/A (no late payments)';
+          return 'Normal: Instant liquidation then continue';
+        })()}</strong></div>
         ${state.difficulty === 'normal' && state.delinquencyLevel > 0 ? `<p class="text-muted" style="font-size:.8rem;margin-top:8px">💡 Credit rebuilds on Normal: every 10 days of good standing reduces your late payment level by 1.</p>` : ''}
       </div>
 
