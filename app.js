@@ -11,9 +11,24 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.3.3';
+const GAME_VERSION = '1.3.4';
 
 const PATCH_NOTES = [
+  {
+    version: '1.3.4',
+    date: 'April 2026',
+    notes: [
+      { type: 'fix',     text: 'Service screen locked overlay now extends fully to all edges of the UI container — no more unblurred gaps on wide/large displays.' },
+      { type: 'fix',     text: '"Stop Offering Lease" button text now wraps gracefully instead of overflowing its background at large screen widths.' },
+      { type: 'feature', text: '10 new funny achievements — Rust Enthusiast, Debt Is Just a Number, Full House, Lemon Grove, Grease Monkey, Three Strikes, Big Draw, Loss Leader, Marathon Man, plus two secrets.' },
+      { type: 'feature', text: 'New Game / Reset button removed from the Dashboard. Import Save and Export Save have moved to the Settings tab.' },
+      { type: 'fix',     text: 'Finance page no longer says "Delinquency" — replaced with "Late payments" throughout for friendlier wording.' },
+      { type: 'feature', text: 'Credit rebuild mechanic: after recovering from late payments, your credit score slowly improves over time on Normal mode. No recovery on Hard.' },
+      { type: 'feature', text: 'Hard-mode bankruptcy now shows a proper Game Over screen with stats and return-to-menu options instead of an abrupt modal.' },
+      { type: 'feature', text: 'New achievement for going bankrupt on Hard mode: "Hard Knocks".' },
+      { type: 'feature', text: 'Easter eggs added — explore and discover!' },
+    ],
+  },
   {
     version: '1.3.3',
     date: 'April 2026',
@@ -115,7 +130,7 @@ const PATCH_NOTES = [
 // DEFAULT STATE
 // ============================================================
 const DEFAULT_STATE = {
-  saveVersion: 13,
+  saveVersion: 14,
   difficulty: 'normal',
   cash: 25000,
   day: 1,
@@ -200,6 +215,11 @@ const DEFAULT_STATE = {
   serviceGarageCapacity: 3,
   totalServiceJobsCompleted: 0,
   totalCarsStolen: 0,
+  // v1.3.4 — credit recovery + easter eggs + game over tracking
+  daysGoodStanding: 0,
+  hardBankruptcyOccurred: false,
+  konamiActivated: false,
+  logoClickCount: 0,
 };
 
 let state = JSON.parse(JSON.stringify(DEFAULT_STATE));
@@ -539,6 +559,34 @@ const ACHIEVEMENTS = [
     check: s => (s.severeDamageFoundBeforeBuy || 0) >= 1 },
   { id: 'rebuilder',           icon: ACH_ICONS.wrench,     name: 'Crash Rebuilder',        desc: 'Repair and sell 5 cars with moderate or severe crash damage.',
     check: s => (s.crashDamageRebuilds || 0) >= 5, progress: s => (s.crashDamageRebuilds||0) + '/5' },
+  // ── v1.3.4 Funny & Easter Egg Achievements ────────────────
+  { id: 'rust_enthusiast',     icon: ACH_ICONS.wrench,     name: 'Rust Enthusiast',        desc: 'Sell 3 cars in Poor (D) condition. They run... mostly.',
+    check: s => (s.salesHistory||[]).filter(h => h.condition === 'D').length >= 3,
+    progress: s => (s.salesHistory||[]).filter(h => h.condition === 'D').length + '/3' },
+  { id: 'debt_addict',         icon: ACH_ICONS.creditcard, name: 'Debt Is Just a Number',  desc: 'Draw $200,000+ from the credit line in total. The bank is your best friend.',
+    check: s => (s.totalLoanDrawn || 0) >= 200000, progress: s => formatCurrency(Math.min(s.totalLoanDrawn||0,200000)) + '/$200k' },
+  { id: 'full_house',          icon: ACH_ICONS.map,        name: 'Full House',              desc: 'Fill every lot slot with a car. No room for regrets (or more cars).',
+    check: s => (s.garage||[]).length >= (s.garageSlots||5) && (s.garageSlots||5) >= 10 },
+  { id: 'lemon_grove',         icon: ACH_ICONS.alert,      name: 'Lemon Grove',             desc: 'Have 3 lemon-title cars in your inventory at once. It is what it is.',
+    check: s => (s.garage||[]).filter(c => c.titleStatus === 'lemon').length >= 3,
+    progress: s => (s.garage||[]).filter(c => c.titleStatus === 'lemon').length + '/3' },
+  { id: 'grease_monkey',       icon: ACH_ICONS.wrench,     name: 'Grease Monkey',           desc: 'Complete 20 customer service jobs. You are basically a mechanic now.',
+    check: s => (s.totalServiceJobsCompleted || 0) >= 20, progress: s => (s.totalServiceJobsCompleted||0) + '/20' },
+  { id: 'three_strikes',       icon: ACH_ICONS.alert,      name: 'Three Strikes',           desc: 'Get fined by police 3 times. They know your dealership by name.',
+    check: s => (s.policeFinesReceived || 0) >= 3, progress: s => (s.policeFinesReceived||0) + '/3' },
+  { id: 'big_draw',            icon: ACH_ICONS.dollar,     name: 'Big Draw',                desc: 'Draw $500,000+ from the credit line in total. Help, the bank is calling again.',
+    check: s => (s.totalLoanDrawn || 0) >= 500000, progress: s => formatCurrency(Math.min(s.totalLoanDrawn||0,500000)) + '/$500k' },
+  { id: 'loss_leader',         icon: ACH_ICONS.trending,   name: 'Loss Leader',             desc: 'Sell a car at a loss of $2,000 or more. A "marketing expense", really.',
+    check: s => (s.salesHistory||[]).some(h => (h.profit || 0) <= -2000) },
+  { id: 'marathon_man',        icon: ACH_ICONS.clock,      name: 'Marathon Man',            desc: 'Reach Day 365. A full year of dealing. Please get some rest.',
+    check: s => (s.day || 1) >= 365, progress: s => Math.min(s.day||1, 365) + '/365' },
+  { id: 'hard_knocks',         icon: ACH_ICONS.flame,      name: 'Hard Knocks',             desc: 'Go bankrupt on Hard mode. At least you learned something... right?',
+    check: s => !!(s.hardBankruptcyOccurred) },
+  // Secret achievements
+  { id: 'secret_konami',       icon: ACH_ICONS.zap,        name: '🔒 Power User',           desc: '???',
+    check: s => !!(s.konamiActivated) },
+  { id: 'secret_logo',         icon: ACH_ICONS.star,       name: '🔒 Old School',           desc: '???',
+    check: s => (s.logoClickCount || 0) >= 7 },
 ];
 
 const UPGRADES_CONFIG = [
@@ -1151,6 +1199,25 @@ function loadState(slot) {
       loaded.serviceGarageCapacity     = loaded.serviceGarageCapacity     ?? 3;
       loaded.totalServiceJobsCompleted = loaded.totalServiceJobsCompleted ?? 0;
       loaded.totalCarsStolen           = loaded.totalCarsStolen           ?? 0;
+      if (loaded.saveVersion < 14) {
+        loaded.saveVersion = 14;
+        // v1.3.4: credit recovery + easter egg tracking
+        loaded.daysGoodStanding      = loaded.daysGoodStanding      ?? 0;
+        loaded.hardBankruptcyOccurred = loaded.hardBankruptcyOccurred ?? false;
+        loaded.konamiActivated       = loaded.konamiActivated       ?? false;
+        loaded.logoClickCount        = loaded.logoClickCount        ?? 0;
+        loaded.notifications = loaded.notifications || [];
+        loaded.notifications.unshift({
+          message: '✨ Save upgraded to v14 — credit recovery, game over screen, and new achievements added!',
+          type: 'info',
+          day: loaded.day ?? 1,
+        });
+      }
+      // Always-apply defaults for new fields added in v14 (in case migration block is skipped)
+      loaded.daysGoodStanding       = loaded.daysGoodStanding       ?? 0;
+      loaded.hardBankruptcyOccurred = loaded.hardBankruptcyOccurred ?? false;
+      loaded.konamiActivated        = loaded.konamiActivated        ?? false;
+      loaded.logoClickCount         = loaded.logoClickCount         ?? 0;
       // Migrate car objects
       for (const car of loaded.garage || []) migrateCar(car);
       for (const d of loaded.deliveries || []) migrateCar(d.car);
@@ -1960,10 +2027,11 @@ function processLoanAndDelinquency() {
   }
 
   if (state.cash < 0 || (due > 0 && state.loanBalance > 0 && state.difficulty === 'hard' && state.cash < 250)) {
+    state.daysGoodStanding = 0;
     state.missedPayments = (state.missedPayments || 0) + 1;
     state.delinquencyLevel = Math.max(state.delinquencyLevel || 0, state.missedPayments);
     if (state.missedPayments === DELINQUENCY_WARNING_LEVEL) {
-      addNote('⚠️ Delinquency warning: cash is negative after obligations.', 'warning');
+      addNote('⚠️ Late payment warning: cash is negative after obligations.', 'warning');
       showToast('⚠️ Missed payment warning.', 'warning');
     } else if (state.missedPayments === DELINQUENCY_DEFAULT_LEVEL) {
       state.loanFrozen = true;
@@ -1976,7 +2044,26 @@ function processLoanAndDelinquency() {
   } else if (state.missedPayments > 0) {
     state.missedPayments = 0;
     if (state.delinquencyLevel < DELINQUENCY_DEFAULT_LEVEL) state.loanFrozen = false;
-    addNote('✅ Delinquency cleared — account back in good standing.', 'success');
+    addNote('✅ Late payments cleared — account back in good standing.', 'success');
+    // Begin credit recovery tracking
+    state.daysGoodStanding = (state.daysGoodStanding || 0) + 1;
+  } else if (state.delinquencyLevel > 0 && state.missedPayments === 0) {
+    // Credit recovery: reduce delinquency level slowly on Normal mode, not on Hard
+    if (state.difficulty !== 'hard') {
+      state.daysGoodStanding = (state.daysGoodStanding || 0) + 1;
+      const recoveryDays = 10; // every 10 good-standing days, recover 1 level
+      if (state.daysGoodStanding >= recoveryDays) {
+        state.daysGoodStanding = 0;
+        state.delinquencyLevel = Math.max(0, state.delinquencyLevel - 1);
+        if (state.delinquencyLevel < DELINQUENCY_DEFAULT_LEVEL && state.loanFrozen && state.loanBalance <= 0) {
+          state.loanFrozen = false;
+        }
+        addNote(`📈 Credit improving — late payment level reduced to ${state.delinquencyLevel}.${state.delinquencyLevel === 0 ? ' Account fully restored!' : ''}`, 'success');
+      }
+    }
+  } else {
+    // No issues — track good standing days even without prior delinquency (for future use)
+    state.daysGoodStanding = (state.daysGoodStanding || 0) + 1;
   }
 }
 
@@ -1984,15 +2071,11 @@ function triggerBankruptcy() {
   state.delinquencyLevel = DELINQUENCY_BANKRUPTCY_LEVEL;
   if (state.difficulty === 'hard') {
     state.gameOver = true;
+    state.hardBankruptcyOccurred = true;
     addNote('💥 Bankruptcy on Hard mode. Game Over.', 'error');
-    showModal('Game Over — Bankruptcy', 'Hard mode bankruptcy ends the run immediately.', () => {
-      state = JSON.parse(JSON.stringify(DEFAULT_STATE));
-      syncLoanTermsToDifficulty();
-      state.usedMarketOffers = generateUsedMarket();
-      saveState();
-      renderAll();
-      showToast('New game started after bankruptcy.', 'warning');
-    });
+    saveState();
+    runAchievementChecks();
+    showGameOverScreen();
     return;
   }
 
@@ -2031,6 +2114,39 @@ function triggerBankruptcy() {
   addNote(`💸 Bankruptcy liquidation executed: sold ${liquidationLog.length} car(s). Cash now ${formatCurrency(state.cash)}.`, 'error');
   showToast('💸 Bankruptcy liquidation completed. See Finance tab.', 'warning');
   runAchievementChecks();
+}
+
+// ============================================================
+// GAME OVER SCREEN (v1.3.4)
+// ============================================================
+function showGameOverScreen() {
+  const el = document.getElementById('game-over-screen');
+  if (!el) return;
+  const statsEl = document.getElementById('game-over-stats');
+  if (statsEl) {
+    statsEl.innerHTML = `
+      <div class="game-over-stat-row"><span>Day reached</span><strong>${state.day}</strong></div>
+      <div class="game-over-stat-row"><span>Total cars sold</span><strong>${(state.salesHistory||[]).length}</strong></div>
+      <div class="game-over-stat-row"><span>Cumulative profit</span><strong>${formatCurrency((state.salesHistory||[]).reduce((s,h)=>s+(h.profit||0),0))}</strong></div>
+      <div class="game-over-stat-row"><span>Difficulty</span><strong class="text-red">Hard 💪</strong></div>`;
+  }
+  el.classList.remove('hidden');
+}
+
+function gameOverReturnToMenu() {
+  document.getElementById('game-over-screen')?.classList.add('hidden');
+  returnToMenu();
+}
+
+function gameOverNewGame() {
+  document.getElementById('game-over-screen')?.classList.add('hidden');
+  state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+  state.difficulty = 'hard';
+  syncLoanTermsToDifficulty();
+  state.usedMarketOffers = generateUsedMarket();
+  saveState();
+  renderAll();
+  showToast('New Hard game started. Good luck! 💪', 'success');
 }
 
 /** Shift per-segment market indices and occasionally fire a market event. */
@@ -3485,7 +3601,7 @@ function renderDashboard() {
         <div class="stat-row"><span>Daily Wages</span><strong class="text-red">−${formatCurrency(wageTotal)}/day</strong></div>
         <div class="stat-row"><span>Credit Line Balance</span><strong class="${state.loanBalance > 0 ? 'text-red' : 'text-green'}">${formatCurrency(state.loanBalance)}</strong></div>
         <div class="stat-row"><span>Loan APR</span><strong>${(state.loanApr * 100).toFixed(1)}%</strong></div>
-        <div class="stat-row"><span>Delinquency</span><strong class="${state.delinquencyLevel > 0 ? 'text-red' : 'text-green'}">Level ${state.delinquencyLevel || 0}</strong></div>
+        <div class="stat-row"><span>Late payments</span><strong class="${state.delinquencyLevel > 0 ? 'text-red' : 'text-green'}">Level ${state.delinquencyLevel || 0}</strong></div>
         <div class="stat-row"><span>Hired Staff</span><strong>${state.staff?.length || 0}</strong></div>
         <div class="stat-row"><span>Listed for Sale</span><strong>${forSaleCount}</strong></div>
         <div class="stat-row"><span>In Service</span><strong>${inService}</strong></div>
@@ -3506,7 +3622,7 @@ function renderDashboard() {
         <h3>${uiIcon('trendingUp')} Market Conditions</h3>
         ${marketRows}
         ${state.lastMarketEvent ? `<div class="tab-info" style="margin-top:10px;font-size:.8rem">${state.lastMarketEvent}</div>` : ''}
-        ${state.delinquencyLevel > 0 ? `<div class="tab-info" style="margin-top:10px;font-size:.8rem;border-color:rgba(255,122,133,.5);background:rgba(255,122,133,.12)">${uiIcon('warning')} Delinquency level ${state.delinquencyLevel}: ${state.loanFrozen ? 'credit line is frozen.' : 'stay solvent to avoid default.'}</div>` : ''}
+        ${state.delinquencyLevel > 0 ? `<div class="tab-info" style="margin-top:10px;font-size:.8rem;border-color:rgba(255,122,133,.5);background:rgba(255,122,133,.12)">${uiIcon('warning')} Late payments level ${state.delinquencyLevel}: ${state.loanFrozen ? 'credit line is frozen.' : 'stay solvent to avoid default.'}</div>` : ''}
       </div>
 
       <div class="dash-card">
@@ -3529,12 +3645,6 @@ function renderDashboard() {
         ${staffLogs}
       </div>
 
-    </div>
-
-    <div class="save-controls">
-      <button class="btn btn-danger"    onclick="confirmNewGame()">${uiIcon('trash')} New Game / Reset</button>
-      <button class="btn btn-secondary" onclick="exportSave()">${uiIcon('upload')} Export Save</button>
-      <button class="btn btn-secondary" onclick="document.getElementById('import-file').click()">${uiIcon('download')} Import Save</button>
     </div>`;
 }
 
@@ -4470,8 +4580,9 @@ function renderFinance() {
         <div class="stat-row"><span>APR</span><strong>${(state.loanApr * 100).toFixed(1)}%</strong></div>
         <div class="stat-row"><span>Daily Interest</span><strong class="text-red">−${formatCurrency(dailyInterest)}</strong></div>
         <div class="stat-row"><span>Min Principal (Hard)</span><strong>${minPrincipal ? formatCurrency(minPrincipal) : 'None'}</strong></div>
-        <div class="stat-row"><span>Delinquency</span><strong class="${state.delinquencyLevel > 0 ? 'text-red' : 'text-green'}">Level ${state.delinquencyLevel || 0}</strong></div>
+        <div class="stat-row"><span>Late payments</span><strong class="${state.delinquencyLevel > 0 ? 'text-red' : 'text-green'}">Level ${state.delinquencyLevel || 0}</strong></div>
         <div class="stat-row"><span>Credit Status</span><strong class="${state.loanFrozen ? 'text-red' : 'text-green'}">${state.loanFrozen ? 'Frozen' : 'Open'}</strong></div>
+        ${state.delinquencyLevel > 0 && state.difficulty === 'normal' ? `<div class="stat-row"><span>Credit rebuild</span><strong class="text-blue">${state.daysGoodStanding || 0}/10 good days</strong></div>` : ''}
       </div>
 
       <div class="dash-card">
@@ -4493,10 +4604,11 @@ function renderFinance() {
       </div>
 
       <div class="dash-card dash-card-wide">
-        <h3>${uiIcon('trendingDown')} Delinquency &amp; Bankruptcy Ladder</h3>
+        <h3>${uiIcon('trendingDown')} Late Payments &amp; Bankruptcy Ladder</h3>
         <div class="stat-row"><span>1 Missed Payment</span><strong class="text-yellow">Warning</strong></div>
         <div class="stat-row"><span>2 Missed Payments</span><strong class="text-red">Default: credit freeze + APR increase</strong></div>
-        <div class="stat-row"><span>3 Missed Payments</span><strong class="text-red">${state.difficulty === 'hard' ? 'Hard: Game Over' : state.difficulty === 'easy' ? 'Easy: N/A (no delinquency)' : 'Normal: Instant liquidation then continue'}</strong></div>
+        <div class="stat-row"><span>3 Missed Payments</span><strong class="text-red">${state.difficulty === 'hard' ? 'Hard: Game Over' : state.difficulty === 'easy' ? 'Easy: N/A (no late payments)' : 'Normal: Instant liquidation then continue'}</strong></div>
+        ${state.difficulty === 'normal' && state.delinquencyLevel > 0 ? `<p class="text-muted" style="font-size:.8rem;margin-top:8px">💡 Credit rebuilds on Normal: every 10 days of good standing reduces your late payment level by 1.</p>` : ''}
       </div>
 
       <div class="dash-card dash-card-wide">
@@ -4619,6 +4731,15 @@ function renderSettings() {
         <p class="text-muted" style="font-size:.82rem;margin-top:10px">
           ${uiIcon('info')} Difficulty is locked for this save. Start a new save slot to choose a different difficulty.
         </p>
+      </div>
+
+      <div class="dash-card settings-card">
+        <h3>${uiIcon('upload')} Save Data</h3>
+        <p class="text-muted" style="font-size:.82rem;margin-bottom:12px">Back up your progress or transfer saves between devices.</p>
+        <div class="settings-save-actions">
+          <button class="btn btn-secondary" onclick="exportSave()">${uiIcon('upload')} Export Save</button>
+          <button class="btn btn-secondary" onclick="document.getElementById('import-file').click()">${uiIcon('download')} Import Save</button>
+        </div>
       </div>
     </div>`;
 }
@@ -5737,6 +5858,7 @@ function init() {
     tutorialNext, tutorialSkip, tutorialDisable,
     startServiceJob, completeServiceJob, dismissServiceJob,
     toggleMenuChangelog,
+    gameOverReturnToMenu, gameOverNewGame,
   });
 
   // Keyboard navigation — arrow keys cycle through visible tabs, ignore when focus is in input/select/textarea
@@ -5761,6 +5883,41 @@ function init() {
     tabs[next].click();
     tabs[next].focus();
     e.preventDefault();
+  });
+
+  // ── Easter Egg: Konami Code ───────────────────────────────
+  const KONAMI = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
+  let konamiIdx = 0;
+  document.addEventListener('keydown', e => {
+    if (e.key === KONAMI[konamiIdx]) {
+      konamiIdx++;
+      if (konamiIdx === KONAMI.length) {
+        konamiIdx = 0;
+        if (!state.konamiActivated) {
+          state.konamiActivated = true;
+          saveState();
+          runAchievementChecks();
+          showToast('🕹️ KONAMI CODE! Power User unlocked — you really know your stuff.', 'success');
+        } else {
+          showToast('🕹️ Konami code detected again. Still impressive.', 'info');
+        }
+      }
+    } else {
+      konamiIdx = (e.key === KONAMI[0]) ? 1 : 0;
+    }
+  });
+
+  // ── Easter Egg: Header logo click 7 times ───────────────────
+  document.querySelector('.header-brand')?.addEventListener('click', () => {
+    if (document.getElementById('home-screen') && !document.getElementById('home-screen').classList.contains('hidden')) return;
+    state.logoClickCount = (state.logoClickCount || 0) + 1;
+    if (state.logoClickCount === 7) {
+      saveState();
+      runAchievementChecks();
+      showToast('👴 Old School unlocked! You found it. Welcome to the club.', 'success');
+    } else if (state.logoClickCount < 7) {
+      showToast(`🚗 ${7 - state.logoClickCount} more click${7 - state.logoClickCount === 1 ? '' : 's'}...`, 'info');
+    }
   });
 
   // Show the home screen

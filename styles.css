@@ -1327,11 +1327,14 @@ body.dark .tradein-summary {
 
 
 /* ============================================================
-   Service Tab — Locked Overlay (v1.3.3)
+   Service Tab — Locked Overlay (v1.3.4)
    ============================================================ */
 .service-locked-wrapper {
   position: relative;
-  min-height: 400px;
+  /* Fill the full tab panel so the overlay covers the entire UI container */
+  min-height: 100%;
+  width: 100%;
+  overflow: hidden;
 }
 
 /* The greyed-out background content — not interactive */
@@ -1340,17 +1343,22 @@ body.dark .tradein-summary {
   user-select: none;
   opacity: 0.25;
   filter: blur(2px) grayscale(0.6);
+  min-height: 400px;
 }
 
-/* Full-area overlay that blocks all clicks */
+/* Full-area overlay that blocks all clicks — covers the entire wrapper */
 .service-locked-overlay {
   position: absolute;
   inset: 0;
+  /* Ensure it reaches every corner even on large viewports */
+  min-height: 100%;
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.45);
-  border-radius: var(--radius, 8px);
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   pointer-events: all;
   z-index: 10;
 }
@@ -1392,4 +1400,105 @@ body.dark .tradein-summary {
 
 .service-locked-msg strong {
   color: var(--warning, #f59e0b);
+}
+
+/* ============================================================
+   Stop Offering Lease — responsive button (v1.3.4)
+   ============================================================ */
+.btn-warning {
+  white-space: normal;
+  text-align: center;
+  line-height: 1.3;
+  min-height: 36px;
+}
+
+/* ============================================================
+   Game Over Screen (v1.3.4)
+   ============================================================ */
+#game-over-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 9900;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 8, 22, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: fadeIn .35s ease;
+}
+#game-over-screen.hidden { display: none; }
+
+.game-over-box {
+  background: linear-gradient(170deg, rgba(18, 10, 40, .98) 0%, rgba(8, 5, 22, .96) 100%);
+  border: 2px solid rgba(255, 80, 90, .5);
+  border-radius: var(--radius-lg, 16px);
+  padding: 48px 52px 40px;
+  max-width: 500px;
+  width: 90%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  box-shadow: 0 0 60px rgba(220, 40, 60, .3), 0 24px 60px rgba(0, 0, 0, .7);
+}
+
+.game-over-title {
+  font-size: 2.8rem;
+  font-weight: 900;
+  letter-spacing: .04em;
+  background: linear-gradient(135deg, #ff6670, #ff3344);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0;
+  line-height: 1.1;
+}
+
+.game-over-subtitle {
+  font-size: 1.05rem;
+  color: var(--text-muted, #94a3b8);
+  margin: 0;
+  line-height: 1.6;
+}
+
+.game-over-stats {
+  background: rgba(255, 80, 90, .08);
+  border: 1px solid rgba(255, 80, 90, .22);
+  border-radius: var(--radius, 10px);
+  padding: 16px 24px;
+  width: 100%;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.game-over-stat-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: .88rem;
+  color: var(--text-muted, #94a3b8);
+}
+.game-over-stat-row strong { color: var(--text, #e2e8f0); }
+
+.game-over-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  width: 100%;
+  margin-top: 6px;
+}
+
+/* ============================================================
+   Settings — Save Data card (v1.3.4)
+   ============================================================ */
+.settings-save-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
 }
