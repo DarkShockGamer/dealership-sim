@@ -2058,7 +2058,7 @@ function processLoanAndDelinquency() {
         if (state.delinquencyLevel < DELINQUENCY_DEFAULT_LEVEL && state.loanFrozen && state.loanBalance <= 0) {
           state.loanFrozen = false;
         }
-        addNote(`📈 Credit improving — late payment level reduced to ${state.delinquencyLevel}.${state.delinquencyLevel === 0 ? ' Account fully restored!' : ''}`, 'success');
+        addNote(`📈 Credit improving — late payment level reduced to ${state.delinquencyLevel}.${state.delinquencyLevel === 0 ? ' Account fully restored!' : ' Keep it up!'}`, 'success');
       }
     }
   } else {
