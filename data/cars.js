@@ -14,7 +14,6 @@
  */
 export const CAR_CATALOG = [
 
-  // ── Economy (Compact) ────────────────────────────────────
   { make: 'Toyota',    model: 'Corolla',      trim: 'LE',           category: 'Economy',
     basePrice: 20300, marketValue: 23400, deliveryDays: 2,
     yearRange: [2012, 2024], baseMileage: [8000,  110000], demandFactor: 1.3 },
@@ -24,7 +23,6 @@ export const CAR_CATALOG = [
   { make: 'Toyota',    model: 'Corolla',      trim: 'XSE',          category: 'Economy',
     basePrice: 24700, marketValue: 28400, deliveryDays: 2,
     yearRange: [2017, 2024], baseMileage: [3000,   70000], demandFactor: 1.2 },
-
   { make: 'Honda',     model: 'Civic',        trim: 'LX',           category: 'Economy',
     basePrice: 21200, marketValue: 24400, deliveryDays: 2,
     yearRange: [2012, 2024], baseMileage: [8000,  110000], demandFactor: 1.4 },
@@ -37,7 +35,6 @@ export const CAR_CATALOG = [
   { make: 'Honda',     model: 'Civic',        trim: 'Si',           category: 'Economy',
     basePrice: 27900, marketValue: 32000, deliveryDays: 2,
     yearRange: [2019, 2024], baseMileage: [2000,   60000], demandFactor: 1.35 },
-
   { make: 'Hyundai',   model: 'Elantra',      trim: 'SE',           category: 'Economy',
     basePrice: 19000, marketValue: 21900, deliveryDays: 2,
     yearRange: [2012, 2024], baseMileage: [10000, 120000], demandFactor: 1.1 },
@@ -47,29 +44,24 @@ export const CAR_CATALOG = [
   { make: 'Hyundai',   model: 'Elantra',      trim: 'N-Line',       category: 'Economy',
     basePrice: 24300, marketValue: 27900, deliveryDays: 2,
     yearRange: [2018, 2024], baseMileage: [3000,   60000], demandFactor: 1.2 },
-
   { make: 'Kia',       model: 'Forte',        trim: 'FE',           category: 'Economy',
     basePrice: 18200, marketValue: 20900, deliveryDays: 2,
     yearRange: [2012, 2024], baseMileage: [10000, 120000], demandFactor: 1.0 },
   { make: 'Kia',       model: 'Forte',        trim: 'GT-Line',      category: 'Economy',
     basePrice: 22500, marketValue: 25800, deliveryDays: 2,
     yearRange: [2016, 2024], baseMileage: [4000,   75000], demandFactor: 1.1 },
-
   { make: 'Nissan',    model: 'Sentra',       trim: 'S',            category: 'Economy',
     basePrice: 19100, marketValue: 21900, deliveryDays: 3,
     yearRange: [2012, 2024], baseMileage: [8000,  110000], demandFactor: 1.0 },
   { make: 'Nissan',    model: 'Sentra',       trim: 'SR',           category: 'Economy',
     basePrice: 23400, marketValue: 26900, deliveryDays: 3,
     yearRange: [2016, 2024], baseMileage: [4000,   75000], demandFactor: 1.0 },
-
   { make: 'Chevrolet', model: 'Trax',         trim: 'LS',           category: 'Economy',
     basePrice: 19100, marketValue: 21900, deliveryDays: 3,
     yearRange: [2015, 2024], baseMileage: [8000,  100000], demandFactor: 0.9 },
   { make: 'Chevrolet', model: 'Trax',         trim: 'RS',           category: 'Economy',
     basePrice: 21700, marketValue: 24900, deliveryDays: 3,
     yearRange: [2018, 2024], baseMileage: [5000,   75000], demandFactor: 0.9 },
-
-  // ── Sedan (Mid-size) ─────────────────────────────────────
   { make: 'Toyota',    model: 'Camry',        trim: 'LE',           category: 'Sedan',
     basePrice: 24300, marketValue: 27900, deliveryDays: 3,
     yearRange: [2012, 2024], baseMileage: [10000, 120000], demandFactor: 1.3 },
@@ -82,7 +74,6 @@ export const CAR_CATALOG = [
   { make: 'Toyota',    model: 'Camry',        trim: 'XLE',          category: 'Sedan',
     basePrice: 30500, marketValue: 35000, deliveryDays: 3,
     yearRange: [2018, 2024], baseMileage: [3500,   75000], demandFactor: 1.2 },
-
   { make: 'Honda',     model: 'Accord',       trim: 'LX',           category: 'Sedan',
     basePrice: 25200, marketValue: 28900, deliveryDays: 3,
     yearRange: [2012, 2024], baseMileage: [10000, 120000], demandFactor: 1.2 },
@@ -92,29 +83,24 @@ export const CAR_CATALOG = [
   { make: 'Honda',     model: 'Accord',       trim: 'Touring',      category: 'Sedan',
     basePrice: 33100, marketValue: 37900, deliveryDays: 3,
     yearRange: [2018, 2024], baseMileage: [3000,   70000], demandFactor: 1.1 },
-
   { make: 'Volkswagen',model: 'Jetta',        trim: 'S',            category: 'Sedan',
     basePrice: 19100, marketValue: 21900, deliveryDays: 3,
     yearRange: [2012, 2024], baseMileage: [10000, 120000], demandFactor: 0.9 },
   { make: 'Volkswagen',model: 'Jetta',        trim: 'SEL',          category: 'Sedan',
     basePrice: 23500, marketValue: 26900, deliveryDays: 3,
     yearRange: [2015, 2024], baseMileage: [6000,   90000], demandFactor: 0.9 },
-
   { make: 'Subaru',    model: 'Legacy',       trim: 'Base',         category: 'Sedan',
     basePrice: 21700, marketValue: 24900, deliveryDays: 4,
     yearRange: [2012, 2024], baseMileage: [10000, 110000], demandFactor: 0.9 },
   { make: 'Subaru',    model: 'Legacy',       trim: 'Premium',      category: 'Sedan',
     basePrice: 24300, marketValue: 27900, deliveryDays: 4,
     yearRange: [2015, 2024], baseMileage: [6000,   90000], demandFactor: 0.9 },
-
   { make: 'Mazda',     model: 'Mazda3',       trim: 'Select',       category: 'Sedan',
     basePrice: 22600, marketValue: 25900, deliveryDays: 3,
     yearRange: [2014, 2024], baseMileage: [6000,   95000], demandFactor: 1.1 },
   { make: 'Mazda',     model: 'Mazda3',       trim: 'Premium',      category: 'Sedan',
     basePrice: 25900, marketValue: 29700, deliveryDays: 3,
     yearRange: [2016, 2024], baseMileage: [3000,   70000], demandFactor: 1.1 },
-
-  // ── SUV (Crossover / Midsize) ─────────────────────────────
   { make: 'Toyota',    model: 'RAV4',         trim: 'LE',           category: 'SUV',
     basePrice: 28700, marketValue: 32900, deliveryDays: 3,
     yearRange: [2012, 2024], baseMileage: [10000, 120000], demandFactor: 1.5 },
@@ -124,7 +110,6 @@ export const CAR_CATALOG = [
   { make: 'Toyota',    model: 'RAV4',         trim: 'TRD Off-Road', category: 'SUV',
     basePrice: 36600, marketValue: 41900, deliveryDays: 3,
     yearRange: [2018, 2024], baseMileage: [4000,   70000], demandFactor: 1.4 },
-
   { make: 'Honda',     model: 'CR-V',         trim: 'LX',           category: 'SUV',
     basePrice: 27000, marketValue: 30900, deliveryDays: 3,
     yearRange: [2012, 2024], baseMileage: [10000, 120000], demandFactor: 1.4 },
@@ -134,7 +119,6 @@ export const CAR_CATALOG = [
   { make: 'Honda',     model: 'CR-V',         trim: 'Touring',      category: 'SUV',
     basePrice: 34800, marketValue: 39900, deliveryDays: 3,
     yearRange: [2018, 2024], baseMileage: [3000,   70000], demandFactor: 1.3 },
-
   { make: 'Ford',      model: 'Explorer',     trim: 'Base',         category: 'SUV',
     basePrice: 33100, marketValue: 37900, deliveryDays: 4,
     yearRange: [2011, 2024], baseMileage: [15000, 130000], demandFactor: 1.2 },
@@ -147,21 +131,18 @@ export const CAR_CATALOG = [
   { make: 'Ford',      model: 'Explorer',     trim: 'ST',           category: 'SUV',
     basePrice: 48800, marketValue: 55900, deliveryDays: 4,
     yearRange: [2020, 2024], baseMileage: [3000,   65000], demandFactor: 1.2 },
-
   { make: 'Chevrolet', model: 'Equinox',      trim: 'LS',           category: 'SUV',
     basePrice: 24400, marketValue: 27900, deliveryDays: 3,
     yearRange: [2012, 2024], baseMileage: [10000, 120000], demandFactor: 1.1 },
   { make: 'Chevrolet', model: 'Equinox',      trim: 'LT',           category: 'SUV',
     basePrice: 27900, marketValue: 31900, deliveryDays: 3,
     yearRange: [2014, 2024], baseMileage: [7000,  100000], demandFactor: 1.1 },
-
   { make: 'Jeep',      model: 'Grand Cherokee',trim: 'Laredo',      category: 'SUV',
     basePrice: 34900, marketValue: 39900, deliveryDays: 4,
     yearRange: [2012, 2024], baseMileage: [15000, 130000], demandFactor: 1.2 },
   { make: 'Jeep',      model: 'Grand Cherokee',trim: 'Limited',     category: 'SUV',
     basePrice: 41800, marketValue: 47900, deliveryDays: 4,
     yearRange: [2015, 2024], baseMileage: [8000,  100000], demandFactor: 1.2 },
-
   { make: 'Hyundai',   model: 'Tucson',       trim: 'SE',           category: 'SUV',
     basePrice: 23500, marketValue: 26900, deliveryDays: 3,
     yearRange: [2012, 2024], baseMileage: [10000, 120000], demandFactor: 1.1 },
@@ -171,15 +152,12 @@ export const CAR_CATALOG = [
   { make: 'Hyundai',   model: 'Tucson',       trim: 'N-Line',       category: 'SUV',
     basePrice: 31400, marketValue: 35900, deliveryDays: 3,
     yearRange: [2018, 2024], baseMileage: [3000,   65000], demandFactor: 1.2 },
-
   { make: 'Nissan',    model: 'Pathfinder',   trim: 'S',            category: 'SUV',
     basePrice: 34900, marketValue: 39900, deliveryDays: 4,
     yearRange: [2013, 2024], baseMileage: [12000, 120000], demandFactor: 1.0 },
   { make: 'Nissan',    model: 'Pathfinder',   trim: 'SL',           category: 'SUV',
     basePrice: 42100, marketValue: 48200, deliveryDays: 4,
     yearRange: [2016, 2024], baseMileage: [7000,   90000], demandFactor: 1.0 },
-
-  // ── Truck ─────────────────────────────────────────────────
   { make: 'Ford',      model: 'F-150',        trim: 'XL',           category: 'Truck',
     basePrice: 32200, marketValue: 36900, deliveryDays: 4,
     yearRange: [2011, 2024], baseMileage: [15000, 150000], demandFactor: 1.5 },
@@ -195,7 +173,6 @@ export const CAR_CATALOG = [
   { make: 'Ford',      model: 'F-150',        trim: 'Raptor R',      category: 'Truck',
     basePrice: 93100, marketValue: 107000, deliveryDays: 5,
     yearRange: [2023, 2025], baseMileage: [500,    25000], demandFactor: 1.4, usedWeight: 0.40 },
-
   { make: 'Chevrolet', model: 'Silverado 1500',trim: 'WT',          category: 'Truck',
     basePrice: 33100, marketValue: 37900, deliveryDays: 4,
     yearRange: [2011, 2024], baseMileage: [15000, 150000], demandFactor: 1.4 },
@@ -211,7 +188,6 @@ export const CAR_CATALOG = [
   { make: 'Chevrolet', model: 'Silverado 1500',trim: 'ZR2',          category: 'Truck',
     basePrice: 57400, marketValue: 66000, deliveryDays: 4,
     yearRange: [2022, 2025], baseMileage: [1000,   45000], demandFactor: 1.38 },
-
   { make: 'Toyota',    model: 'Tacoma',       trim: 'SR',           category: 'Truck',
     basePrice: 28800, marketValue: 32900, deliveryDays: 4,
     yearRange: [2012, 2024], baseMileage: [10000, 130000], demandFactor: 1.4 },
@@ -221,7 +197,6 @@ export const CAR_CATALOG = [
   { make: 'Toyota',    model: 'Tacoma',       trim: 'TRD Sport',    category: 'Truck',
     basePrice: 39300, marketValue: 44900, deliveryDays: 4,
     yearRange: [2017, 2024], baseMileage: [3000,   70000], demandFactor: 1.4 },
-
   { make: 'RAM',       model: '1500',         trim: 'Tradesman',    category: 'Truck',
     basePrice: 33100, marketValue: 37900, deliveryDays: 4,
     yearRange: [2011, 2024], baseMileage: [15000, 150000], demandFactor: 1.3 },
@@ -234,22 +209,18 @@ export const CAR_CATALOG = [
   { make: 'RAM',       model: '1500',         trim: 'TRX',           category: 'Truck',
     basePrice: 69600, marketValue: 80000, deliveryDays: 5,
     yearRange: [2021, 2024], baseMileage: [1000,   35000], demandFactor: 1.4, usedWeight: 0.40 },
-
   { make: 'GMC',       model: 'Sierra 1500',  trim: 'Regular',      category: 'Truck',
     basePrice: 33100, marketValue: 37900, deliveryDays: 4,
     yearRange: [2011, 2024], baseMileage: [15000, 150000], demandFactor: 1.2 },
   { make: 'GMC',       model: 'Sierra 1500',  trim: 'SLE',          category: 'Truck',
     basePrice: 41000, marketValue: 46900, deliveryDays: 4,
     yearRange: [2014, 2024], baseMileage: [10000, 120000], demandFactor: 1.2 },
-
   { make: 'Nissan',    model: 'Frontier',     trim: 'S',            category: 'Truck',
     basePrice: 27900, marketValue: 31900, deliveryDays: 4,
     yearRange: [2012, 2024], baseMileage: [15000, 140000], demandFactor: 1.0 },
   { make: 'Nissan',    model: 'Frontier',     trim: 'SV',           category: 'Truck',
     basePrice: 31400, marketValue: 35900, deliveryDays: 4,
     yearRange: [2015, 2024], baseMileage: [10000, 110000], demandFactor: 1.0 },
-
-  // ── Sports ────────────────────────────────────────────────
   { make: 'Ford',      model: 'Mustang',      trim: 'EcoBoost',     category: 'Sports',
     basePrice: 27900, marketValue: 31900, deliveryDays: 3,
     yearRange: [2015, 2024], baseMileage: [3000,   70000], demandFactor: 1.2 },
@@ -265,39 +236,33 @@ export const CAR_CATALOG = [
   { make: 'Ford',      model: 'Mustang',      trim: 'Shelby GT500',  category: 'Sports',
     basePrice: 67900, marketValue: 78000, deliveryDays: 4,
     yearRange: [2020, 2024], baseMileage: [300,    25000], demandFactor: 1.4, usedWeight: 0.55 },
-
   { make: 'Chevrolet', model: 'Camaro',       trim: 'LS',           category: 'Sports',
     basePrice: 26200, marketValue: 29900, deliveryDays: 3,
     yearRange: [2016, 2024], baseMileage: [3000,   70000], demandFactor: 1.1 },
   { make: 'Chevrolet', model: 'Camaro',       trim: 'SS',           category: 'Sports',
     basePrice: 40300, marketValue: 46100, deliveryDays: 3,
     yearRange: [2016, 2024], baseMileage: [2000,   50000], demandFactor: 1.2 },
-
   { make: 'Subaru',    model: 'BRZ',          trim: 'Premium',      category: 'Sports',
     basePrice: 26200, marketValue: 29900, deliveryDays: 3,
     yearRange: [2017, 2024], baseMileage: [3000,   60000], demandFactor: 1.1 },
   { make: 'Subaru',    model: 'BRZ',          trim: 'Limited',      category: 'Sports',
     basePrice: 29300, marketValue: 33500, deliveryDays: 3,
     yearRange: [2017, 2024], baseMileage: [2000,   45000], demandFactor: 1.1 },
-
   { make: 'Mazda',     model: 'MX-5 Miata',   trim: 'Sport',        category: 'Sports',
     basePrice: 27000, marketValue: 30900, deliveryDays: 3,
     yearRange: [2016, 2024], baseMileage: [2000,   60000], demandFactor: 1.1 },
   { make: 'Mazda',     model: 'MX-5 Miata',   trim: 'Grand Touring', category: 'Sports',
     basePrice: 31400, marketValue: 35900, deliveryDays: 3,
     yearRange: [2016, 2024], baseMileage: [1000,   40000], demandFactor: 1.1 },
-
   { make: 'Honda',     model: 'Civic Type R',  trim: 'Type R',       category: 'Sports',
     basePrice: 38400, marketValue: 43900, deliveryDays: 5,
     yearRange: [2018, 2024], baseMileage: [1000,   40000], demandFactor: 1.3 },
-
   { make: 'Dodge',     model: 'Challenger',   trim: 'SXT',          category: 'Sports',
     basePrice: 28800, marketValue: 32900, deliveryDays: 3,
     yearRange: [2015, 2024], baseMileage: [3000,   70000], demandFactor: 1.1 },
   { make: 'Dodge',     model: 'Challenger',   trim: 'R/T',          category: 'Sports',
     basePrice: 36000, marketValue: 41200, deliveryDays: 3,
     yearRange: [2015, 2024], baseMileage: [2000,   55000], demandFactor: 1.2 },
-
   { make: 'Chevrolet', model: 'Corvette',     trim: 'Stingray',     category: 'Sports',
     basePrice: 60300, marketValue: 69900, deliveryDays: 5,
     yearRange: [2015, 2025], baseMileage: [800,    45000], demandFactor: 1.35, usedWeight: 0.45 },
@@ -340,11 +305,9 @@ export const CAR_CATALOG = [
   { make: 'McLaren',   model: '750S',         trim: 'Coupe',        category: 'Sports',
     basePrice: 286000, marketValue: 331000, deliveryDays: 7,
     yearRange: [2024, 2025], baseMileage: [30,      5000], demandFactor: 1.45, usedWeight: 0.07 },
-  { make: 'Bugatti',   model: 'Chiron',       trim: 'Sport',        category: 'Sports',
+  { make: 'ti',   model: 'Chiron',       trim: 'Sport',        category: 'Sports',
     basePrice: 3110000, marketValue: 3590000, deliveryDays: 9,
     yearRange: [2018, 2025], baseMileage: [10,      2500], demandFactor: 1.6, usedWeight: 0.01 },
-
-  // ── Luxury ────────────────────────────────────────────────
   { make: 'BMW',       model: '3 Series',     trim: '330i',         category: 'Luxury',
     basePrice: 39200, marketValue: 44900, deliveryDays: 5,
     yearRange: [2015, 2024], baseMileage: [8000,   90000], demandFactor: 1.1 },
@@ -354,44 +317,36 @@ export const CAR_CATALOG = [
   { make: 'BMW',       model: '5 Series',     trim: '530i',         category: 'Luxury',
     basePrice: 52400, marketValue: 59900, deliveryDays: 5,
     yearRange: [2018, 2024], baseMileage: [3000,   65000], demandFactor: 1.15 },
-
   { make: 'Mercedes-Benz',model: 'C-Class',  trim: 'C300',         category: 'Luxury',
     basePrice: 40200, marketValue: 45900, deliveryDays: 5,
     yearRange: [2015, 2024], baseMileage: [8000,   90000], demandFactor: 1.1 },
   { make: 'Mercedes-Benz',model: 'C-Class',  trim: 'AMG C43',      category: 'Luxury',
     basePrice: 54100, marketValue: 61900, deliveryDays: 5,
     yearRange: [2018, 2024], baseMileage: [2000,   55000], demandFactor: 1.2 },
-
   { make: 'Audi',      model: 'A4',           trim: 'Premium',      category: 'Luxury',
     basePrice: 36700, marketValue: 41900, deliveryDays: 5,
     yearRange: [2015, 2024], baseMileage: [8000,   90000], demandFactor: 1.0 },
   { make: 'Audi',      model: 'A4',           trim: 'Premium Plus', category: 'Luxury',
     basePrice: 41800, marketValue: 47900, deliveryDays: 5,
     yearRange: [2017, 2024], baseMileage: [4000,   70000], demandFactor: 1.1 },
-
   { make: 'Lexus',     model: 'IS',           trim: 'IS 300',       category: 'Luxury',
     basePrice: 38400, marketValue: 43900, deliveryDays: 5,
     yearRange: [2015, 2024], baseMileage: [8000,   90000], demandFactor: 1.0 },
   { make: 'Lexus',     model: 'IS',           trim: 'IS 350',       category: 'Luxury',
     basePrice: 45500, marketValue: 52100, deliveryDays: 5,
     yearRange: [2017, 2024], baseMileage: [4000,   65000], demandFactor: 1.1 },
-
   { make: 'Cadillac',  model: 'CT5',          trim: 'Luxury',       category: 'Luxury',
     basePrice: 38400, marketValue: 43900, deliveryDays: 5,
     yearRange: [2020, 2024], baseMileage: [5000,   70000], demandFactor: 0.9 },
   { make: 'Cadillac',  model: 'CT5',          trim: 'Sport',        category: 'Luxury',
     basePrice: 44600, marketValue: 51100, deliveryDays: 5,
     yearRange: [2020, 2024], baseMileage: [2000,   50000], demandFactor: 1.0 },
-
   { make: 'Infiniti',  model: 'Q50',          trim: 'Pure',         category: 'Luxury',
     basePrice: 36700, marketValue: 41900, deliveryDays: 5,
     yearRange: [2014, 2024], baseMileage: [10000, 100000], demandFactor: 0.9 },
   { make: 'Infiniti',  model: 'Q50',          trim: 'Luxe',         category: 'Luxury',
     basePrice: 41000, marketValue: 46900, deliveryDays: 5,
     yearRange: [2014, 2024], baseMileage: [6000,   85000], demandFactor: 0.9 },
-
-
-  // ── Catalog Expansion (additional makes/models/trims) ─────────────
   { make: 'Hyundai',    model: 'Sonata',        trim: 'SE',        category: 'Sedan',
     basePrice: 25400, marketValue: 28900, deliveryDays: 3,
     yearRange: [2014, 2025], baseMileage: [6000, 110000], demandFactor: 1.0 },
@@ -959,9 +914,6 @@ export const CAR_CATALOG = [
   { make: 'Nissan',    model: 'Rogue Sport',   trim: 'SV',       category: 'SUV',
     basePrice: 27000, marketValue: 30700, deliveryDays: 4,
     yearRange: [2018, 2023], baseMileage: [5000,  90000], demandFactor: 1.08 },
-
-
-  // ── Trim Ladder Completion (existing models) ───────────────────────
   { make: 'Audi',    model: 'A4',            trim: 'Prestige',    category: 'Luxury',
     basePrice: 45500, marketValue: 51700, deliveryDays: 5,
     yearRange: [2017, 2024], baseMileage: [2400, 62999], demandFactor: 1.13 },
@@ -992,6 +944,15 @@ export const CAR_CATALOG = [
   { make: 'Bugatti',    model: 'Chiron',        trim: 'Profilée',    category: 'Sports',
     basePrice: 3980600, marketValue: 4523400, deliveryDays: 9,
     yearRange: [2022, 2025], baseMileage: [10, 5010], demandFactor: 1.6 },
+  { make: 'Bugatti',    model: 'Veyron',        trim: 'Standard',    category: 'Sports',
+    basePrice: 1400000, marketValue: 1942800, deliveryDays: 8,
+    yearRange: [2005, 2025], baseMileage: [10, 5010], demandFactor: 1.6 },
+  { make: 'Bugatti',    model: 'Veyron',        trim: 'Grand Sport',    category: 'Sports',
+    basePrice: 2000000, marketValue: 2542800, deliveryDays: 9,
+    yearRange: [2009, 2025], baseMileage: [10, 5010], demandFactor: 1.6 },
+  { make: 'Bugatti',    model: 'Veyron',        trim: 'Super Sport',    category: 'Sports',
+    basePrice: 2500000, marketValue: 3042800, deliveryDays: 9,
+    yearRange: [2010, 2025], baseMileage: [10, 5010], demandFactor: 1.6 },
   { make: 'Cadillac',    model: 'CT5',           trim: 'Premium Luxury', category: 'Luxury',
     basePrice: 48600, marketValue: 55200, deliveryDays: 5,
     yearRange: [2022, 2024], baseMileage: [1200, 49000], demandFactor: 1.03 },
@@ -1184,8 +1145,6 @@ export const CAR_CATALOG = [
   { make: 'Volkswagen',    model: 'Jetta',         trim: 'GLI',         category: 'Sedan',
     basePrice: 27700, marketValue: 31500, deliveryDays: 3,
     yearRange: [2015, 2024], baseMileage: [3120, 75599], demandFactor: 0.96 },
-
-  // ── Volkswagen additional models ─────────────────────────────
   { make: 'Volkswagen',  model: 'Passat',        trim: 'SE',           category: 'Sedan',
     basePrice: 24800, marketValue: 28200, deliveryDays: 3,
     yearRange: [2014, 2022], baseMileage: [8000, 110000], demandFactor: 0.88 },
@@ -1204,8 +1163,6 @@ export const CAR_CATALOG = [
   { make: 'Volkswagen',  model: 'Golf GTI',      trim: 'Rabbit',       category: 'Economy',
     basePrice: 36800, marketValue: 41800, deliveryDays: 3,
     yearRange: [2019, 2024], baseMileage: [2000,  48000], demandFactor: 1.25 },
-
-  // ── Toyota additional models ──────────────────────────────────
   { make: 'Toyota',      model: '4Runner',       trim: 'SR5',          category: 'SUV',
     basePrice: 38700, marketValue: 44100, deliveryDays: 3,
     yearRange: [2012, 2024], baseMileage: [8000, 120000], demandFactor: 1.30 },
@@ -1245,8 +1202,6 @@ export const CAR_CATALOG = [
   { make: 'Toyota',      model: 'Sequoia',       trim: 'TRD Pro',       category: 'SUV',
     basePrice: 69600, marketValue: 79900, deliveryDays: 5,
     yearRange: [2020, 2025], baseMileage: [1000,  42000], demandFactor: 1.22 },
-
-  // ── BMW additional models ────────────────────────────────────
   { make: 'BMW',         model: 'X5',            trim: 'xDrive40i',    category: 'SUV',
     basePrice: 63800, marketValue: 72500, deliveryDays: 5,
     yearRange: [2016, 2024], baseMileage: [3000,  72000], demandFactor: 1.20 },
@@ -1271,8 +1226,6 @@ export const CAR_CATALOG = [
   { make: 'BMW',         model: 'M4',            trim: 'Competition xDrive', category: 'Sports',
     basePrice: 75700, marketValue: 86900, deliveryDays: 5,
     yearRange: [2022, 2025], baseMileage: [500,   28000], demandFactor: 1.33 },
-
-  // ── Audi additional models ───────────────────────────────────
   { make: 'Audi',        model: 'A3',            trim: 'Premium',      category: 'Sedan',
     basePrice: 35400, marketValue: 40200, deliveryDays: 4,
     yearRange: [2016, 2024], baseMileage: [5000,  80000], demandFactor: 1.05 },
@@ -1297,8 +1250,6 @@ export const CAR_CATALOG = [
   { make: 'Audi',        model: 'R8',            trim: 'V10 Performance', category: 'Sports',
     basePrice: 170500, marketValue: 196000, deliveryDays: 7,
     yearRange: [2018, 2024], baseMileage: [300,   15000], demandFactor: 1.43, usedWeight: 0.14 },
-
-  // ── Honda additional models ──────────────────────────────────
   { make: 'Honda',       model: 'Passport',      trim: 'Sport',        category: 'SUV',
     basePrice: 36700, marketValue: 41700, deliveryDays: 3,
     yearRange: [2019, 2024], baseMileage: [3000,  70000], demandFactor: 1.10 },
@@ -1311,8 +1262,6 @@ export const CAR_CATALOG = [
   { make: 'Honda',       model: 'NSX',           trim: 'Type S',        category: 'Sports',
     basePrice: 148000, marketValue: 170000, deliveryDays: 8,
     yearRange: [2017, 2022], baseMileage: [200,   18000], demandFactor: 1.45, usedWeight: 0.12 },
-
-  // ── Hyundai additional models ────────────────────────────────
   { make: 'Hyundai',     model: 'Santa Fe',      trim: 'SE',           category: 'SUV',
     basePrice: 29300, marketValue: 33300, deliveryDays: 3,
     yearRange: [2015, 2024], baseMileage: [8000, 110000], demandFactor: 1.05 },
@@ -1340,8 +1289,6 @@ export const CAR_CATALOG = [
   { make: 'Hyundai',     model: 'IONIQ 6',       trim: 'Limited AWD',   category: 'Economy',
     basePrice: 41800, marketValue: 48000, deliveryDays: 3,
     yearRange: [2023, 2025], baseMileage: [200,   22000], demandFactor: 1.15 },
-
-  // ── Kia additional models ────────────────────────────────────
   { make: 'Kia',         model: 'Telluride',     trim: 'LX',           category: 'SUV',
     basePrice: 34300, marketValue: 39000, deliveryDays: 3,
     yearRange: [2020, 2024], baseMileage: [5000,  90000], demandFactor: 1.25 },
@@ -1369,8 +1316,6 @@ export const CAR_CATALOG = [
   { make: 'Kia',         model: 'EV6',           trim: 'GT-Line AWD',   category: 'Economy',
     basePrice: 44400, marketValue: 50900, deliveryDays: 3,
     yearRange: [2022, 2025], baseMileage: [200,   22000], demandFactor: 1.20 },
-
-  // ── Ford additional models ───────────────────────────────────
   { make: 'Ford',        model: 'Edge',          trim: 'SE',           category: 'SUV',
     basePrice: 31400, marketValue: 35700, deliveryDays: 3,
     yearRange: [2015, 2024], baseMileage: [8000, 110000], demandFactor: 0.95 },
@@ -1389,8 +1334,6 @@ export const CAR_CATALOG = [
   { make: 'Ford',        model: 'Expedition',    trim: 'Platinum',     category: 'SUV',
     basePrice: 75400, marketValue: 85700, deliveryDays: 4,
     yearRange: [2019, 2024], baseMileage: [1500,  55000], demandFactor: 1.15 },
-
-  // ── Chevrolet additional models ──────────────────────────────
   { make: 'Chevrolet',   model: 'Blazer',        trim: 'LT',           category: 'SUV',
     basePrice: 36600, marketValue: 41600, deliveryDays: 3,
     yearRange: [2019, 2024], baseMileage: [4000,  80000], demandFactor: 1.00 },
@@ -1409,8 +1352,6 @@ export const CAR_CATALOG = [
   { make: 'Chevrolet',   model: 'Suburban',      trim: 'High Country', category: 'SUV',
     basePrice: 80200, marketValue: 91200, deliveryDays: 4,
     yearRange: [2020, 2024], baseMileage: [1500,  52000], demandFactor: 1.20 },
-
-  // ── Nissan additional models ─────────────────────────────────
   { make: 'Nissan',      model: 'Armada',        trim: 'SV',           category: 'SUV',
     basePrice: 52100, marketValue: 59200, deliveryDays: 4,
     yearRange: [2017, 2024], baseMileage: [6000, 100000], demandFactor: 0.95 },
@@ -1435,8 +1376,6 @@ export const CAR_CATALOG = [
   { make: 'Nissan',      model: 'GT-R',          trim: 'Nismo',         category: 'Sports',
     basePrice: 152300, marketValue: 175000, deliveryDays: 7,
     yearRange: [2015, 2023], baseMileage: [300,   18000], demandFactor: 1.43, usedWeight: 0.12 },
-
-  // ── Mercedes-Benz additional models ──────────────────────────
   { make: 'Mercedes-Benz', model: 'S-Class',     trim: 'S500',         category: 'Luxury',
     basePrice: 106800, marketValue: 121400, deliveryDays: 6,
     yearRange: [2018, 2024], baseMileage: [2000,  55000], demandFactor: 1.30 },
@@ -1464,8 +1403,6 @@ export const CAR_CATALOG = [
   { make: 'Mercedes-Benz', model: 'SL',          trim: 'SL 63',         category: 'Sports',
     basePrice: 139200, marketValue: 160000, deliveryDays: 7,
     yearRange: [2023, 2025], baseMileage: [200,   14000], demandFactor: 1.35, usedWeight: 0.20 },
-
-  // ── Subaru additional models ─────────────────────────────────
   { make: 'Subaru',      model: 'WRX',           trim: 'Base',         category: 'Sedan',
     basePrice: 29700, marketValue: 33800, deliveryDays: 3,
     yearRange: [2018, 2024], baseMileage: [3000,  65000], demandFactor: 1.20 },
@@ -1493,8 +1430,6 @@ export const CAR_CATALOG = [
   { make: 'Subaru',      model: 'Forester',      trim: 'Wilderness',    category: 'SUV',
     basePrice: 33100, marketValue: 38000, deliveryDays: 3,
     yearRange: [2022, 2025], baseMileage: [1000,  48000], demandFactor: 1.12 },
-
-  // ── Jeep additional models ───────────────────────────────────
   { make: 'Jeep',        model: 'Gladiator',     trim: 'Sport',        category: 'Truck',
     basePrice: 37800, marketValue: 43000, deliveryDays: 4,
     yearRange: [2020, 2024], baseMileage: [3000,  72000], demandFactor: 1.15 },
@@ -1504,8 +1439,6 @@ export const CAR_CATALOG = [
   { make: 'Jeep',        model: 'Gladiator',     trim: 'Rubicon',      category: 'Truck',
     basePrice: 53700, marketValue: 61100, deliveryDays: 4,
     yearRange: [2020, 2024], baseMileage: [1000,  42000], demandFactor: 1.25 },
-
-  // ── Cadillac additional models ───────────────────────────────
   { make: 'Cadillac',    model: 'CT4',           trim: 'Luxury',       category: 'Luxury',
     basePrice: 35700, marketValue: 40600, deliveryDays: 5,
     yearRange: [2021, 2024], baseMileage: [3000,  65000], demandFactor: 1.10 },
@@ -1518,8 +1451,6 @@ export const CAR_CATALOG = [
   { make: 'Cadillac',    model: 'CT5-V',         trim: 'Blackwing',     category: 'Sports',
     basePrice: 81800, marketValue: 94000, deliveryDays: 6,
     yearRange: [2022, 2024], baseMileage: [500,   25000], demandFactor: 1.33, usedWeight: 0.30 },
-
-  // ── GMC additional models ────────────────────────────────────
   { make: 'GMC',         model: 'Acadia',        trim: 'SL',           category: 'SUV',
     basePrice: 34100, marketValue: 38800, deliveryDays: 3,
     yearRange: [2017, 2024], baseMileage: [6000, 100000], demandFactor: 1.00 },
@@ -1535,8 +1466,6 @@ export const CAR_CATALOG = [
   { make: 'GMC',         model: 'Sierra 2500HD', trim: 'Denali',        category: 'Truck',
     basePrice: 60900, marketValue: 69900, deliveryDays: 4,
     yearRange: [2018, 2024], baseMileage: [3000,  80000], demandFactor: 1.18 },
-
-  // ── Infiniti additional models ───────────────────────────────
   { make: 'Infiniti',    model: 'Q60',           trim: 'PURE',         category: 'Luxury',
     basePrice: 39700, marketValue: 45100, deliveryDays: 5,
     yearRange: [2017, 2024], baseMileage: [3000,  72000], demandFactor: 1.10 },
@@ -1546,10 +1475,6 @@ export const CAR_CATALOG = [
   { make: 'Infiniti',    model: 'Q60',           trim: 'RED SPORT 400', category: 'Luxury',
     basePrice: 49800, marketValue: 56600, deliveryDays: 5,
     yearRange: [2019, 2024], baseMileage: [1000,  42000], demandFactor: 1.18 },
-
-  // ── NEW BRANDS ───────────────────────────────────────────────
-
-  // ── Mitsubishi ───────────────────────────────────────────────
   { make: 'Mitsubishi',  model: 'Outlander',     trim: 'ES',           category: 'SUV',
     basePrice: 27400, marketValue: 31100, deliveryDays: 3,
     yearRange: [2014, 2024], baseMileage: [8000, 110000], demandFactor: 0.90 },
