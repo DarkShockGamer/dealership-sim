@@ -329,16 +329,6 @@ body {
   flex-wrap: wrap;
 }
 
-.brand-wordmark {
-  display: inline-block;
-  font-size: .72rem;
-  line-height: 1;
-  border-bottom: 2px solid currentColor;
-  padding-bottom: 1px;
-  opacity: .92;
-  margin-bottom: 4px;
-}
-
 .car-name {
   font-size: 1.02rem;
   font-weight: 700;
