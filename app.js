@@ -11,9 +11,21 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.3.4';
+const GAME_VERSION = '1.3.5';
 
 const PATCH_NOTES = [
+  {
+    version: '1.3.5',
+    date: 'July 2026',
+    notes: [
+      { type: 'fix',     text: 'Own-car repairs now use the same Service Bay capacity pool as customer jobs, and Service tab bay occupancy now reflects both.' },
+      { type: 'feature', text: 'Expanded factory catalog with additional performance and exotic options, including Pagani and other high-end models.' },
+      { type: 'fix',     text: 'BMW lineup normalized for factory navigation: M models are now represented as trims under the appropriate numbered series.' },
+      { type: 'fix',     text: 'Brand wordmarks/watermarks removed from the UI and settings for a cleaner, simpler vehicle display.' },
+      { type: 'feature', text: 'Achievements list reordered into a clearer progression while preserving existing achievement IDs and save compatibility.' },
+      { type: 'chore',   text: 'Car catalog data reorganized for readability and maintainability as part of the 1.3.5 update.' },
+    ],
+  },
   {
     version: '1.3.4',
     date: 'April 2026',
@@ -288,20 +300,6 @@ const HIDDEN_ISSUES = [
   { name: 'Catalytic converter issue', cost: 950  },
 ];
 
-const BRAND_WORDMARK_STYLES = {
-  Toyota:         { family: '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif', weight: 700, spacing: '0.02em', color: '#d71920' },
-  Honda:          { family: '"Helvetica Neue", Arial, sans-serif',               weight: 700, spacing: '0.03em', color: '#d00000' },
-  Chevrolet:      { family: '"Trebuchet MS", Arial, sans-serif',                 weight: 700, spacing: '0.02em', color: '#c28b00' },
-  Ferrari:        { family: 'Georgia, "Times New Roman", serif',                 weight: 700, spacing: '0.05em', color: '#b70000' },
-  Lamborghini:    { family: 'Impact, "Arial Black", sans-serif',                 weight: 700, spacing: '0.06em', color: '#c9a227' },
-  Bugatti:        { family: '"Times New Roman", Georgia, serif',                 weight: 700, spacing: '0.08em', color: '#0b4da2' },
-  McLaren:        { family: '"Segoe UI", "Helvetica Neue", Arial, sans-serif',   weight: 700, spacing: '0.05em', color: '#ff6a00' },
-  Porsche:        { family: '"Arial Narrow", Arial, sans-serif',                 weight: 700, spacing: '0.09em', color: '#222' },
-  BMW:            { family: '"Helvetica Neue", Arial, sans-serif',               weight: 700, spacing: '0.04em', color: '#1266d4' },
-  'Mercedes-Benz':{ family: 'Georgia, "Times New Roman", serif',                 weight: 700, spacing: '0.03em', color: '#111827' },
-  default:        { family: '"Segoe UI", Roboto, Arial, sans-serif',             weight: 700, spacing: '0.03em', color: '#334155' },
-};
-
 const STAFF_NAMES = ['Alex', 'Sam', 'Jordan', 'Taylor', 'Riley', 'Casey', 'Morgan', 'Parker', 'Jamie', 'Avery'];
 const STAFF_BASE_WAGE = 220;
 const STAFF_CANDIDATE_POOL_SIZE = 4;
@@ -491,7 +489,7 @@ const ACH_ICONS = {
   layers:     achSvg('<polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>'),
   key:        achSvg('<path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>'),
 };
-const ACHIEVEMENTS = [
+const ACHIEVEMENT_DEFS = [
   { id: 'first_sale',          icon: ACH_ICONS.tag,        name: 'First Deal Done',        desc: 'Complete your first car sale.',
     check: s => (s.salesHistory || []).length >= 1, progress: s => Math.min(1, (s.salesHistory||[]).length) },
   { id: 'ten_sales',           icon: ACH_ICONS.star,       name: 'Dealership Regular',     desc: 'Sell 10 cars total.',
@@ -588,6 +586,24 @@ const ACHIEVEMENTS = [
   { id: 'secret_logo',         icon: ACH_ICONS.star,       name: '🔒 Old School',           desc: '???',
     check: s => (s.logoClickCount || 0) >= 7 },
 ];
+
+const ACHIEVEMENT_ORDER = [
+  'first_sale', 'first_upgrade', 'title_clean_start', 'first_tradein', 'first_lease',
+  'ten_sales', 'detail_ten', 'five_tradeins', 'five_leases', 'luxury_seller',
+  'fifty_sales', 'hundred_sales', 'supercar_seller',
+  'net_worth_100k', 'net_worth_500k', 'net_worth_1m',
+  'loan_interest_paid', 'loan_debt_free', 'interest_enthusiast', 'debt_addict', 'big_draw',
+  'title_clean_streak', 'salvage_profit', 'lemonade_stand', 'lemon_grove',
+  'not_today', 'paperwork_pro', 'eagle_eye', 'rebuilder', 'busted', 'three_strikes',
+  'garage_tier4', 'garage_tier5', 'full_house',
+  'day_50', 'day_200', 'marathon_man',
+  'rust_enthusiast', 'grease_monkey', 'loss_leader',
+  'bankruptcy_survivor', 'hard_knocks',
+  'secret_logo', 'secret_konami',
+];
+
+const ACHIEVEMENT_MAP = new Map(ACHIEVEMENT_DEFS.map(ach => [ach.id, ach]));
+const ACHIEVEMENTS = ACHIEVEMENT_ORDER.map(id => ACHIEVEMENT_MAP.get(id)).filter(Boolean);
 
 const UPGRADES_CONFIG = [
   {
@@ -838,20 +854,8 @@ const formatCurrency = n => '$' + Math.round(n).toLocaleString();
 const generateId  = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 let factorySelection = { make: null, model: null };
 
-function getBrandWordmarkStyle(make) {
-  return BRAND_WORDMARK_STYLES[make] || BRAND_WORDMARK_STYLES.default;
-}
-
-function renderBrandWordmark(make) {
-  const style = getBrandWordmarkStyle(make);
-  return `<span class="brand-wordmark"
-    style="font-family:${style.family};font-weight:${style.weight};letter-spacing:${style.spacing};color:${style.color}"
-    title="${make}">${make}</span>`;
-}
-
 function formatCarDisplayName(car) {
-  const makeText = settings.showWordmarks ? '' : `${car.make} `;
-  return `${car.year} ${makeText}${car.model}${car.trim ? ' ' + car.trim : ''}`;
+  return `${car.year} ${car.make} ${car.model}${car.trim ? ' ' + car.trim : ''}`;
 }
 
 function getBaseLoanTerms() {
@@ -2552,14 +2556,26 @@ function processServiceJobCompletion() {
 }
 
 /** Player action: start a service job — claims a bay slot and begins the repair timer. */
+function getCustomerServiceBayUsage() {
+  return (state.serviceGarage || []).filter(j => (j.status || '') === 'inProgress').length;
+}
+
+function getOwnCarServiceBayUsage() {
+  return (state.garage || []).filter(c => !!c.pendingService && c.inServiceUntilDay !== null).length;
+}
+
+function getTotalServiceBayUsage() {
+  return getCustomerServiceBayUsage() + getOwnCarServiceBayUsage();
+}
+
 function startServiceJob(serviceCarId) {
   if (state.gameOver) return;
   const sc = (state.serviceGarage || []).find(j => j.id === serviceCarId);
   if (!sc) { showToast('Service job not found.', 'error'); return; }
   if ((sc.status || 'waiting') !== 'waiting') { showToast('This job is already in progress or complete.', 'error'); return; }
   const capacity   = state.serviceGarageCapacity || 3;
-  const inProgress = (state.serviceGarage || []).filter(j => (j.status || '') === 'inProgress').length;
-  if (inProgress >= capacity) {
+  const occupiedBays = getTotalServiceBayUsage();
+  if (occupiedBays >= capacity) {
     showToast(`All ${capacity} bay slot(s) are busy — complete a current job first.`, 'error'); return;
   }
   const days = getServiceDays(sc);
@@ -3347,6 +3363,11 @@ function basicRepair(carId) {
     showToast('Car is in good condition with no known issues — no repairs needed!', 'error'); return;
   }
   if (car.inServiceUntilDay) { showToast('Car is already in service.', 'error'); return; }
+  const capacity = state.serviceGarageCapacity || 3;
+  const occupiedBays = getTotalServiceBayUsage();
+  if (occupiedBays >= capacity) {
+    showToast(`All ${capacity} bay slot(s) are busy — complete a current job first.`, 'error'); return;
+  }
   const cost = computeRepairCost(car);
   const costRatio = cost / Math.max(1, car.marketValue);
   if (costRatio >= REPAIR_JUNK_COST_RATIO) {
@@ -3372,6 +3393,11 @@ function partsUpgrade(carId) {
     showToast('Parts upgrades are only for Sports, SUV, and Truck vehicles.', 'error'); return;
   }
   if (car.inServiceUntilDay) { showToast('Car is already in service.', 'error'); return; }
+  const capacity = state.serviceGarageCapacity || 3;
+  const occupiedBays = getTotalServiceBayUsage();
+  if (occupiedBays >= capacity) {
+    showToast(`All ${capacity} bay slot(s) are busy — complete a current job first.`, 'error'); return;
+  }
   const perfAlreadyDone = car.reconditionLog.some(r => r.type === 'Parts Upgrade');
   if (perfAlreadyDone) { showToast('Parts upgrade already applied to this car!', 'error'); return; }
   const cost = 1500;
@@ -3671,7 +3697,7 @@ function renderFactory() {
 
   const makeButtons = makes.map(make => `
     <button class="btn btn-sm ${factorySelection.make === make ? 'btn-primary' : 'btn-secondary'}" onclick="setFactoryMake('${make}')">
-      ${settings.showWordmarks ? renderBrandWordmark(make) : make}
+      ${make}
     </button>`).join('');
   const modelButtons = modelNames.map(model => `
     <button class="btn btn-sm ${factorySelection.model === model ? 'btn-primary' : 'btn-secondary'}" onclick="setFactoryModel('${model}')">
@@ -3696,8 +3722,7 @@ function renderFactory() {
       <div class="car-card factory-card">
         <div class="car-card-header">
           <div>
-            ${settings.showWordmarks ? renderBrandWordmark(car.make) : ''}
-            <span class="car-name">2026 ${settings.showWordmarks ? '' : `${car.make} `}${car.model}</span>
+            <span class="car-name">2026 ${car.make} ${car.model}</span>
           </div>
           <div class="badge-stack">
             <span class="badge badge-gray">${car.category}</span>
@@ -3838,8 +3863,7 @@ function renderUsedMarket() {
         <div class="car-card tradein-card">
           <div class="car-card-header">
             <div>
-              ${settings.showWordmarks ? renderBrandWordmark(offer.make) : ''}
-              <span class="car-name">${formatCarDisplayName(offer)}</span>
+                <span class="car-name">${formatCarDisplayName(offer)}</span>
             </div>
             <div class="badge-stack">
               ${condBadge(offer.condition)}
@@ -3991,7 +4015,6 @@ function renderCarLot() {
         <div class="car-card garage-card ${car.isForSale ? 'for-sale' : ''} ${inService ? 'in-service' : ''}">
           <div class="car-card-header">
             <div>
-              ${settings.showWordmarks ? renderBrandWordmark(car.make) : ''}
               <span class="car-name">${formatCarDisplayName(car)}</span>
             </div>
             <div class="badge-stack">
@@ -4077,8 +4100,10 @@ function renderServiceGarage() {
   const el = document.getElementById('tab-garage');
   const capacity    = state.serviceGarageCapacity || 3;
   const jobs        = state.serviceGarage || [];
-  const inProgress  = jobs.filter(j => (j.status || 'ready') === 'inProgress').length;
-  const baysAvail   = capacity - inProgress;
+  const customerInProgress = getCustomerServiceBayUsage();
+  const ownInProgress = getOwnCarServiceBayUsage();
+  const occupiedBays = customerInProgress + ownInProgress;
+  const baysAvail   = Math.max(0, capacity - occupiedBays);
 
   const TYPE_COLOR = { maintenance: 'badge-green', moderate: 'badge-yellow', major: 'badge-red' };
 
@@ -4172,7 +4197,8 @@ function renderServiceGarage() {
     const inService  = !!car.inServiceUntilDay;
     const isLeased   = car.leaseStatus === 'active' && !!car.activeLease;
     const repairCost = computeRepairCost(car);
-    const canRepair  = !inService && !isLeased && state.cash >= repairCost;
+    const baysFull = occupiedBays >= capacity;
+    const canRepair  = !inService && !isLeased && !baysFull && state.cash >= repairCost;
     const issues     = car.hiddenIssues || [];
     const issueHtml  = issues.length
       ? issues.map(i => `<span class="issue-tag">${uiIcon('warning')} ${i.name}</span>`).join('')
@@ -4180,6 +4206,7 @@ function renderServiceGarage() {
 
     const repairTitle = inService ? 'Already in service'
       : isLeased  ? 'Lease active — repair unavailable'
+      : baysFull ? 'All service bays are occupied'
       : state.cash < repairCost ? 'Not enough cash'
       : '1 day: fixes all issues, restores condition';
 
@@ -4187,7 +4214,6 @@ function renderServiceGarage() {
       <div class="car-card service-car-card">
         <div class="car-card-header">
           <div>
-            ${settings.showWordmarks ? renderBrandWordmark(car.make) : ''}
             <span class="car-name">${formatCarDisplayName(car)}</span>
           </div>
           <div class="badge-stack">
@@ -4224,10 +4250,12 @@ function renderServiceGarage() {
 
   const tabContent = `
     <div class="tab-info">
-      ${uiIcon('wrench')} Bays: <strong>${inProgress}/${capacity}</strong> occupied.
+    ${uiIcon('wrench')} Bays: <strong>${occupiedBays}/${capacity}</strong> occupied.
       ${baysAvail > 0 ? `<span class="text-green">${baysAvail} bay slot(s) free.</span>` : `<span class="text-red">All bays busy — complete a job to free a slot.</span>`}
-      &nbsp;|&nbsp; Waiting: <strong>${jobs.filter(j => (j.status||'ready') === 'waiting').length}</strong>
-      &nbsp;|&nbsp; Ready to collect: <strong>${jobs.filter(j => (j.status||'ready') === 'ready').length}</strong>
+    &nbsp;|&nbsp; Customer in bay: <strong>${customerInProgress}</strong>
+    &nbsp;|&nbsp; Your cars in bay: <strong>${ownInProgress}</strong>
+    &nbsp;|&nbsp; Waiting: <strong>${jobs.filter(j => (j.status||'ready') === 'waiting').length}</strong>
+    &nbsp;|&nbsp; Ready to collect: <strong>${jobs.filter(j => (j.status||'ready') === 'ready').length}</strong>
       <br>🔒 Security Level: <strong>${secLevel}</strong> — Theft chance/car/day: <strong>${theftPct}%</strong>
       ${secLevel === 0 && state.day >= 50 ? `<span class="text-red"> ⚠️ Consider Security upgrades to protect your lot.</span>` : ''}
     </div>
@@ -4286,7 +4314,6 @@ function renderForSale() {
         <div class="car-card offer-card ${isCountered ? 'countered-card disabled-card' : ''}">
           <div class="car-card-header">
             <div>
-              ${settings.showWordmarks ? renderBrandWordmark(car.make) : ''}
               <span class="car-name">${formatCarDisplayName(car)}</span>
             </div>
             <div class="badge-stack">
@@ -4431,7 +4458,6 @@ function renderForSale() {
       <div class="car-card forsale-card ${hasOffer ? 'has-offer' : ''} ${car.source === 'tradein' ? 'tradein-inventory' : ''}">
         <div class="car-card-header">
           <div>
-            ${settings.showWordmarks ? renderBrandWordmark(car.make) : ''}
             <span class="car-name">${formatCarDisplayName(car)}</span>
           </div>
           <div class="badge-stack">
@@ -4667,15 +4693,6 @@ function renderSettings() {
             <div class="setting-desc">Easy on the eyes for late-night dealin'.</div>
           </div>
           <button class="toggle-btn ${isDark ? 'active' : ''}" onclick="toggleDarkMode()" aria-label="Toggle dark mode">
-            <span class="toggle-thumb"></span>
-          </button>
-        </div>
-        <div class="setting-row" style="margin-top:10px">
-          <div>
-            <div class="setting-label">Show Brand Wordmarks</div>
-            <div class="setting-desc">Show per-make text wordmarks on vehicle cards.</div>
-          </div>
-          <button class="toggle-btn ${settings.showWordmarks ? 'active' : ''}" onclick="toggleWordmarks()" aria-label="Toggle brand wordmarks">
             <span class="toggle-thumb"></span>
           </button>
         </div>
@@ -4918,7 +4935,6 @@ let settings = {
   difficulty: 'normal',
   sfxMuted: false,
   sfxVolume: 0.22,
-  showWordmarks: true,
   showLeasedCars: true,
   tutorialsEnabled: true,
 };
@@ -5027,12 +5043,6 @@ function setSfxVolume(raw) {
   const vol = clamp(parseFloat(raw), 0, 1);
   settings.sfxVolume = isNaN(vol) ? 0.22 : vol;
   saveSettings();
-}
-
-function toggleWordmarks() {
-  settings.showWordmarks = !settings.showWordmarks;
-  saveSettings();
-  renderAll();
 }
 
 function toggleTutorials() {
@@ -5351,7 +5361,6 @@ function syncMenuSettings() {
     btn.querySelector('.toggle-thumb').style.transform = active ? 'translateX(22px)' : '';
   };
   setToggle('menu-toggle-dark',      settings.darkMode);
-  setToggle('menu-toggle-wordmarks', settings.showWordmarks);
   setToggle('menu-toggle-sfx',       !settings.sfxMuted);
   setToggle('menu-toggle-tutorials', settings.tutorialsEnabled);
 }
@@ -5360,13 +5369,6 @@ function syncMenuSettings() {
 function menuToggleDark() {
   settings.darkMode = !settings.darkMode;
   applyDarkMode();
-  saveSettings();
-  syncMenuSettings();
-}
-
-/** Toggle wordmarks from the home-screen settings panel. */
-function menuToggleWordmarks() {
-  settings.showWordmarks = !settings.showWordmarks;
   saveSettings();
   syncMenuSettings();
 }
@@ -5855,9 +5857,9 @@ function init() {
     buyUpgrade, detailCar, carWash, basicRepair, partsUpgrade,
     drawLoan, payDownLoan,
     confirmNewGame, exportSave, hireStaff, dismissCandidate,
-    toggleDarkMode, setDifficulty, toggleSfxMuted, setSfxVolume, toggleWordmarks, toggleTutorials,
+    toggleDarkMode, setDifficulty, toggleSfxMuted, setSfxVolume, toggleTutorials,
     renderCarLot, renderServiceGarage, renderForSale, renderUsedMarket, renderFinance, renderAchievements,
-    menuToggleDark, menuToggleWordmarks, menuToggleSfx, menuToggleTutorials, menuSetDifficulty,
+    menuToggleDark, menuToggleSfx, menuToggleTutorials, menuSetDifficulty,
     returnToMenu,
     showPatchNotesModal, closePatchNotesModal,
     tutorialNext, tutorialSkip, tutorialDisable,

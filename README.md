@@ -102,7 +102,6 @@ Categories span: first deals, volume milestones, net worth goals, title outcomes
 - **Dark Mode** toggle — persisted in localStorage.
 - **Difficulty** — Normal vs Hard.
 - **SFX mute + volume slider** for subtle cozy interaction sounds.
-- **Show Brand Wordmarks** toggle.
 
 ---
 
@@ -428,7 +427,6 @@ Lists your cars for sale plus a **Customer Offers inbox**:
 - **Difficulty** — Normal vs Hard:
   - Hard: 1.5× daily overhead, more frequent market events, larger market swings.
 - **SFX mute + volume slider** for subtle cozy interaction sounds.
-- **Show Brand Wordmarks** toggle for code-only make styling on cards.
 
 ### ⬆️ Upgrades
 
