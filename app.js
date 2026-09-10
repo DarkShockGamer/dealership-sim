@@ -5131,7 +5131,7 @@ function initHomeScreen() {
       const a = s.alpha * (0.65 + 0.35 * Math.sin(s.twinkle));
       ctx2d.beginPath();
       ctx2d.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-      ctx2d.fillStyle = `rgba(180, 220, 255, ${a})`;
+      ctx2d.fillStyle = `rgba(255, 200, 140, ${a})`;
       ctx2d.fill();
       s.y -= s.speed;
       s.x += s.drift;
