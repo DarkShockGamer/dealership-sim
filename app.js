@@ -11,9 +11,18 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.4.1';
+const GAME_VERSION = '1.4.2';
 
 const PATCH_NOTES = [
+  {
+    version: '1.4.2',
+    date: 'September 2026',
+    notes: [
+      { type: 'feature', text: 'What\'s New popup restyled — the "Got it!" button now sits in a pinned header next to the title, so you can dismiss it without scrolling through every version block.' },
+      { type: 'fix',     text: 'Service job issue tags no longer run off the side of their cards; chip-style values now wrap onto as many lines as they need.' },
+      { type: 'feature', text: 'Custom themed scrollbars throughout the app, replacing the default browser ones.' },
+    ],
+  },
   {
     version: '1.4.1',
     date: 'September 2026',
@@ -4203,7 +4212,7 @@ function renderServiceGarage() {
         </div>
         <div class="car-details">
           <div class="detail-row"><span>Mileage</span><span>${sc.mileage.toLocaleString()} mi</span></div>
-          <div class="detail-row"><span>Issues</span><span>${issueList}</span></div>
+          <div class="detail-row"><span>Issues</span><span class="detail-tags">${issueList}</span></div>
           <div class="detail-row"><span>Labor Cost</span><span class="text-red">−${formatCurrency(sc.laborCost)}</span></div>
           <div class="detail-row"><span>Customer Pays</span><span class="text-green">+${formatCurrency(sc.revenueWhenDone)}</span></div>
           <div class="detail-row"><span>Your Profit</span>
@@ -4259,7 +4268,7 @@ function renderServiceGarage() {
         </div>
         ${inService ? `<div class="service-banner">${uiIcon('wrench')} IN SERVICE — Ready Day ${car.inServiceUntilDay}</div>` : ''}
         <div class="car-details">
-          <div class="detail-row"><span>Issues</span><span>${issueHtml}</span></div>
+          <div class="detail-row"><span>Issues</span><span class="detail-tags">${issueHtml}</span></div>
           <div class="detail-row"><span>Repair Estimate</span><span class="text-red">${formatCurrency(repairCost)}</span></div>
           ${isLeased ? `<div class="detail-row"><span>Note</span><span class="text-muted">Repair unavailable while lease active</span></div>` : ''}
         </div>
