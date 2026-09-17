@@ -398,8 +398,8 @@ h1, h2, h3, h4, h5,
    Factory / Used Market / Car Lot / For Sale cards. */
 .car-details {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 3px 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px 12px;
   background: rgba(6, 18, 34, .38);
   border: 1px solid rgba(132, 173, 236, .12);
   border-radius: var(--radius-sm);
@@ -410,14 +410,23 @@ h1, h2, h3, h4, h5,
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  font-size: .78rem;
+  font-size: .76rem;
   gap: 6px;
   padding: 2px 0;
   border-bottom: 1px dashed rgba(132, 173, 236, .14);
+  min-width: 0;
 }
 .detail-row:nth-last-child(-n+2) { border-bottom: none; }
-.detail-row span:first-child { color: var(--text-muted); white-space: nowrap; }
-.detail-row span:last-child  { font-weight: 700; text-align: right; }
+.detail-row span:first-child {
+  color: var(--text-muted);
+  min-width: 0;
+}
+.detail-row span:last-child {
+  font-weight: 700;
+  text-align: right;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
 
 @media (max-width: 480px) {
   .car-details { grid-template-columns: 1fr; }
@@ -708,7 +717,7 @@ img.ui-icon { filter: brightness(0) invert(1); }
   /* Compact 2-column tile grid so long stat lists read as a scannable
      dashboard instead of a tall single-file wall of rows. */
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0 18px;
   align-content: start;
 }
@@ -737,13 +746,17 @@ img.ui-icon { filter: brightness(0) invert(1); }
   justify-content: space-between;
   align-items: baseline;
   padding: 5px 0;
-  font-size: .82rem;
+  font-size: .8rem;
   gap: 6px;
   border-bottom: 1px dashed rgba(132, 173, 236, .16);
+  min-width: 0;
 }
 .stat-row:nth-last-child(-n+2) { border-bottom: none; }
-.stat-row span { color: var(--text-muted); }
-.stat-row strong { font-weight: 700; }
+.stat-row span {
+  color: var(--text-muted);
+  min-width: 0;
+}
+.stat-row strong { font-weight: 700; white-space: nowrap; flex-shrink: 0; }
 
 .delivery-item, .sale-item {
   display: flex;
