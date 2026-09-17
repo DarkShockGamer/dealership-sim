@@ -11,9 +11,19 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.4.0';
+const GAME_VERSION = '1.4.1';
 
 const PATCH_NOTES = [
+  {
+    version: '1.4.1',
+    date: 'September 2026',
+    notes: [
+      { type: 'feature', text: 'Refreshing the page now drops you straight back into your game — same save slot, same tab — instead of kicking you out to the title screen. Returning to the menu on purpose still works as before.' },
+      { type: 'fix',     text: 'Trade-in request cards no longer push the "Your Car" panel outside the card border; the two halves now sit side by side when there is room and stack when there is not.' },
+      { type: 'fix',     text: 'Spec rows (Source, Lease Status, Price Rating, etc.) no longer smoosh label and value together — if the value cannot fit beside its label it drops to its own line. Applied globally, so this cannot happen on any card.' },
+      { type: 'fix',     text: 'Counter-offer and list-price input rows now wrap instead of overflowing their cards on narrow layouts.' },
+    ],
+  },
   {
     version: '1.4.0',
     date: 'September 2026',
@@ -4837,6 +4847,8 @@ function switchTab(name) {
   }
   playSfx('click');
   _tutorialUpdateNextButton();
+  // Remember the tab so a refresh returns to it
+  if (getActiveSession()) setActiveSession(currentSlot, name);
 }
 
 // ============================================================
@@ -4983,6 +4995,42 @@ function getLastSlot() {
 /** Persist the last-played slot. */
 function setLastSlot(slot) {
   localStorage.setItem('dealerSim_lastSlot', String(slot));
+}
+
+// ── Active session tracking ─────────────────────────────────
+// Remembers that a game is currently open (and which tab you were on) so a
+// browser refresh drops you straight back into the game instead of the title
+// screen. Cleared whenever you deliberately return to the menu.
+const SESSION_KEY = 'dealerSim_activeSession';
+
+/** Record (or update) the in-progress session. */
+function setActiveSession(slot, tab) {
+  try {
+    const prev = getActiveSession() || {};
+    localStorage.setItem(SESSION_KEY, JSON.stringify({
+      slot: slot ?? prev.slot ?? 1,
+      tab:  tab  ?? prev.tab  ?? 'dashboard',
+    }));
+  } catch (_) { /* storage unavailable — resume just won't work */ }
+}
+
+/** Read the in-progress session, or null if there isn't one. */
+function getActiveSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw);
+    const slot = parseInt(d.slot, 10);
+    if (!(slot >= 1 && slot <= 3)) return null;
+    return { slot, tab: typeof d.tab === 'string' ? d.tab : 'dashboard' };
+  } catch (_) {
+    return null;
+  }
+}
+
+/** Forget the in-progress session (back at the title screen). */
+function clearActiveSession() {
+  try { localStorage.removeItem(SESSION_KEY); } catch (_) {}
 }
 
 /**
@@ -5770,9 +5818,10 @@ function _tutorialPositionSpotlight(step, overlay, spotlight, tooltip) {
  * @param {number} slot  1–3
  * @param {boolean} isNew  true → create a fresh game; false → load existing save
  */
-function launchGame(slot, isNew, difficulty) {
+function launchGame(slot, isNew, difficulty, opts = {}) {
   currentSlot = slot;
   setLastSlot(slot);
+  setActiveSession(slot, opts.resumeTab || 'dashboard');
 
   if (isNew) {
     state = JSON.parse(JSON.stringify(DEFAULT_STATE));
@@ -5799,8 +5848,16 @@ function launchGame(slot, isNew, difficulty) {
   // Stop star animation
   if (window._stopMenuStarfield) window._stopMenuStarfield();
 
-  // Fade out and hide the home screen
   const hs = document.getElementById('home-screen');
+
+  // Resuming after a page refresh — skip the fade so the menu never flashes.
+  if (opts.instant) {
+    hs.classList.add('hidden');
+    if (opts.resumeTab) switchTab(opts.resumeTab);
+    return;
+  }
+
+  // Fade out and hide the home screen
   hs.classList.add('fade-out');
   setTimeout(() => {
     hs.classList.add('hidden');
@@ -5818,6 +5875,8 @@ function launchGame(slot, isNew, difficulty) {
 function returnToMenu() {
   // Persist current progress before leaving the game
   saveState();
+  // Deliberately leaving the game — a refresh from here should show the menu
+  clearActiveSession();
 
   // Restore home screen
   const hs = document.getElementById('home-screen');
@@ -5954,6 +6013,24 @@ function init() {
 
   // Show the home screen
   initHomeScreen();
+
+  // ── Resume in-progress session on refresh ──────────────────
+  // If a game was open when the page was reloaded, jump straight back into it
+  // (same slot, same tab) instead of dumping the player on the title screen.
+  const session = getActiveSession();
+  if (session && getSlotSummary(session.slot) !== null) {
+    launchGame(session.slot, false, undefined, { instant: true, resumeTab: session.tab });
+    // A run that ended in bankruptcy should come back to its Game Over screen.
+    if (state.gameOver) showGameOverScreen();
+  } else if (session) {
+    // Save was deleted out from under us — drop the stale session.
+    clearActiveSession();
+  }
+
+  // Belt-and-braces: persist progress if the tab is closed or reloaded mid-play.
+  window.addEventListener('beforeunload', () => {
+    if (getActiveSession()) { try { saveState(); } catch (_) {} }
+  });
 }
 
 
