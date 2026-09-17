@@ -11,9 +11,17 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.4.2';
+const GAME_VERSION = '1.4.3';
 
 const PATCH_NOTES = [
+  {
+    version: '1.4.3',
+    date: 'September 2026',
+    notes: [
+      { type: 'feature', text: 'Staff now has its own tab in the main navigation, separate from Upgrades — hired staff, hiring candidates, and the staff activity feed all live there now.' },
+      { type: 'fix',     text: 'Staff tab shows a locked overlay (matching the Service tab) until the Staff Office upgrade is purchased, instead of the hiring UI simply being absent.' },
+    ],
+  },
   {
     version: '1.4.2',
     date: 'September 2026',
@@ -3260,7 +3268,7 @@ function dismissCandidate(candidateId) {
   state.staffCandidates = state.staffCandidates.filter(c => c.id !== candidateId);
   ensureStaffCandidates();
   saveState();
-  renderUpgrades();
+  renderStaff();
 }
 
 // ============================================================
@@ -4598,31 +4606,68 @@ function renderUpgrades() {
     }
     html += `</div></div>`;
   }
-  if (state.upgrades.staffOffice) {
-    ensureStaffCandidates();
-    const staffCards = (state.staff || []).map(s => `
-      <div class="car-card upgrade-card">
-        <div class="upgrade-icon">${uiIconLg('person')}</div>
-        <h4>${s.name}</h4>
-        <p class="upgrade-desc">Negotiation ${s.negotiation} · Selling ${s.selling} · Speed ${s.speed}/day</p>
-        <p class="upgrade-cost text-red">${formatCurrency(s.wage)}/day wage</p>
-      </div>`).join('') || '<p class="text-muted">No staff hired yet.</p>';
-    const candidateCards = (state.staffCandidates || []).map(s => `
-      <div class="car-card upgrade-card">
-        <div class="upgrade-icon">${uiIconLg('fileText')}</div>
-        <h4>${s.name}</h4>
-        <p class="upgrade-desc">Negotiation ${s.negotiation} · Selling ${s.selling} · Speed ${s.speed}/day</p>
-        <p class="upgrade-cost">${formatCurrency(s.wage)}/day</p>
-        <div class="car-actions">
-          <button class="btn btn-primary btn-sm" onclick="hireStaff('${s.id}')">Hire</button>
-          <button class="btn btn-secondary btn-sm" onclick="dismissCandidate('${s.id}')">Skip</button>
-        </div>
-      </div>`).join('');
-    html += `
-      <div class="category-section"><h3>${uiIcon('person')} Hired Staff</h3><div class="card-grid">${staffCards}</div></div>
-      <div class="category-section"><h3>${uiIcon('document')} Hiring Candidates</h3><div class="card-grid">${candidateCards}</div></div>`;
-  }
   document.getElementById('tab-upgrades').innerHTML = html;
+}
+
+// ============================================================
+// RENDER — Staff
+// ============================================================
+function renderStaff() {
+  const el = document.getElementById('tab-staff');
+  const hasOffice = !!state.upgrades.staffOffice;
+
+  if (!hasOffice) {
+    el.innerHTML = `
+      <div class="service-locked-wrapper">
+        <div class="service-locked-backdrop" aria-hidden="true"></div>
+        <div class="service-locked-overlay" role="status" aria-live="polite">
+          <div class="service-locked-box">
+            <svg class="service-lock-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+            <h2 class="service-locked-title">Staff Office Locked</h2>
+            <p class="service-locked-msg">Purchase the <strong>Staff Office</strong> upgrade in the <strong>Upgrades</strong> tab to unlock hiring sales staff.</p>
+          </div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  ensureStaffCandidates();
+  const maxStaff = state.upgrades.crmSuite ? STAFF_MAX_WITH_CRM : STAFF_MAX_BASE;
+  const staffCards = (state.staff || []).map(s => `
+    <div class="car-card upgrade-card">
+      <div class="upgrade-icon">${uiIconLg('person')}</div>
+      <h4>${s.name}</h4>
+      <p class="upgrade-desc">Negotiation ${s.negotiation} · Selling ${s.selling} · Speed ${s.speed}/day</p>
+      <p class="upgrade-cost text-red">${formatCurrency(s.wage)}/day wage</p>
+    </div>`).join('') || '<p class="text-muted">No staff hired yet.</p>';
+  const candidateCards = (state.staffCandidates || []).map(s => `
+    <div class="car-card upgrade-card">
+      <div class="upgrade-icon">${uiIconLg('fileText')}</div>
+      <h4>${s.name}</h4>
+      <p class="upgrade-desc">Negotiation ${s.negotiation} · Selling ${s.selling} · Speed ${s.speed}/day</p>
+      <p class="upgrade-cost">${formatCurrency(s.wage)}/day</p>
+      <div class="car-actions">
+        <button class="btn btn-primary btn-sm" onclick="hireStaff('${s.id}')" ${(state.staff || []).length >= maxStaff ? 'disabled title="Staff cap reached"' : ''}>Hire</button>
+        <button class="btn btn-secondary btn-sm" onclick="dismissCandidate('${s.id}')">Skip</button>
+      </div>
+    </div>`).join('');
+
+  const staffLogs = (state.staffActivity || []).length
+    ? state.staffActivity.slice(0, 8).map(n => `
+      <div class="sale-item"><span class="text-muted">Day ${n.day}</span><span>${n.message}</span></div>`).join('')
+    : '<p class="empty-msg">No staff activity yet.</p>';
+
+  el.innerHTML = `
+    <div class="tab-info">
+      ${uiIcon('person')} Staff hired: <strong>${(state.staff || []).length}/${maxStaff}</strong>
+      &nbsp;|&nbsp; Total wages: <strong class="text-red">${formatCurrency(getTotalStaffWages())}/day</strong>
+    </div>
+    <div class="category-section"><h3>${uiIcon('person')} Hired Staff</h3><div class="card-grid">${staffCards}</div></div>
+    <div class="category-section"><h3>${uiIcon('document')} Hiring Candidates</h3><div class="card-grid">${candidateCards}</div></div>
+    <div class="category-section"><h3>${uiIcon('person')} Staff Activity</h3>${staffLogs}</div>`;
 }
 
 function renderFinance() {
@@ -4826,6 +4871,7 @@ function renderAll() {
     case 'forsale':     renderForSale();         break;
     case 'finance':     renderFinance();         break;
     case 'upgrades':    renderUpgrades();        break;
+    case 'staff':       renderStaff();           break;
     case 'achievements':renderAchievements();    break;
     case 'settings':    renderSettings();        break;
   }
@@ -4851,6 +4897,7 @@ function switchTab(name) {
     case 'forsale':     renderForSale();         break;
     case 'finance':     renderFinance();         break;
     case 'upgrades':    renderUpgrades();        break;
+    case 'staff':       renderStaff();           break;
     case 'achievements':renderAchievements();    break;
     case 'settings':    renderSettings();        break;
   }
