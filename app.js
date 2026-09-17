@@ -11,9 +11,16 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.4.3';
+const GAME_VERSION = '1.4.4';
 
 const PATCH_NOTES = [
+  {
+    version: '1.4.4',
+    date: 'September 2026',
+    notes: [
+      { type: 'fix', text: 'Factory orders no longer come in Fair or Poor condition — brand-new cars from the factory are now always Excellent or Good, matching the fact that they\'re fresh off the line rather than used.' },
+    ],
+  },
   {
     version: '1.4.3',
     date: 'September 2026',
@@ -2940,7 +2947,7 @@ function buyFromFactory(catalogIdx) {
     showToast('No lot space (including pending deliveries)!', 'error'); return;
   }
   state.cash -= entry.basePrice;
-  const condition  = pickCondition([0.40, 0.45, 0.13, 0.02]);
+  const condition  = pickCondition([0.55, 0.45, 0, 0]); // brand-new factory cars: always Excellent or Good
   const car        = buildCar(entry, condition, 'factory', true);
   car.purchasePrice = entry.basePrice;
   // During the tutorial, fast-deliver the first factory car in 1 day and track it
