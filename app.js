@@ -3890,12 +3890,11 @@ function renderUsedMarket() {
           </div>
         <div class="car-details">
           <div class="detail-row"><span>Category</span><span>${offer.category}</span></div>
-          <div class="detail-row"><span>Title Status</span><span>${TITLE_LABELS[offer.titleStatus] || 'Clean'}</span></div>
           <div class="detail-row"><span>Mileage</span><span>${offer.mileage.toLocaleString()} mi</span></div>
           <div class="detail-row"><span>Asking Price</span><span class="text-blue">${formatCurrency(asking)}</span></div>
-          <div class="detail-row"><span>Est. Market Value</span>
+          <div class="detail-row"><span>Est. Value</span>
             <span class="text-green">${formatCurrency(offer.marketValue)}</span></div>
-          <div class="detail-row"><span>Market Segment</span>
+          <div class="detail-row"><span>Segment</span>
             <span class="${marketIdx >= 1.02 ? 'text-green' : marketIdx <= 0.98 ? 'text-red' : 'text-muted'}">
               ${(marketIdx * 100).toFixed(1)}%
             </span></div>
@@ -4489,12 +4488,11 @@ function renderForSale() {
         <div class="car-details">
           <div class="detail-row"><span>Purchased For</span><span>${formatCurrency(car.purchasePrice)}</span></div>
           <div class="detail-row"><span>Market Value</span><span class="text-green">${formatCurrency(car.marketValue)}</span></div>
-          <div class="detail-row"><span>Title Status</span><span>${TITLE_LABELS[car.titleStatus] || 'Clean'}</span></div>
           <div class="detail-row"><span>Days on Lot</span><span>${car.daysInLot}</span></div>
           ${priceLabel ? `<div class="detail-row"><span>Price Rating</span><span class="${priceLabel.cls}" style="font-weight:600">${priceLabel.text}</span></div>` : ''}
           ${priceLabel ? `<div class="detail-row"><span>Buyer Interest</span><span class="${priceLabel.cls}">${priceLabel.interest}</span></div>` : ''}
           <div class="detail-row"><span>Sale Chance / Day</span><span class="${chanceClass}">${chance}%</span></div>
-          <div class="detail-row"><span>Transaction Fee (2%)</span><span class="text-red">−${formatCurrency(fee)}</span></div>
+          <div class="detail-row"><span>Fee (2%)</span><span class="text-red">−${formatCurrency(fee)}</span></div>
           <div class="detail-row"><span>Est. Profit</span>
             <span class="${profit >= 0 ? 'text-green' : 'text-red'}" style="font-weight:700">
               ${profit >= 0 ? '+' : ''}${formatCurrency(profit)}
