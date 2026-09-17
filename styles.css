@@ -30,9 +30,9 @@
   --radius-md:   14px;
   --radius-lg:   16px;
 
-  --shadow-sm:   0 8px 24px rgba(34, 12, 5, .26);
-  --shadow:      0 14px 34px rgba(28, 10, 3, .34);
-  --shadow-lg:   0 22px 44px rgba(22, 8, 2, .48);
+  --shadow-sm:   0 8px 24px rgba(3, 12, 26, .32);
+  --shadow:      0 14px 34px rgba(2, 10, 24, .42);
+  --shadow-lg:   0 22px 44px rgba(2, 8, 20, .55);
   --focus-color: #8fc1ff;
   --btn-primary-grad-start: #67a7ff;
   --btn-primary-grad-hover-start: #76b2ff;
@@ -383,7 +383,22 @@ h1, h2, h3, h4, h5,
   align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+}
+/* The title block takes the leftover space and wraps its own text, so the
+   badge column never gets bumped onto a new line by a long car name. */
+.car-card-header > :first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* Badges always hug the right edge of the card, whatever the name length. */
+.car-card-header > .badge-stack,
+.car-card-header > .badge {
+  flex: 0 0 auto;
+  margin-left: auto;
+  align-self: flex-start;
+  text-align: right;
 }
 
 .car-name {
@@ -521,11 +536,18 @@ h1, h2, h3, h4, h5,
   font-size: .9rem;
   font-weight: 600;
   color: var(--text);
-  background: rgba(51, 23, 10, .92);
-  transition: border-color var(--transition);
+  background: rgba(8, 25, 47, .92);
+  transition: border-color var(--transition), box-shadow var(--transition), background var(--transition);
   min-width: 0;
 }
-.price-input:focus { outline: none; border-color: var(--primary); }
+.price-input::placeholder { color: var(--text-light); font-weight: 500; }
+.price-input:hover { border-color: rgba(157, 196, 255, .4); }
+.price-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  background: rgba(10, 32, 60, .96);
+  box-shadow: 0 0 0 3px rgba(77, 157, 255, .18);
+}
 
 /* Discount buttons */
 .price-buttons {
@@ -1234,6 +1256,7 @@ body.dark .price-input {
   border-color: rgba(126, 174, 245, .28);
   color: #f0f6ff;
 }
+body.dark .price-input:focus { background: rgba(8, 20, 40, .98); }
 
 body.dark .modal-box {
   background: linear-gradient(180deg, rgba(9, 26, 50, .96), rgba(5, 17, 32, .95));
