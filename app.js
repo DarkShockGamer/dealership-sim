@@ -11,9 +11,19 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.3.5';
+const GAME_VERSION = '1.4.0';
 
 const PATCH_NOTES = [
+  {
+    version: '1.4.0',
+    date: 'September 2026',
+    notes: [
+      { type: 'feature', text: 'UI overhaul — a cleaner, more consistent look across every tab.' },
+      { type: 'fix',     text: 'Condition and title badges now always sit flush against the right edge of a car card, instead of drifting left or dropping to a new line when the car name is long.' },
+      { type: 'fix',     text: 'Price and offer input boxes no longer use the leftover orange/brown fill — they now match the blue theme, with proper placeholder, hover and focus states.' },
+      { type: 'chore',   text: 'Card shadows retinted from warm brown to a neutral deep blue so they blend with the rest of the interface.' },
+    ],
+  },
   {
     version: '1.3.5',
     date: 'July 2026',
