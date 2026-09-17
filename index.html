@@ -118,7 +118,7 @@
       </div>
     </div>
 
-    <span class="menu-version" aria-hidden="true">v1.4.1</span>
+    <span class="menu-version" aria-hidden="true">v1.4.2</span>
   </div>
 
   <!-- Delete-slot confirmation dialog -->
@@ -136,11 +136,11 @@
   <!-- Patch Notes Modal -->
   <div id="patch-notes-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="patch-notes-title">
     <div class="modal-box patch-notes-box">
-      <h3 id="patch-notes-title">📋 What's New</h3>
-      <div id="patch-notes-content" class="patch-notes-content"></div>
-      <div class="modal-actions">
-        <button class="btn btn-primary" onclick="closePatchNotesModal()">Got it!</button>
+      <div class="patch-notes-header">
+        <h3 id="patch-notes-title">📋 What's New</h3>
+        <button class="btn btn-primary patch-notes-dismiss" onclick="closePatchNotesModal()">Got it!</button>
       </div>
+      <div id="patch-notes-content" class="patch-notes-content"></div>
     </div>
   </div>
 
