@@ -3591,14 +3591,14 @@ function renderDashboard() {
     : '<p class="empty-msg">No sales yet.</p>';
 
   const logs = state.notifications.length
-    ? state.notifications.slice(0, 12).map(n => `
+    ? state.notifications.slice(0, 8).map(n => `
         <div class="notif-item notif-${n.type}">
           <span class="notif-day">Day ${n.day}</span>
           <span>${n.message}</span>
         </div>`).join('')
     : '<p class="empty-msg">No events yet — press Next Day to begin!</p>';
   const staffLogs = (state.staffActivity || []).length
-    ? state.staffActivity.slice(0, 10).map(n => `
+    ? state.staffActivity.slice(0, 6).map(n => `
         <div class="notif-item notif-info">
           <span class="notif-day">Day ${n.day}</span>
           <span>${n.message}</span>
@@ -3615,41 +3615,58 @@ function renderDashboard() {
   }).join('');
 
   document.getElementById('tab-dashboard').innerHTML = `
+    <div class="kpi-row">
+      <div class="kpi-tile kpi-cash">
+        <div class="kpi-icon-wrap">${uiIconLg('cash')}</div>
+        <div><div class="kpi-value">${formatCurrency(state.cash)}</div><div class="kpi-label">Cash</div></div>
+      </div>
+      <div class="kpi-tile kpi-day">
+        <div class="kpi-icon-wrap">${uiIconLg('calendar')}</div>
+        <div><div class="kpi-value">Day ${state.day}</div><div class="kpi-label">Time</div></div>
+      </div>
+      <div class="kpi-tile kpi-rep">
+        <div class="kpi-icon-wrap">${uiIconLg('star')}</div>
+        <div><div class="kpi-value">${state.reputation.toFixed(2)}</div><div class="kpi-label">Reputation</div></div>
+      </div>
+      <div class="kpi-tile kpi-profit">
+        <div class="kpi-icon-wrap">${uiIconLg('trendingUp')}</div>
+        <div><div class="kpi-value ${totalProfit >= 0 ? 'text-green' : 'text-red'}">${formatCurrency(totalProfit)}</div><div class="kpi-label">Lifetime Profit</div></div>
+      </div>
+    </div>
+
     <div class="dashboard-grid">
 
       <div class="dash-card">
-        <h3>${uiIcon('chartBar')} Business Overview</h3>
-        <div class="stat-row"><span>Cash</span><strong>${formatCurrency(state.cash)}</strong></div>
-        <div class="stat-row"><span>Day</span><strong>${state.day}</strong></div>
-        <div class="stat-row"><span>Reputation</span><strong>${state.reputation.toFixed(2)}</strong></div>
-        <div class="stat-row"><span>Car Lot</span><strong>${state.garage.length} / ${state.garageSlots} slots</strong></div>
+        <h3>${uiIcon('cash')} Finances</h3>
         <div class="stat-row"><span>Daily Overhead</span>
           <strong class="text-red">−${formatCurrency(Math.round(overhead * diffMult))}/day</strong></div>
         <div class="stat-row"><span>Daily Wages</span><strong class="text-red">−${formatCurrency(wageTotal)}/day</strong></div>
         <div class="stat-row"><span>Credit Line Balance</span><strong class="${state.loanBalance > 0 ? 'text-red' : 'text-green'}">${formatCurrency(state.loanBalance)}</strong></div>
         <div class="stat-row"><span>Loan APR</span><strong>${(state.loanApr * 100).toFixed(1)}%</strong></div>
-        <div class="stat-row"><span>Late payments</span><strong class="${state.delinquencyLevel > 0 ? 'text-red' : 'text-green'}">Level ${state.delinquencyLevel || 0}</strong></div>
-        <div class="stat-row"><span>Hired Staff</span><strong>${state.staff?.length || 0}</strong></div>
+        <div class="stat-row"><span>Late Payments</span><strong class="${state.delinquencyLevel > 0 ? 'text-red' : 'text-green'}">Level ${state.delinquencyLevel || 0}</strong></div>
+        <div class="stat-row"><span>Total Cars Sold</span><strong>${state.salesHistory.length}</strong></div>
+      </div>
+
+      <div class="dash-card">
+        <h3>${uiIcon('key')} Operations</h3>
+        <div class="stat-row"><span>Car Lot</span><strong>${state.garage.length} / ${state.garageSlots} slots</strong></div>
         <div class="stat-row"><span>Listed for Sale</span><strong>${forSaleCount}</strong></div>
         <div class="stat-row"><span>In Service</span><strong>${inService}</strong></div>
         <div class="stat-row"><span>Active Leases</span><strong>${activeLeases}</strong></div>
         <div class="stat-row"><span>Lease Income / Day</span><strong class="text-green">+${formatCurrency(leaseIncome)}</strong></div>
+        <div class="stat-row"><span>Hired Staff</span><strong>${state.staff?.length || 0}</strong></div>
         <div class="stat-row"><span>Pending Deliveries</span><strong>${state.deliveries.length}</strong></div>
         <div class="stat-row"><span>Customer Offers</span>
           <strong ${pendingOffers > 0 ? 'class="text-green"' : ''}>${pendingOffers}</strong></div>
         <div class="stat-row"><span>Trade-In Requests</span>
           <strong ${pendingTIR > 0 ? 'class="text-green"' : ''}>${pendingTIR}</strong></div>
-        <div class="stat-row"><span>Total Cars Sold</span><strong>${state.salesHistory.length}</strong></div>
-        <div class="stat-row"><span>Cumulative Profit</span>
-          <strong class="${totalProfit >= 0 ? 'text-green' : 'text-red'}">${formatCurrency(totalProfit)}</strong>
-        </div>
       </div>
 
       <div class="dash-card">
         <h3>${uiIcon('trendingUp')} Market Conditions</h3>
         ${marketRows}
         ${state.lastMarketEvent ? `<div class="tab-info" style="margin-top:10px;font-size:.8rem">${state.lastMarketEvent}</div>` : ''}
-        ${state.delinquencyLevel > 0 ? `<div class="tab-info" style="margin-top:10px;font-size:.8rem;border-color:rgba(255,122,133,.5);background:rgba(255,122,133,.12)">${uiIcon('warning')} Late payments level ${state.delinquencyLevel}: ${state.loanFrozen ? 'credit line is frozen.' : 'stay solvent to avoid default.'}</div>` : ''}
+        ${state.delinquencyLevel > 0 ? `<div class="tab-info" style="margin-top:10px;font-size:.8rem;border-color:rgba(255,122,133,.5);border-left-color:var(--danger);background:rgba(255,122,133,.12)">${uiIcon('warning')} Late payments level ${state.delinquencyLevel}: ${state.loanFrozen ? 'credit line is frozen.' : 'stay solvent to avoid default.'}</div>` : ''}
       </div>
 
       <div class="dash-card">
