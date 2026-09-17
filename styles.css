@@ -458,6 +458,20 @@ h1, h2, h3, h4, h5,
 }
 /* Single-child rows (a lone badge or note) shouldn't be forced right. */
 .detail-row > *:only-child { margin-left: 0; text-align: left; }
+/* A value holding chips (issue tags, badges) wraps them onto as many lines as
+   it needs instead of running off the side of the card. `detail-tags` is the
+   explicit hook; the :has() rule catches any row that gets chips later. */
+.detail-row > .detail-tags,
+.detail-row > *:last-child:has(.badge, .issue-tag, .recon-tag) {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+  white-space: normal;
+  min-width: 0;
+}
+.detail-row .badge,
+.detail-row .issue-tag { margin: 0; white-space: normal; overflow-wrap: anywhere; }
 
 @media (max-width: 480px) {
   .car-details { grid-template-columns: 1fr; }
@@ -938,11 +952,34 @@ img.ui-icon { filter: brightness(0) invert(1); }
 .patch-notes-box {
   max-width: 540px;
   max-height: 82vh;
-  overflow-y: auto;
-  padding: 24px 28px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
-.patch-notes-content { margin: 14px 0 18px; }
+/* Title and the dismiss button share a pinned header, so "Got it!" is always
+   reachable without scrolling past every version block. */
+.patch-notes-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 20px 28px 14px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(16, 44, 76, .98), rgba(12, 36, 62, .96));
+}
+.patch-notes-header h3 { margin: 0; font-size: 1.1rem; }
+.patch-notes-dismiss { flex-shrink: 0; }
+
+.patch-notes-content {
+  margin: 0;
+  padding: 18px 28px 24px;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+}
 
 .pn-version-block { margin-bottom: 20px; }
 .pn-version-block:last-child { margin-bottom: 0; }
@@ -1707,3 +1744,43 @@ body.dark .tradein-summary {
   gap: 10px;
   margin-top: 10px;
 }
+
+
+/* ============================================================
+   Scrollbars — themed to match the UI instead of the OS default
+   ============================================================ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(110, 160, 230, .45) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(6, 18, 34, .45);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(120, 170, 240, .5), rgba(77, 139, 255, .45));
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(150, 195, 255, .7), rgba(100, 160, 255, .6));
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:active {
+  background: linear-gradient(180deg, rgba(175, 212, 255, .85), rgba(120, 178, 255, .75));
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-corner { background: transparent; }
+
+body.dark {
+  scrollbar-color: rgba(90, 140, 215, .45) transparent;
+}
+body.dark ::-webkit-scrollbar-track { background: rgba(3, 12, 26, .55); }
+
+/* The tab strip keeps its hidden scrollbar. */
+.tab-nav::-webkit-scrollbar { display: none; }
