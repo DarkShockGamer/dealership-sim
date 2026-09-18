@@ -11,9 +11,16 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.4.5';
+const GAME_VERSION = '1.4.6';
 
 const PATCH_NOTES = [
+  {
+    version: '1.4.6',
+    date: 'September 2026',
+    notes: [
+      { type: 'fix', text: 'Hard-mode Game Over now deletes that save instead of leaving it sitting in the slot — you can no longer refresh, return to the menu, or reopen the app to sneak back into a run that already went bankrupt on Hard. "New Game" from the Game Over screen still starts a genuine new Hard run.' },
+    ],
+  },
   {
     version: '1.4.5',
     date: 'September 2026',
@@ -989,6 +996,15 @@ function getTotalStaffWages() {
 // ============================================================
 function saveState() {
   try {
+    if (state.gameOver) {
+      // Hard-mode game overs are permanent — never persist a game-over run.
+      // Make sure this slot's save is gone instead of writing the dead state
+      // back to disk, so there's nothing left to accidentally resume or
+      // continue (this also protects against later code, like returning to
+      // the menu or the beforeunload autosave, calling saveState() again).
+      deleteSlot(currentSlot);
+      return;
+    }
     localStorage.setItem(slotKey(currentSlot), JSON.stringify(state));
   } catch (err) {
     showToast('⚠️ Save failed: ' + (err?.message || 'storage quota exceeded'), 'error');
@@ -2150,7 +2166,8 @@ function triggerBankruptcy() {
     state.gameOver = true;
     state.hardBankruptcyOccurred = true;
     addNote('💥 Bankruptcy on Hard mode. Game Over.', 'error');
-    saveState();
+    saveState(); // gated by state.gameOver — deletes this slot's save rather than writing it
+    clearActiveSession(); // nothing left to auto-resume into on refresh
     runAchievementChecks();
     showGameOverScreen();
     return;
