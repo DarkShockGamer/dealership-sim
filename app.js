@@ -11,9 +11,19 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.4.4';
+const GAME_VERSION = '1.4.5';
 
 const PATCH_NOTES = [
+  {
+    version: '1.4.5',
+    date: 'September 2026',
+    notes: [
+      { type: 'fix', text: 'Fixed sound not playing across large parts of the site — the audio engine could get stuck "suspended" by the browser (especially when resuming a saved session), permanently silencing every sound effect until a hard refresh.' },
+      { type: 'feature', text: 'Reworked sound effects into unique, purpose-built game sounds — a cash-register "cha-ching" for sales/trade-ins, a rounder purchase tone for spending, a friendly chime for hiring staff, and a 4-note fanfare for achievements — instead of one generic beep for everything.' },
+      { type: 'fix', text: 'Added sound/confirmation toasts to actions that were previously silent: accepting a customer offer, accepting a trade-in, and washing a car.' },
+      { type: 'balance', text: 'Rebalanced used-market asking prices — sellers now usually price at or a little above what the car is actually worth (like real sellers do), with a smaller chance of a below-market deal and only a rare, small chance of an unrealistic reach. Previously, every used-car listing was priced below market value.' },
+    ],
+  },
   {
     version: '1.4.4',
     date: 'September 2026',
@@ -1549,6 +1559,22 @@ function pickCatalogEntryForUsed() {
   return randomFrom(CAR_CATALOG);
 }
 
+/**
+ * Real-world private sellers tend to anchor their asking price on what THEY think
+ * the car is worth — usually right around market value, often a bit above it, and
+ * only sometimes below. This picks a multiplier on market value that reflects that:
+ * mostly at-or-slightly-above, occasionally a motivated-seller discount, rarely a
+ * big reach. (minAcceptPrice below is a separate, lower "walk-away floor" — the
+ * asking price itself just shouldn't default to a bargain.)
+ */
+function pickAskingPriceMultiplier() {
+  const r = Math.random();
+  if (r < 0.12) return randomFloat(0.85, 0.97);   // 12% — motivated/quick sale
+  if (r < 0.70) return randomFloat(0.97, 1.06);   // 58% — priced at what it's worth
+  if (r < 0.93) return randomFloat(1.06, 1.15);   // 23% — a bit optimistic
+  return randomFloat(1.15, 1.25);                 //  7% — reaching, rare
+}
+
 function generateUsedMarket() {
   const count = randomInt(4, 7);
   const offers = [];
@@ -1558,9 +1584,11 @@ function generateUsedMarket() {
     const car       = buildCar(entry, condition, 'used', false);
     const ownerAwareOfIssues = Math.random() < 0.4;
     const effectiveMV = ownerAwareOfIssues ? car.marketValue - car.repairCost * 0.5 : car.marketValue;
-    const askingPrice    = Math.round(effectiveMV * randomFloat(0.72, 0.92));
-    // Hidden floor — seller won't accept below this
-    const minAcceptPrice = Math.round(askingPrice * randomFloat(0.74, 0.91));
+    const askingPrice    = Math.round(effectiveMV * pickAskingPriceMultiplier());
+    // Hidden floor — seller won't accept below this. Keeps a real negotiation
+    // window under the asking price without making the asking price itself
+    // a de-facto discount.
+    const minAcceptPrice = Math.round(askingPrice * randomFloat(0.85, 0.95));
     car.purchasePrice  = askingPrice;
     car.askingPrice    = askingPrice;
     car.minAcceptPrice = minAcceptPrice;
@@ -2878,7 +2906,7 @@ function runAchievementChecks() {
     if (!ach.check(state)) continue;
     state.achievementsUnlocked[ach.id] = state.day;
     addNote(`🏆 Achievement unlocked: ${ach.name}`, 'success');
-    showToast(`🏆 ${ach.name}`, 'success');
+    showToast(`🏆 ${ach.name}`, 'success', 'achievement');
   }
 }
 
@@ -2961,7 +2989,7 @@ function buyFromFactory(catalogIdx) {
   addNote(`🏭 Ordered ${car.year} ${car.make} ${car.model} — arrives Day ${arrivalDay}.`, 'info');
   saveState();
   renderAll();
-  showToast(`Ordered! Arrives on Day ${arrivalDay}.`);
+  showToast(`Ordered! Arrives on Day ${arrivalDay}.`, 'info', 'purchase');
 }
 
 // ============================================================
@@ -3136,6 +3164,7 @@ function acceptTradeInRequest(requestId) {
   addNote(`🤝 Trade-in accepted! Got ${req.customerCar.year} ${req.customerCar.make} ${req.customerCar.model}.`, 'success');
   saveState();
   renderAll();
+  showToast(`Trade-in complete — got the ${req.customerCar.year} ${req.customerCar.make} ${req.customerCar.model}!`, 'success', 'cash');
 }
 
 function rejectTradeInRequest(requestId) {
@@ -3224,6 +3253,7 @@ function acceptCustomerOffer(offerId) {
   addNote(`✅ Accepted offer on ${car.year} ${car.make} ${car.model} for ${formatCurrency(salePrice)}.`, 'success');
   saveState();
   renderAll();
+  showToast(`Sold for ${formatCurrency(salePrice)}!`, 'success', 'cash');
 }
 
 function rejectCustomerOffer(offerId) {
@@ -3268,7 +3298,7 @@ function hireStaff(candidateId) {
   ensureStaffCandidates();
   saveState();
   renderAll();
-  showToast(`${candidate.name} hired!`, 'success');
+  showToast(`${candidate.name} hired!`, 'success', 'hire');
 }
 
 function dismissCandidate(candidateId) {
@@ -3375,7 +3405,7 @@ function buyUpgrade(upgradeId) {
   addNote(`⬆️ Purchased: ${upg.name}`, 'success');
   saveState();
   renderAll();
-  showToast(`${upg.name} purchased!`, 'success');
+  showToast(`${upg.name} purchased!`, 'success', 'purchase');
 }
 
 // ============================================================
@@ -3395,6 +3425,7 @@ function carWash(carId) {
   addNote(`🚿 Washed ${car.year} ${car.make} ${car.model} — looks great! +3% value, boosted sale chance for 3 days.`, 'success');
   saveState();
   renderAll();
+  showToast(`Washed — looking sharp!`, 'success');
 }
 
 function basicRepair(carId) {
@@ -4908,7 +4939,7 @@ function switchTab(name) {
     case 'achievements':renderAchievements();    break;
     case 'settings':    renderSettings();        break;
   }
-  playSfx('click');
+  playSfx('tab');
   _tutorialUpdateNextButton();
   // Remember the tab so a refresh returns to it
   if (getActiveSession()) setActiveSession(currentSlot, name);
@@ -4917,7 +4948,7 @@ function switchTab(name) {
 // ============================================================
 // TOAST
 // ============================================================
-function showToast(message, type = 'info') {
+function showToast(message, type = 'info', sfx = null) {
   const container = document.getElementById('toast-container');
   const el = document.createElement('div');
   el.className = `toast toast-${type}`;
@@ -4928,7 +4959,10 @@ function showToast(message, type = 'info') {
     el.classList.remove('show');
     setTimeout(() => el.remove(), 300);
   }, 3200);
-  if (type === 'success') playSfx('success');
+  // sfx lets callers pick a distinct, purpose-built sound (e.g. 'cash', 'hire',
+  // 'achievement') instead of the generic tone for that toast's color/type.
+  if (sfx) playSfx(sfx);
+  else if (type === 'success') playSfx('success');
   else if (type === 'warning') playSfx('warning');
   else if (type === 'error') playSfx('error');
   else playSfx('click');
@@ -5127,12 +5161,41 @@ function deleteSlot(slot) {
 }
 
 let audioCtx = null;
+let _audioUnlockBound = false;
+
+// Each SFX is a short sequence of notes — {freq, dur, type, gain, delay, glide}.
+// Multi-note sequences (arpeggios/chimes) read as distinct, purpose-built game sounds
+// rather than a single generic beep, and every player action below maps to one of these.
 const SFX = {
-  click:   [420, 0.03, 'triangle'],
-  success: [660, 0.06, 'sine'],
-  warning: [280, 0.08, 'sawtooth'],
-  error:   [190, 0.09, 'square'],
-  cash:    [520, 0.05, 'triangle'],
+  click:       [{ freq: 600, dur: 0.035, type: 'square',   gain: 0.45 }],
+  toggle:      [{ freq: 460, dur: 0.03,  type: 'triangle', gain: 0.4  },
+                { freq: 620, dur: 0.04,  type: 'triangle', gain: 0.45, delay: 0.03 }],
+  tab:         [{ freq: 480, dur: 0.03,  type: 'sine',     gain: 0.35 }],
+  success:     [{ freq: 523.25, dur: 0.09, type: 'triangle', gain: 0.55 },
+                { freq: 783.99, dur: 0.14, type: 'triangle', gain: 0.65, delay: 0.09 }],
+  warning:     [{ freq: 330, dur: 0.09, type: 'sawtooth', gain: 0.5 },
+                { freq: 262, dur: 0.13, type: 'sawtooth', gain: 0.45, delay: 0.10 }],
+  error:       [{ freq: 220, dur: 0.10, type: 'square', gain: 0.55 },
+                { freq: 164, dur: 0.17, type: 'square', gain: 0.5,  delay: 0.10 }],
+  // "Cha-ching" — a quick bright ascending triple for cash landing in the till.
+  cash:        [{ freq: 880,  dur: 0.05, type: 'square',   gain: 0.5,  glide: 1 },
+                { freq: 1318.5, dur: 0.08, type: 'square',   gain: 0.6, delay: 0.05, glide: 1 },
+                { freq: 1760, dur: 0.18, type: 'triangle', gain: 0.5,  delay: 0.12 }],
+  // A rounder, lower two-note "thunk + chime" for spending cash on a purchase.
+  purchase:    [{ freq: 349.23, dur: 0.06, type: 'sine',     gain: 0.5 },
+                { freq: 523.25, dur: 0.11, type: 'triangle', gain: 0.55, delay: 0.06 }],
+  // Friendly ascending three-note "welcome aboard" for hiring staff.
+  hire:        [{ freq: 440,    dur: 0.07, type: 'sine', gain: 0.5 },
+                { freq: 554.37, dur: 0.07, type: 'sine', gain: 0.5, delay: 0.07 },
+                { freq: 659.25, dur: 0.15, type: 'sine', gain: 0.6, delay: 0.14 }],
+  // Four-note ascending fanfare for achievement unlocks.
+  achievement: [{ freq: 523.25,  dur: 0.08, type: 'triangle', gain: 0.55 },
+                { freq: 659.25,  dur: 0.08, type: 'triangle', gain: 0.6,  delay: 0.08 },
+                { freq: 783.99,  dur: 0.08, type: 'triangle', gain: 0.65, delay: 0.16 },
+                { freq: 1046.50, dur: 0.24, type: 'triangle', gain: 0.75, delay: 0.24 }],
+  // Soft two-note "ping" for deliveries and notifications.
+  notify:      [{ freq: 740, dur: 0.06, type: 'sine', gain: 0.4 },
+                { freq: 988, dur: 0.11, type: 'sine', gain: 0.45, delay: 0.09 }],
 };
 
 function loadSettings() {
@@ -5158,7 +5221,7 @@ function toggleDarkMode() {
   applyDarkMode();
   saveSettings();
   renderSettings();
-  playSfx('click');
+  playSfx('toggle');
 }
 
 function setDifficulty(level) {
@@ -5166,13 +5229,14 @@ function setDifficulty(level) {
   syncLoanTermsToDifficulty();
   saveState();
   renderAll();
-  playSfx('click');
+  playSfx('toggle');
 }
 
 function toggleSfxMuted() {
   settings.sfxMuted = !settings.sfxMuted;
   saveSettings();
   renderSettings();
+  if (!settings.sfxMuted) playSfx('toggle'); // audible confirmation that sound is back on
 }
 
 function setSfxVolume(raw) {
@@ -5187,27 +5251,59 @@ function toggleTutorials() {
   renderSettings();
 }
 
-function playSfx(kind = 'click') {
-  if (settings.sfxMuted) return;
-  const config = SFX[kind];
-  if (!config) return;
+/**
+ * Lazily creates the shared AudioContext and resumes it if the browser created
+ * (or left) it suspended. Browsers only allow audio to start after a genuine
+ * user gesture, and several code paths here (resuming a saved session on page
+ * load, auto-opening a tab on launch) can trigger the very first playSfx call
+ * before any click has happened — that silently parks the context in a
+ * "suspended" state forever, which is why sound could stop working across the
+ * whole site. Calling resume() defensively on every play (cheap/no-op once
+ * running) fixes that permanently.
+ */
+function ensureAudioCtx() {
   try {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const [freq, dur, type] = config;
-    const now = audioCtx.currentTime;
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.type = type;
-    osc.frequency.setValueAtTime(freq, now);
-    osc.frequency.exponentialRampToValueAtTime(Math.max(120, freq * 0.92), now + dur);
-    // Short attack/decay envelope: exponential ramps cannot start/end at 0, so we clamp to tiny floors to avoid pops.
-    gain.gain.setValueAtTime(SFX_MIN_GAIN, now);
-    gain.gain.exponentialRampToValueAtTime(Math.max(SFX_FLOOR_GAIN, settings.sfxVolume * SFX_VOLUME_SCALE), now + SFX_ATTACK_SECONDS);
-    gain.gain.exponentialRampToValueAtTime(SFX_MIN_GAIN, now + dur);
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-    osc.start(now);
-    osc.stop(now + dur);
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+  } catch (_) { return null; }
+  return audioCtx;
+}
+
+/** Unlocks/resumes audio on the very first real user interaction with the page. */
+function bindAudioUnlock() {
+  if (_audioUnlockBound) return;
+  _audioUnlockBound = true;
+  const unlock = () => ensureAudioCtx();
+  ['pointerdown', 'keydown', 'touchstart'].forEach(evt =>
+    document.addEventListener(evt, unlock, { once: true, passive: true }));
+}
+
+function playSfx(kind = 'click') {
+  if (settings.sfxMuted) return;
+  const notes = SFX[kind];
+  if (!notes) return;
+  const ctx = ensureAudioCtx();
+  if (!ctx) return;
+  try {
+    const baseVol = clamp(settings.sfxVolume ?? 0.22, 0, 1) * SFX_VOLUME_SCALE;
+    notes.forEach(note => {
+      const start = ctx.currentTime + (note.delay || 0);
+      const end   = start + note.dur;
+      const osc   = ctx.createOscillator();
+      const gain  = ctx.createGain();
+      osc.type = note.type || 'sine';
+      osc.frequency.setValueAtTime(note.freq, start);
+      osc.frequency.exponentialRampToValueAtTime(Math.max(80, note.freq * (note.glide ?? 0.92)), end);
+      // Short attack/decay envelope: exponential ramps cannot start/end at 0, so we clamp to tiny floors to avoid pops.
+      const peak = Math.max(SFX_FLOOR_GAIN, baseVol * (note.gain ?? 1));
+      gain.gain.setValueAtTime(SFX_MIN_GAIN, start);
+      gain.gain.exponentialRampToValueAtTime(peak, start + SFX_ATTACK_SECONDS);
+      gain.gain.exponentialRampToValueAtTime(SFX_MIN_GAIN, end);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(start);
+      osc.stop(end + 0.02);
+    });
   } catch (_) {}
 }
 
@@ -5968,6 +6064,7 @@ function returnToMenu() {
 // ============================================================
 function init() {
   loadSettings(); // must be before any render so dark mode applies
+  bindAudioUnlock(); // catch the first real click/tap/keypress so audio isn't stuck suspended
 
   // Wire up game-shell event listeners (panel stays hidden until launchGame)
   document.querySelectorAll('.tab-btn').forEach(btn => {
