@@ -27,6 +27,7 @@
 
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="menu.css" />
+  <link rel="stylesheet" href="cheat.css" />
 </head>
 <body>
 
@@ -252,6 +253,32 @@
         <button class="btn btn-primary" onclick="gameOverReturnToMenu()">⌂ Return to Menu</button>
         <button class="btn btn-secondary" onclick="gameOverNewGame()">▶ New Game</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ── Secret Cheat Menu — password gate ───────────────────── -->
+  <div id="cheat-password-overlay" class="cheat-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="cheat-password-title">
+    <div class="cheat-password-box">
+      <div class="cheat-lock-icon">🔒</div>
+      <h3 id="cheat-password-title">Restricted Access</h3>
+      <p class="cheat-password-sub">Enter password to continue</p>
+      <input type="password" id="cheat-password-input" class="cheat-password-input" autocomplete="off" spellcheck="false" placeholder="••••••••" />
+      <p id="cheat-password-error" class="cheat-password-error hidden">Incorrect password.</p>
+      <div class="cheat-password-actions">
+        <button class="btn btn-secondary" id="cheat-password-cancel">Cancel</button>
+        <button class="btn btn-primary" id="cheat-password-submit">Unlock</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Secret Cheat Menu — panel ────────────────────────────── -->
+  <div id="cheat-menu-overlay" class="cheat-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="cheat-menu-title">
+    <div class="cheat-menu-box">
+      <div class="cheat-menu-header">
+        <h3 id="cheat-menu-title">🛠️ Debug / Cheat Menu</h3>
+        <button class="cheat-close-btn" id="cheat-menu-close" aria-label="Close">✕</button>
+      </div>
+      <div class="cheat-menu-body" id="cheat-menu-body"></div>
     </div>
   </div>
 
