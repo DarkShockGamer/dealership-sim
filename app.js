@@ -6079,6 +6079,234 @@ function returnToMenu() {
 // ============================================================
 // INIT
 // ============================================================
+// ============================================================
+// SECRET CHEAT / DEBUG MENU
+// ------------------------------------------------------------
+// Opened with the backtick/tilde key ( ` ) while in an active
+// game (not on the home screen, not while typing in a field),
+// gated behind a simple password prompt. Intended for local
+// testing only — this is NOT real security, just a soft gate
+// so the menu doesn't show up by accident.
+// ============================================================
+const CHEAT_PASSWORD = 'showmethemoney';
+
+function _cheatInGame() {
+  const home = document.getElementById('home-screen');
+  return home && (home.classList.contains('hidden') || home.style.display === 'none');
+}
+
+function openCheatPasswordPrompt() {
+  const overlay = document.getElementById('cheat-password-overlay');
+  const input   = document.getElementById('cheat-password-input');
+  const error   = document.getElementById('cheat-password-error');
+  error.classList.add('hidden');
+  input.value = '';
+  overlay.classList.remove('hidden');
+  setTimeout(() => input.focus(), 30);
+}
+
+function closeCheatPasswordPrompt() {
+  document.getElementById('cheat-password-overlay').classList.add('hidden');
+}
+
+function submitCheatPassword() {
+  const input = document.getElementById('cheat-password-input');
+  const error = document.getElementById('cheat-password-error');
+  if (input.value.trim().toLowerCase() === CHEAT_PASSWORD) {
+    closeCheatPasswordPrompt();
+    openCheatMenu();
+  } else {
+    error.classList.remove('hidden');
+    input.value = '';
+    input.focus();
+  }
+}
+
+function openCheatMenu() {
+  renderCheatMenu();
+  document.getElementById('cheat-menu-overlay').classList.remove('hidden');
+}
+
+function closeCheatMenu() {
+  document.getElementById('cheat-menu-overlay').classList.add('hidden');
+}
+
+function renderCheatMenu() {
+  const body = document.getElementById('cheat-menu-body');
+  if (!body) return;
+  body.innerHTML = `
+    <p class="cheat-note">⚠️ Debug tools for local testing. Changes are saved to your current game immediately.</p>
+    <div class="cheat-stats-row">
+      <div class="cheat-stat-chip">Cash: <b>${formatCurrency(state.cash)}</b></div>
+      <div class="cheat-stat-chip">Day: <b>${state.day}</b></div>
+      <div class="cheat-stat-chip">Reputation: <b>${state.reputation.toFixed(2)}</b></div>
+      <div class="cheat-stat-chip">Garage: <b>${state.garage.length}/${state.garageSlots}</b></div>
+      <div class="cheat-stat-chip">Loan: <b>${formatCurrency(state.loanBalance)}</b></div>
+    </div>
+
+    <div class="cheat-section">
+      <p class="cheat-section-title">💰 Money</p>
+      <div class="cheat-grid">
+        <button class="cheat-btn cheat-btn-success" onclick="cheatAddMoney(1000)">+$1,000</button>
+        <button class="cheat-btn cheat-btn-success" onclick="cheatAddMoney(10000)">+$10,000</button>
+        <button class="cheat-btn cheat-btn-success" onclick="cheatAddMoney(100000)">+$100,000</button>
+        <button class="cheat-btn cheat-btn-danger" onclick="cheatAddMoney(-10000)">−$10,000</button>
+      </div>
+      <div class="cheat-inline-row" style="margin-top:8px;">
+        <input type="number" id="cheat-money-input" placeholder="Exact amount" />
+        <button class="cheat-btn" onclick="cheatSetMoneyFromInput()">Set Cash</button>
+      </div>
+    </div>
+
+    <div class="cheat-section">
+      <p class="cheat-section-title">📈 Progression</p>
+      <div class="cheat-grid">
+        <button class="cheat-btn" onclick="cheatAdvanceDays(1)">Skip 1 Day</button>
+        <button class="cheat-btn" onclick="cheatAdvanceDays(5)">Skip 5 Days</button>
+        <button class="cheat-btn" onclick="cheatAdvanceDays(30)">Skip 30 Days</button>
+        <button class="cheat-btn" onclick="cheatMaxReputation()">Max Reputation</button>
+        <button class="cheat-btn" onclick="cheatMaxGarage()">Max Garage Slots</button>
+        <button class="cheat-btn" onclick="cheatUnlockAllUpgrades()">Unlock All Upgrades</button>
+        <button class="cheat-btn" onclick="cheatUnlockAllAchievements()">Unlock All Achievements</button>
+      </div>
+    </div>
+
+    <div class="cheat-section">
+      <p class="cheat-section-title">🚗 Inventory & Finance</p>
+      <div class="cheat-grid">
+        <button class="cheat-btn" onclick="cheatSpawnCar()">Spawn Free Car</button>
+        <button class="cheat-btn" onclick="cheatFillGarage()">Fill Garage w/ Cars</button>
+        <button class="cheat-btn cheat-btn-success" onclick="cheatClearLoan()">Clear Loan / Reset Credit</button>
+      </div>
+    </div>
+
+    <div class="cheat-section">
+      <p class="cheat-section-title">🧪 Misc</p>
+      <div class="cheat-grid">
+        <button class="cheat-btn" onclick="cheatRefreshUsedMarket()">Refresh Used Market</button>
+        <button class="cheat-btn cheat-btn-danger" onclick="cheatToggleGameOver()">${state.gameOver ? 'Clear Game Over' : 'Force Game Over'}</button>
+      </div>
+    </div>
+  `;
+}
+
+function _cheatApply(msg) {
+  saveState();
+  renderAll();
+  renderCheatMenu();
+  showToast(msg, 'success');
+}
+
+function cheatAddMoney(amount) {
+  state.cash = Math.max(0, Math.round((state.cash || 0) + amount));
+  _cheatApply(`💰 Cash ${amount >= 0 ? '+' : ''}${formatCurrency(amount)} (now ${formatCurrency(state.cash)})`);
+}
+
+function cheatSetMoneyFromInput() {
+  const input = document.getElementById('cheat-money-input');
+  const val = Number(input.value);
+  if (!Number.isFinite(val) || val < 0) { showToast('Enter a valid, non-negative amount.', 'error'); return; }
+  state.cash = Math.round(val);
+  input.value = '';
+  _cheatApply(`💰 Cash set to ${formatCurrency(state.cash)}`);
+}
+
+function cheatAdvanceDays(n) {
+  for (let i = 0; i < n; i++) nextDay();
+  renderCheatMenu();
+  showToast(`⏩ Advanced ${n} day${n === 1 ? '' : 's'} — now Day ${state.day}.`, 'success');
+}
+
+function cheatMaxReputation() {
+  state.reputation = 2.0;
+  _cheatApply('⭐ Reputation maxed out.');
+}
+
+function cheatMaxGarage() {
+  state.upgrades.garageLevel = 5;
+  state.garageSlots = 50;
+  _cheatApply('🏠 Garage upgraded to Tier 5 (50 slots).');
+}
+
+function cheatUnlockAllUpgrades() {
+  Object.assign(state.upgrades, {
+    garageLevel: 5, marketing: 3, inspectionTool: true, detailing: true,
+    reputationBoosts: 3, expressDelivery: true, serviceBay: true, performanceShop: true,
+    negotiationTraining: true, staffOffice: true, crmSuite: true, aiPricing: true,
+    luxuryLounge: true, financeOffice: true, creditLineBoost1: true, creditLineBoost2: true,
+    creditLineBoost3: true, overheadReductions: 3, photoStudio: true, leaseManagement: true,
+    factoryAllocation: true, reconditioningWorkshop: true, dmvDatabaseAccess: true,
+    vinScanner: true, titleRecovery: true, frameDamageTools: true, complianceTraining: true,
+    securityLevel: 3, serviceCapacityLevel: 3,
+  });
+  state.garageSlots = 50;
+  state.loanLimit = Math.max(state.loanLimit, 485000);
+  state.loanApr = 0.12 - 0.03;
+  _cheatApply('⬆️ All upgrades unlocked.');
+}
+
+function cheatUnlockAllAchievements() {
+  if (!state.achievementsUnlocked) state.achievementsUnlocked = {};
+  for (const ach of ACHIEVEMENTS) {
+    if (!state.achievementsUnlocked[ach.id]) state.achievementsUnlocked[ach.id] = state.day;
+  }
+  _cheatApply('🏆 All achievements unlocked.');
+}
+
+function cheatSpawnCar() {
+  if (state.garage.length + state.deliveries.length >= state.garageSlots) {
+    showToast('No garage space — clear a slot or raise garage slots first.', 'error');
+    return;
+  }
+  const entry = CAR_CATALOG[Math.floor(Math.random() * CAR_CATALOG.length)];
+  const car = buildCar(entry, 'A', 'factory', true);
+  car.purchasePrice = 0;
+  state.garage.push(car);
+  addNote(`🛠️ [Debug] Spawned ${car.year} ${car.make} ${car.model} into garage.`, 'info');
+  _cheatApply(`🚗 Spawned a free ${car.make} ${car.model} into your garage.`);
+}
+
+function cheatFillGarage() {
+  let added = 0;
+  while (state.garage.length + state.deliveries.length < state.garageSlots && added < 25) {
+    const entry = CAR_CATALOG[Math.floor(Math.random() * CAR_CATALOG.length)];
+    const car = buildCar(entry, 'A', 'factory', true);
+    car.purchasePrice = 0;
+    state.garage.push(car);
+    added++;
+  }
+  if (added === 0) { showToast('Garage already full.', 'error'); return; }
+  addNote(`🛠️ [Debug] Spawned ${added} free car(s) into garage.`, 'info');
+  _cheatApply(`🚗 Spawned ${added} free car(s) into your garage.`);
+}
+
+function cheatClearLoan() {
+  state.loanBalance = 0;
+  state.missedPayments = 0;
+  state.delinquencyLevel = 0;
+  state.loanFrozen = false;
+  _cheatApply('🏦 Loan cleared and credit standing reset.');
+}
+
+function cheatRefreshUsedMarket() {
+  state.usedMarketOffers = generateUsedMarket();
+  _cheatApply('🔄 Used Market refreshed.');
+}
+
+function cheatToggleGameOver() {
+  state.gameOver = !state.gameOver;
+  saveState();
+  renderCheatMenu();
+  if (state.gameOver) {
+    showToast('☠️ Game Over flag forced on.', 'warning');
+    showGameOverScreen();
+  } else {
+    showToast('✅ Game Over flag cleared.', 'success');
+    document.getElementById('game-over-screen')?.classList.add('hidden');
+    renderAll();
+  }
+}
+
 function init() {
   loadSettings(); // must be before any render so dark mode applies
   bindAudioUnlock(); // catch the first real click/tap/keypress so audio isn't stuck suspended
@@ -6127,6 +6355,45 @@ function init() {
     startServiceJob, completeServiceJob, dismissServiceJob,
     toggleMenuChangelog,
     gameOverReturnToMenu, gameOverNewGame,
+    cheatAddMoney, cheatSetMoneyFromInput, cheatAdvanceDays, cheatMaxReputation,
+    cheatMaxGarage, cheatUnlockAllUpgrades, cheatUnlockAllAchievements,
+    cheatSpawnCar, cheatFillGarage, cheatClearLoan, cheatRefreshUsedMarket,
+    cheatToggleGameOver,
+  });
+
+  // ── Secret Cheat Menu wiring ─────────────────────────────
+  document.getElementById('cheat-password-cancel').addEventListener('click', closeCheatPasswordPrompt);
+  document.getElementById('cheat-password-submit').addEventListener('click', submitCheatPassword);
+  document.getElementById('cheat-password-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); submitCheatPassword(); }
+    else if (e.key === 'Escape') { e.preventDefault(); closeCheatPasswordPrompt(); }
+  });
+  document.getElementById('cheat-password-overlay').addEventListener('click', e => {
+    if (e.target === document.getElementById('cheat-password-overlay')) closeCheatPasswordPrompt();
+  });
+  document.getElementById('cheat-menu-close').addEventListener('click', closeCheatMenu);
+  document.getElementById('cheat-menu-overlay').addEventListener('click', e => {
+    if (e.target === document.getElementById('cheat-menu-overlay')) closeCheatMenu();
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      if (!document.getElementById('cheat-menu-overlay').classList.contains('hidden')) closeCheatMenu();
+      else if (!document.getElementById('cheat-password-overlay').classList.contains('hidden')) closeCheatPasswordPrompt();
+    }
+  });
+
+  // Secret trigger: backtick / tilde key opens the password-gated cheat menu.
+  // Ignored while typing in a field, and only available during an active game.
+  document.addEventListener('keydown', e => {
+    if (e.key !== '`' && e.key !== '~') return;
+    const tag = document.activeElement?.tagName?.toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+    if (!_cheatInGame()) return;
+    e.preventDefault();
+    const menuOpen = !document.getElementById('cheat-menu-overlay').classList.contains('hidden');
+    const promptOpen = !document.getElementById('cheat-password-overlay').classList.contains('hidden');
+    if (menuOpen || promptOpen) return;
+    openCheatPasswordPrompt();
   });
 
   // Keyboard navigation — arrow keys cycle through visible tabs, ignore when focus is in input/select/textarea
