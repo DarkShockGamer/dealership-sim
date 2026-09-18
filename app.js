@@ -310,8 +310,58 @@ let state = JSON.parse(JSON.stringify(DEFAULT_STATE));
 // ============================================================
 const CONDITIONS = ['A', 'B', 'C', 'D'];
 const CONDITION_NAMES  = { A: 'Excellent', B: 'Good', C: 'Fair', D: 'Poor' };
-const CONDITION_FACTOR = { A: 1.20, B: 1.00, C: 0.78, D: 0.52 };
+// Condition affects how fast a car sells, not just what it's worth. Widened so a rough
+// (D) car is a real drag on lot turnover, not a minor footnote.
+const CONDITION_FACTOR = { A: 1.25, B: 1.00, C: 0.70, D: 0.40 };
 const CONDITION_VALUE  = { A: 1.05, B: 0.92, C: 0.75, D: 0.58 };
+
+// ------------------------------------------------------------------
+// Real-world buyer-pool modeling for sale speed (NOT price)
+// ------------------------------------------------------------------
+// Two cars fairly priced at their own market value should NOT sell at the same rate.
+// A Corolla and a Ferrari priced fairly both "fair deals," but the Corolla has a
+// vastly bigger pool of people who can afford/want it, so it moves faster. None of
+// this changes what a car is worth or what you can list it for — computeSaleChance
+// still prices purely off askRatio (listPrice / marketValue) for that. This section
+// only changes how quickly a buyer walks in the door.
+
+// Body-style popularity: SUVs/trucks/economy/sedans appeal to the broadest audience
+// in real life, while Sports and Luxury cars are desirable but niche — a smaller slice
+// of buyers is shopping for (or can justify) them, so they sit longer even when priced
+// exactly right. This stacks with each model's own `demandFactor` from the catalog.
+const CATEGORY_POPULARITY = {
+  SUV:     1.18,
+  Truck:   1.12,
+  Economy: 1.15,
+  Sedan:   1.05,
+  Sports:  0.72,
+  Luxury:  0.65,
+};
+
+/**
+ * The buyer pool shrinks as absolute price climbs, independent of how the price
+ * compares to the car's own market value. Fewer people can write a $150k check than
+ * a $20k one, full stop — that's true even if the $150k car is a screaming deal
+ * relative to its own market value. This is what makes expensive cars sell slower
+ * than cheap ones even when both are priced fairly.
+ */
+function getPriceTierFactor(marketValue) {
+  if (marketValue < 30000)  return 1.10;
+  if (marketValue < 55000)  return 1.00;
+  if (marketValue < 90000)  return 0.82;
+  if (marketValue < 140000) return 0.60;
+  if (marketValue < 220000) return 0.38;
+  return 0.20;
+}
+
+// Crash history spooks buyers beyond the price hit it already takes on market value —
+// a car with a known accident is a harder sell at the SAME price as a clean one, the
+// same way a real buyer gets cold feet over a Carfax flag even at a "fair" price.
+// Severe damage is a much bigger red flag than minor cosmetic history.
+const CRASH_STIGMA_FACTOR = { none: 1.00, minor: 0.90, moderate: 0.68, severe: 0.42 };
+// Even after a repair, the accident stays on record — a repaired car still sells a
+// little slower than one that was never in a wreck.
+const CRASH_HISTORY_STIGMA = 0.88;
 const TITLE_STATUSES = ['clean', 'rebuilt', 'salvage', 'lemon'];
 const TITLE_LABELS = { clean: 'Clean', rebuilt: 'Rebuilt', salvage: 'Salvage', lemon: 'Lemon' };
 const TITLE_VALUE_MULT = { clean: 1.00, rebuilt: 0.85, salvage: 0.67, lemon: 0.56 };
@@ -1776,6 +1826,19 @@ function computeSaleChance(car) {
   }
 
   const condFactor = CONDITION_FACTOR[car.condition] || 1;
+
+  // Body-style popularity × per-model demand (catalog demandFactor) × absolute price
+  // tier. These three govern how big the buyer pool is — separate from whether the
+  // price is fair (that's priceAtt above).
+  const categoryFactor = CATEGORY_POPULARITY[car.category] || 1.0;
+  const priceTierFactor = getPriceTierFactor(car.marketValue);
+
+  // Crash/accident history — a live severity is a harder sell than the same car
+  // with no known damage; a past (repaired) accident still leaves a smaller dent.
+  const crashSeverity   = car.crashDamageSeverity || 'none';
+  const crashFactor     = (CRASH_STIGMA_FACTOR[crashSeverity] ?? 1.0)
+                         * (car.hasCrashRepair ? CRASH_HISTORY_STIGMA : 1.0);
+
   const daysLot    = car.daysInLot;
 
   // Overpriced listings go stale faster — OVERPRICED_STALE_DECAY_RATE (8%) daily decay once on lot >3 days.
@@ -1792,7 +1855,8 @@ function computeSaleChance(car) {
   const titleFactor        = TITLE_BUYER_MULT[car.titleStatus] || 1.0;
   const photoStudioFactor  = state.upgrades.photoStudio ? 1.10 : 1.0;
 
-  chance = chance * priceAtt * condFactor * lotFactor * marketingFactor * repFactor
+  chance = chance * priceAtt * condFactor * categoryFactor * priceTierFactor * crashFactor
+         * lotFactor * marketingFactor * repFactor
          * repBoostFactor * demandFactor * washBonus * titleFactor * photoStudioFactor;
 
   // No guaranteed floor for overpriced cars — retries must never converge to a sale.
@@ -1804,6 +1868,21 @@ function computeSaleChance(car) {
  * Returns a human-readable price label and CSS class based on how the
  * asking price compares to market value.
  */
+/**
+ * Human-readable label for how big this car's buyer pool is, independent of price —
+ * driven by body style and absolute price tier. Helps explain why two fairly-priced
+ * cars can still sell at very different speeds.
+ */
+function getPopularityLabel(car) {
+  const categoryFactor  = CATEGORY_POPULARITY[car.category] || 1.0;
+  const priceTierFactor = getPriceTierFactor(car.marketValue);
+  const combined = categoryFactor * priceTierFactor;
+  if (combined >= 1.05) return { text: 'High Demand',    cls: 'text-green'  };
+  if (combined >= 0.80) return { text: 'Average Demand', cls: 'text-yellow' };
+  if (combined >= 0.45) return { text: 'Niche Market',   cls: 'text-yellow' };
+  return                       { text: 'Very Niche',     cls: 'text-red'    };
+}
+
 function getPriceLabel(car) {
   if (!car.isForSale || car.listPrice <= 0) return null;
   const r = car.listPrice / car.marketValue;
@@ -4703,6 +4782,7 @@ function renderForSale() {
     const hasOffer = state.customerOffers.some(o => o.carId === car.id);
     const hasTIR   = state.tradeInRequests.some(r => r.targetCarId === car.id && r.state === 'pending');
     const priceLabel = car.listPrice > 0 ? getPriceLabel(car) : null;
+    const popLabel    = getPopularityLabel(car);
 
     return `
       <div class="car-card forsale-card ${hasOffer ? 'has-offer' : ''} ${car.source === 'tradein' ? 'tradein-inventory' : ''}">
@@ -4725,6 +4805,8 @@ function renderForSale() {
           <div class="detail-row"><span>Days on Lot</span><span>${car.daysInLot}</span></div>
           ${priceLabel ? `<div class="detail-row"><span>Price Rating</span><span class="${priceLabel.cls}" style="font-weight:600">${priceLabel.text}</span></div>` : ''}
           ${priceLabel ? `<div class="detail-row"><span>Buyer Interest</span><span class="${priceLabel.cls}">${priceLabel.interest}</span></div>` : ''}
+          <div class="detail-row"><span>Market Segment</span><span class="${popLabel.cls}">${popLabel.text}</span></div>
+          ${(car.crashDamageDiscovered && car.crashDamageSeverity && car.crashDamageSeverity !== 'none') ? `<div class="detail-row"><span>Accident History</span><span class="text-red">${car.crashDamageSeverity.charAt(0).toUpperCase() + car.crashDamageSeverity.slice(1)} (hurts sale speed)</span></div>` : (car.hasCrashRepair ? `<div class="detail-row"><span>Accident History</span><span class="text-yellow">Repaired (minor stigma)</span></div>` : '')}
           <div class="detail-row"><span>Sale Chance / Day</span><span class="${chanceClass}">${chance}%</span></div>
           <div class="detail-row"><span>Fee (2%)</span><span class="text-red">−${formatCurrency(fee)}</span></div>
           <div class="detail-row"><span>Est. Profit</span>
