@@ -11,9 +11,17 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.4.6';
+const GAME_VERSION = '1.4.7';
 
 const PATCH_NOTES = [
+  {
+    version: '1.4.7',
+    date: 'September 2026',
+    notes: [
+      { type: 'fix', text: 'Trade-in offers had no way to reveal a stolen car, a missing/altered title, a scratched VIN, or hidden mechanical issues before you accepted — the data existed but there was no Inspect option. Trade-ins now have their own Inspect button and warning badges, matching the Used Market.' },
+      { type: 'fix', text: 'All the relevant inspection upgrades now work on trade-ins too: Inspection Tool (cheaper inspections), DMV Database Access (reveals stolen/no-title cars), VIN Scanner (reveals altered VINs), Frame Damage Tools (reveals crash severity), and Title Recovery Service (fix a no-title trade-in before accepting it).' },
+    ],
+  },
   {
     version: '1.4.6',
     date: 'September 2026',
@@ -3171,6 +3179,81 @@ function submitUsedOffer(offerId, rawAmount) {
 // ============================================================
 // PLAYER ACTIONS — Trade-In Requests
 // ============================================================
+
+/** Player inspects a trade-in customer's car — same cost/upgrades as inspecting a used-market car. */
+function inspectTradeIn(requestId) {
+  const req = state.tradeInRequests.find(r => r.id === requestId);
+  if (!req) return;
+  const car = req.customerCar;
+  if (car.inspected) return;
+  const cost = state.upgrades.inspectionTool ? 150 : 300;
+  if (state.cash < cost) { showToast(`Inspection costs ${formatCurrency(cost)} — not enough cash!`, 'error'); return; }
+  state.cash   -= cost;
+  car.inspected = true;
+  car.repairCost = car.hiddenIssues.reduce((s, i) => s + i.cost, 0);
+
+  // Reveal legal status via DMV access
+  if (state.upgrades.dmvDatabaseAccess && !car.legalDiscovered) {
+    car.legalDiscovered = true;
+  }
+  // Reveal VIN status via VIN scanner
+  if (state.upgrades.vinScanner && !car.vinDiscovered) {
+    car.vinDiscovered = true;
+  }
+  // Reveal crash damage severity via frame damage tools
+  if (state.upgrades.frameDamageTools && !car.crashDamageDiscovered) {
+    car.crashDamageDiscovered = true;
+    if ((car.crashDamageSeverity || 'none') === 'severe') {
+      state.severeDamageFoundBeforeBuy = (state.severeDamageFoundBeforeBuy || 0) + 1;
+      runAchievementChecks();
+    }
+  } else if (!car.crashDamageDiscovered) {
+    // Basic inspection reveals crash damage exists but not severity
+    const hasCrash = car.hiddenIssues.some(i => i.isCrashDamage);
+    if (hasCrash) car.crashDamageDiscovered = true;
+  }
+
+  // Title recovery: offer to convert no-title to clean before you accept the trade
+  if (state.upgrades.titleRecovery && (car.legalDiscovered || state.upgrades.dmvDatabaseAccess)) {
+    if ((car.legalStatus || 'clean') === 'noTitle' && state.cash >= 800) {
+      car.titleRecoveryAvailable = true;
+    }
+  }
+
+  const issueCount  = car.hiddenIssues.filter(i => !i.isCrashDamage).length;
+  const crashSev    = car.crashDamageSeverity || 'none';
+  const crashNote   = crashSev !== 'none' ? `, hidden crash damage (${crashSev})` : '';
+  const legalNote   = car.legalDiscovered && (car.legalStatus !== 'clean')
+    ? `, ⚠️ ${car.legalStatus === 'stolen' ? 'STOLEN car!' : 'No title!'}`
+    : '';
+  const vinNote     = car.vinDiscovered && car.vinStatus === 'scratched' ? ', scratched VIN!' : '';
+
+  addNote(
+    `🔍 Inspected trade-in ${car.year} ${car.make} ${car.model}: ` +
+    `${issueCount} mechanical issue(s)${crashNote}${legalNote}${vinNote}. Repair cost: ${formatCurrency(car.repairCost)}.`,
+    legalNote ? 'error' : 'info'
+  );
+  saveState();
+  renderForSale();
+}
+
+/** Player applies Title Recovery to a no-title trade-in customer car before accepting ($800). */
+function applyTitleRecoveryTradeIn(requestId) {
+  const req = state.tradeInRequests.find(r => r.id === requestId);
+  if (!req || !state.upgrades.titleRecovery) return;
+  const car = req.customerCar;
+  if ((car.legalStatus || 'clean') !== 'noTitle') return;
+  if (state.cash < 800) { showToast('Not enough cash for title recovery ($800).', 'error'); return; }
+  state.cash -= 800;
+  car.legalStatus = 'clean';
+  car.legalDiscovered = true;
+  car.titleRecoveryAvailable = false;
+  addNote(`📋 Title recovered for trade-in ${car.year} ${car.make} ${car.model} — now has clean title.`, 'success');
+  showToast('Title recovered! Car now has clean title.', 'success');
+  saveState();
+  renderForSale();
+}
+
 function acceptTradeInRequest(requestId) {
   const req = state.tradeInRequests.find(r => r.id === requestId);
   if (!req) return;
@@ -4476,6 +4559,7 @@ function renderForSale() {
     const tirCards = [...pendingTIR, ...counteredTIR].map(req => {
       const targetCar = state.garage.find(c => c.id === req.targetCarId);
       if (!targetCar) return '';
+      const tCar = req.customerCar;
       const cashDelta = req.counterCashDelta ?? req.cashDelta;
       const isCountered = req.state === 'countered';
       const isNpcCounter = !isCountered && (req.round || 0) > 0;
@@ -4484,6 +4568,55 @@ function renderForSale() {
       const netValueToYou = req.customerCarValue + cashDelta;
       const canAccept = cashDelta < 0 ? state.cash >= Math.abs(cashDelta) : true;
       const canFit    = state.garage.length <= state.garageSlots || !targetCar; // trade-in removes target first, so full garage is OK
+
+      // Hidden issues — mirrors the used-market inspection panel
+      const tirIssuesHtml = tCar.inspected
+        ? (tCar.hiddenIssues.length === 0
+            ? `<p class="text-green" style="font-size:.78rem">${uiIcon('check')} No hidden issues found!</p>`
+            : tCar.hiddenIssues.map(i => {
+                const crashClass = i.isCrashDamage
+                  ? (i.severity === 'severe' ? 'crash-severe' : i.severity === 'moderate' ? 'crash-moderate' : 'crash-minor')
+                  : '';
+                return `<span class="issue-tag ${crashClass}">${uiIcon('warning')} ${i.name} (${formatCurrency(i.cost)})</span>`;
+              }).join(''))
+        : `<p class="text-muted" style="font-size:.78rem">${uiIcon('search')} Unknown — inspect to reveal issues</p>`;
+
+      // Legal / VIN / title-recovery — only shown once discovered via inspection + the relevant upgrade
+      const tirLegalStatus = tCar.legalStatus || 'clean';
+      const tirVinStatus   = tCar.vinStatus   || 'normal';
+      let tirLegalWarningHtml = '';
+      if (tCar.legalDiscovered && tirLegalStatus !== 'clean') {
+        const msg = tirLegalStatus === 'stolen'
+          ? '🚨 <strong>STOLEN CAR</strong> — accepting this trade-in is illegal. Risk of police fine & impound.'
+          : '⚠️ <strong>No Valid Title</strong> — accepting without title risks police fine.';
+        tirLegalWarningHtml += `<div class="legal-warning">${msg}</div>`;
+      }
+      if (tCar.vinDiscovered && tirVinStatus === 'scratched') {
+        tirLegalWarningHtml += `<div class="legal-warning">🔦 <strong>Scratched/Altered VIN</strong> — increases risk of police detection later.</div>`;
+      }
+      if (tCar.titleRecoveryAvailable) {
+        tirLegalWarningHtml += `<div class="car-actions" style="margin-top:4px">
+          <button class="btn btn-sm btn-secondary" onclick="applyTitleRecoveryTradeIn('${req.id}')">📋 Recover Title ($800)</button>
+        </div>`;
+      }
+
+      // Crash damage badge / unknown notice
+      let tirCrashBadgeHtml = '';
+      if (tCar.crashDamageDiscovered && (tCar.crashDamageSeverity || 'none') !== 'none') {
+        const sev = tCar.crashDamageSeverity;
+        const cls = sev === 'severe' ? 'crash-severe' : sev === 'moderate' ? 'crash-moderate' : 'crash-minor';
+        tirCrashBadgeHtml = `<span class="badge ${cls}" style="border-radius:4px;font-size:.72rem">🔨 ${sev.charAt(0).toUpperCase()}${sev.slice(1)} Crash Damage</span>`;
+      }
+      let tirCrashUnknownHtml = '';
+      if (!tCar.crashDamageDiscovered && !tCar.inspected) {
+        tirCrashUnknownHtml = `<p class="text-muted" style="font-size:.74rem;margin-top:2px">${uiIcon('search')} Crash history unknown — inspect for details${state.upgrades.frameDamageTools ? '' : ' (Frame Damage Tools reveals severity)'}.</p>`;
+      } else if (!tCar.crashDamageDiscovered && tCar.inspected && !state.upgrades.frameDamageTools) {
+        tirCrashUnknownHtml = `<p class="text-muted" style="font-size:.74rem;margin-top:2px">${uiIcon('search')} Crash severity unclear — upgrade to Frame Damage Inspection Tools for full detail.</p>`;
+      }
+
+      const tirInspectCost = state.upgrades.inspectionTool ? 150 : 300;
+      const tirCanInspect  = !tCar.inspected && state.cash >= tirInspectCost;
+
       return `
         <div class="car-card tradein-request-card ${isCountered ? 'countered-card disabled-card' : ''}">
           <div class="car-card-header">
@@ -4493,11 +4626,20 @@ function renderForSale() {
           <div class="tradein-split">
             <div class="tradein-half">
               <h5>${uiIcon('car')} Their Car</h5>
-              <div class="detail-row"><span>Car</span><span>${req.customerCar.year} ${req.customerCar.make} ${req.customerCar.model}</span></div>
-              <div class="detail-row"><span>Condition</span>${condBadge(req.customerCar.condition)}</div>
-              <div class="detail-row"><span>Title</span><span>${TITLE_LABELS[req.customerCar.titleStatus] || 'Clean'}</span></div>
-              <div class="detail-row"><span>Mileage</span><span>${req.customerCar.mileage.toLocaleString()} mi</span></div>
+              <div class="detail-row"><span>Car</span><span>${tCar.year} ${tCar.make} ${tCar.model}</span></div>
+              <div class="detail-row"><span>Condition</span>${condBadge(tCar.condition)}</div>
+              <div class="detail-row"><span>Title</span><span>${TITLE_LABELS[tCar.titleStatus] || 'Clean'}</span></div>
+              <div class="detail-row"><span>Mileage</span><span>${tCar.mileage.toLocaleString()} mi</span></div>
               <div class="detail-row"><span>Their Car Value</span><span class="text-green">${formatCurrency(req.customerCarValue)}</span></div>
+              ${tirCrashBadgeHtml ? `<div class="detail-row"><span></span>${tirCrashBadgeHtml}</div>` : ''}
+              ${tirIssuesHtml}
+              ${tirCrashUnknownHtml}
+              ${tirLegalWarningHtml}
+              ${!isCountered ? `<div class="car-actions" style="margin-top:6px">
+                <button class="btn btn-sm btn-secondary" onclick="inspectTradeIn('${req.id}')" ${tCar.inspected || !tirCanInspect ? 'disabled' : ''}>
+                  ${tCar.inspected ? `${uiIcon('check')} Inspected` : `${uiIcon('search')} Inspect (${formatCurrency(tirInspectCost)})`}
+                </button>
+              </div>` : ''}
             </div>
             <div class="tradein-half">
               <h5>${uiIcon('tag')} Your Car</h5>
@@ -6340,6 +6482,7 @@ function init() {
     acceptUsedOffer, declineUsedOffer, inspectUsedOffer, submitUsedOffer, updateNegTone,
     applyTitleRecovery,
     acceptTradeInRequest, rejectTradeInRequest, counterTradeInRequest,
+    inspectTradeIn, applyTitleRecoveryTradeIn,
     acceptCustomerOffer, rejectCustomerOffer, counterCustomerOffer, applyStaffSuggestion,
     markForSale, updateListPrice, setListPriceMultiplier, markAllForSale, unlistAllCars, bulkSetListing,
     makeLeaseAvailable, stopOfferingLease, viewLeaseDetails, toggleShowLeasedCars,
