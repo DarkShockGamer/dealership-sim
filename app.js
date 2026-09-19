@@ -11,9 +11,19 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.4.7';
+const GAME_VERSION = '1.5.0';
 
 const PATCH_NOTES = [
+  {
+    version: '1.5.0',
+    date: 'September 2026',
+    notes: [
+      { type: 'balance', text: 'Service Bay job volume now builds up gradually instead of being available at full strength the moment you unlock it. A brand-new shop starts with a small trickle of customers (2 waiting-room slots, a low daily arrival chance) and grows over roughly its first couple of months open — and faster the more jobs you complete — up to the same maximum waiting room as before. Existing saves keep their current job volume; only shops unlocked from here on start small.' },
+      { type: 'feature', text: 'Discontinued models: 26 vehicles (Bugatti Veyron & Chiron, Dodge Viper, and 15 new classic/defunct-brand additions like the Pontiac GTO, Toyota Supra Mk4, Skyline GT-R R34, Hummer H2, and more) are now out of production. They can no longer be special-ordered new from the Factory — they only ever show up on the Used Market, and only within the actual model years they were really built, so they\'re genuinely rare, one-of-a-kind finds. Marked with a "🏛️ Discontinued" badge showing their production years.' },
+      { type: 'feature', text: 'Added 8 new current-production models to the catalog: Tesla Model 3, Model Y, and Model S, plus the Rivian R1T and R1S.' },
+      { type: 'balance', text: 'Rebalanced how fast cars sell to be less about "fairly priced = sells at the same rate" and more true-to-life: SUVs, trucks, economy cars, and sedans now move noticeably faster than Sports and Luxury cars even at an identical price-to-value ratio, expensive cars sell more slowly than cheap ones purely because fewer buyers can afford them (not because of overpricing), and a car\'s Condition grade and any crash/accident history now have a much bigger direct effect on how quickly it finds a buyer — none of this changes what a car is worth or what you can list it for, only how fast it moves. Car Lot cards now show a "Market Segment" rating and an "Accident History" note (once discovered) explaining why.' },
+    ],
+  },
   {
     version: '1.4.7',
     date: 'September 2026',
@@ -296,6 +306,9 @@ const DEFAULT_STATE = {
   serviceGarageCapacity: 3,
   totalServiceJobsCompleted: 0,
   totalCarsStolen: 0,
+  // v1.5.0 — tracks the day the Service Bay was unlocked so job volume can ramp up
+  // gradually from a small new shop instead of being maxed out on day one.
+  serviceBayUnlockedDay: null,
   // v1.3.4 — credit recovery + easter eggs + game over tracking
   daysGoodStanding: 0,
   hardBankruptcyOccurred: false,
@@ -775,9 +788,9 @@ const UPGRADES_CONFIG = [
   },
   {
     id: 'serviceBay', name: 'Service Bay', icon: '🔩', category: 'Reconditioning', cost: 18000,
-    desc: 'Enables Basic Repair ($800, 1 day): fixes mechanical issues, improves condition one tier.',
+    desc: 'Enables Basic Repair ($800, 1 day): fixes mechanical issues, improves condition one tier. Also opens the Service tab for customer repair jobs — a brand-new shop starts small and builds a customer base over time.',
     requires: u => !u.serviceBay,
-    apply: s => { s.upgrades.serviceBay = true; },
+    apply: s => { s.upgrades.serviceBay = true; s.serviceBayUnlockedDay = s.day; },
   },
   {
     id: 'performanceShop', name: 'Performance Shop', icon: '🏎️', category: 'Reconditioning', cost: 30000,
@@ -1088,6 +1101,11 @@ function loadState(slot) {
       // Migrate upgrade keys
       if (!loaded.upgrades) loaded.upgrades = {};
       if (loaded.upgrades.serviceBay          === undefined) loaded.upgrades.serviceBay = false;
+      // v1.5.0: existing saves that already have the Service Bay keep full, established
+      // job volume (no ramp-down) — only brand-new unlocks after this update start small.
+      if (loaded.serviceBayUnlockedDay === undefined) {
+        loaded.serviceBayUnlockedDay = loaded.upgrades.serviceBay ? -9999 : null;
+      }
       if (loaded.upgrades.performanceShop     === undefined) loaded.upgrades.performanceShop = false;
       if (loaded.upgrades.negotiationTraining === undefined) loaded.upgrades.negotiationTraining = false;
       if (loaded.upgrades.staffOffice         === undefined) loaded.upgrades.staffOffice = false;
@@ -1345,11 +1363,30 @@ function loadState(slot) {
           day: loaded.day ?? 1,
         });
       }
+      if (loaded.saveVersion < 15) {
+        loaded.saveVersion = 15;
+        // v1.5.0: service job volume now ramps up gradually from Service Bay unlock instead
+        // of being maxed immediately. Established saves keep their existing job volume —
+        // only newly-unlocked shops (after this update) start small and build up.
+        if (loaded.serviceBayUnlockedDay === undefined || loaded.serviceBayUnlockedDay === null) {
+          loaded.serviceBayUnlockedDay = loaded.upgrades.serviceBay ? -9999 : null;
+        }
+        loaded.notifications = loaded.notifications || [];
+        loaded.notifications.unshift({
+          message: '🔧 Save upgraded to v15 — Service Bay job volume now builds up gradually for new shops; some models are now discontinued and used-market only.',
+          type: 'info',
+          day: loaded.day ?? 1,
+        });
+      }
       // Always-apply defaults for new fields added in v14 (in case migration block is skipped)
       loaded.daysGoodStanding       = loaded.daysGoodStanding       ?? 0;
       loaded.hardBankruptcyOccurred = loaded.hardBankruptcyOccurred ?? false;
       loaded.konamiActivated        = loaded.konamiActivated        ?? false;
       loaded.logoClickCount         = loaded.logoClickCount         ?? 0;
+      // Always-apply default for v1.5.0 field (in case migration block is skipped)
+      if (loaded.serviceBayUnlockedDay === undefined) {
+        loaded.serviceBayUnlockedDay = loaded.upgrades.serviceBay ? -9999 : null;
+      }
       // Migrate car objects
       for (const car of loaded.garage || []) migrateCar(car);
       for (const d of loaded.deliveries || []) migrateCar(d.car);
@@ -1387,6 +1424,10 @@ function migrateCar(car) {
   if (!CRASH_DAMAGE_SEVERITIES.includes(car.crashDamageSeverity)) car.crashDamageSeverity = 'none';
   if (car.crashDamageDiscovered === undefined) car.crashDamageDiscovered = false;
   if (car.hasCrashRepair     === undefined) car.hasCrashRepair     = false;
+  // v1.5.0: discontinued-model flavor fields (old saves' cars just weren't discontinued models)
+  if (car.discontinued       === undefined) car.discontinued       = false;
+  if (car.productionStart    === undefined) car.productionStart    = car.year;
+  if (car.productionEnd      === undefined) car.productionEnd      = car.year;
 }
 
 // ============================================================
@@ -1612,6 +1653,10 @@ function buildCar(entry, condition, source, inspected = false) {
     crashDamageSeverity,
     crashDamageDiscovered: false,
     hasCrashRepair: false,
+    // Discontinued models: used-market only, flavor info for display
+    discontinued: !!entry.discontinued,
+    productionStart: entry.yearRange[0],
+    productionEnd: entry.yearRange[1],
   };
 }
 
@@ -2685,14 +2730,40 @@ function generateServiceCar() {
   };
 }
 
+/**
+ * How big the customer waiting room is allowed to get. A brand-new Service Bay hasn't
+ * built a customer base yet, so it starts small (2 waiting slots) and grows as the shop
+ * proves itself — either by being open for a while (word of mouth) or by completing jobs
+ * (reputation). It's capped at the old "twice the bay count" ceiling once the shop matures,
+ * so upgrading service capacity later still pays off immediately for an established shop.
+ */
+function getServiceQueueLimit() {
+  const capacity = state.serviceGarageCapacity || 3;
+  const maxLimit = capacity * 2; // full waiting-room size once the service dept is established
+  const unlockedDay = state.serviceBayUnlockedDay;
+  if (unlockedDay === null || unlockedDay === undefined) return maxLimit; // legacy safety net
+  const daysOpen = Math.max(0, state.day - unlockedDay);
+  const byAge = 2 + Math.floor(daysOpen / 4);                                   // +1 slot / 4 days open
+  const byRep = 2 + Math.floor((state.totalServiceJobsCompleted || 0) / 3);     // +1 slot / 3 jobs done
+  return clamp(Math.max(byAge, byRep), 2, maxLimit);
+}
+
 /** Each new day: possibly bring in new service cars if there's waiting-queue room. */
 function processIncomingServiceCars() {
-  const capacity    = state.serviceGarageCapacity || 3;
-  const queueLimit  = capacity * 2; // waiting-room cap = twice the bay count
-  const totalJobs   = (state.serviceGarage || []).length;
+  const queueLimit = getServiceQueueLimit();
+  const totalJobs  = (state.serviceGarage || []).length;
   if (totalJobs >= queueLimit) return;
-  // Chance of a new service car arriving each day (scales with day/reputation)
-  const arrivalChance = clamp(0.30 + state.day * 0.003 + (state.reputation - 1) * 0.15, 0.10, 0.85);
+
+  const unlockedDay = state.serviceBayUnlockedDay;
+  const daysOpen = (unlockedDay === null || unlockedDay === undefined) ? 9999 : Math.max(0, state.day - unlockedDay);
+  // A brand-new service department has no reputation with customers yet — word of mouth
+  // takes time to build. Ramp the daily arrival chance up from a trickle to full strength
+  // over roughly the shop's first two months, rather than starting maxed out.
+  const maturity = clamp(0.15 + daysOpen / 60, 0.15, 1);
+  const arrivalChance = clamp(
+    (0.30 + state.day * 0.003 + (state.reputation - 1) * 0.15) * maturity,
+    0.04, 0.85
+  );
   const openQueueSlots = queueLimit - totalJobs;
   for (let i = 0; i < openQueueSlots; i++) {
     if (Math.random() < arrivalChance) {
@@ -3073,6 +3144,7 @@ function setFactoryModel(model) {
 function buyFromFactory(catalogIdx) {
   const entry = CAR_CATALOG[catalogIdx];
   if (!entry) return;
+  if (entry.discontinued) { showToast('This model is discontinued — only available on the used market.', 'error'); return; }
   if (state.cash < entry.basePrice) { showToast('Not enough cash!', 'error'); return; }
   const occupied = state.garage.length + state.deliveries.length;
   if (occupied >= state.garageSlots) {
@@ -3952,6 +4024,7 @@ function renderDashboard() {
 function renderFactory() {
   const groupedByMake = {};
   CAR_CATALOG.forEach((entry, idx) => {
+    if (entry.discontinued) return; // out-of-production models can't be special-ordered new
     (groupedByMake[entry.make] = groupedByMake[entry.make] || []).push({ ...entry, idx });
   });
   const makes = Object.keys(groupedByMake).sort((a, b) => a.localeCompare(b));
@@ -4129,6 +4202,9 @@ function renderUsedMarket() {
     const legalBadge = offer.legalDiscovered && legalStatus !== 'clean'
       ? `<span class="badge ${legalStatus === 'stolen' ? 'badge-red' : 'badge-orange'}">${legalStatus === 'stolen' ? '🚨 STOLEN' : '⚠️ NO TITLE'}</span>`
       : (offer.vinDiscovered && vinStatus === 'scratched' ? `<span class="badge badge-yellow">🔦 SCRATCHED VIN</span>` : '');
+    const discontinuedBadge = offer.discontinued
+      ? `<span class="badge badge-purple" title="No longer made — was only produced ${offer.productionStart}–${offer.productionEnd}. You'll never see this as a new factory order.">🏛️ Discontinued</span>`
+      : '';
 
     return `
         <div class="car-card tradein-card">
@@ -4140,6 +4216,7 @@ function renderUsedMarket() {
               ${condBadge(offer.condition)}
               ${titleBadge(offer.titleStatus)}
               ${legalBadge}
+              ${discontinuedBadge}
             </div>
           </div>
         <div class="car-details">
@@ -4518,14 +4595,19 @@ function renderServiceGarage() {
     ? `<div class="empty-state"><p>All your cars are in good shape — no repairs needed right now.</p></div>`
     : `<div class="card-grid">${playerCarCards}</div>`;
 
+  const queueLimit = getServiceQueueLimit();
+  const maxQueueLimit = capacity * 2;
+  const isGrowing = queueLimit < maxQueueLimit;
+
   const tabContent = `
     <div class="tab-info">
     ${uiIcon('wrench')} Bays: <strong>${occupiedBays}/${capacity}</strong> occupied.
       ${baysAvail > 0 ? `<span class="text-green">${baysAvail} bay slot(s) free.</span>` : `<span class="text-red">All bays busy — complete a job to free a slot.</span>`}
     &nbsp;|&nbsp; Customer in bay: <strong>${customerInProgress}</strong>
     &nbsp;|&nbsp; Your cars in bay: <strong>${ownInProgress}</strong>
-    &nbsp;|&nbsp; Waiting: <strong>${jobs.filter(j => (j.status||'ready') === 'waiting').length}</strong>
+    &nbsp;|&nbsp; Waiting: <strong>${jobs.filter(j => (j.status||'ready') === 'waiting').length}/${queueLimit}</strong>
     &nbsp;|&nbsp; Ready to collect: <strong>${jobs.filter(j => (j.status||'ready') === 'ready').length}</strong>
+      ${isGrowing ? `<br><span class="text-muted" style="font-size:.8rem">${uiIcon('info')} Still building a customer base — waiting room grows as the shop stays open and completes jobs (up to ${maxQueueLimit} at this capacity).</span>` : ''}
       <br>🔒 Security Level: <strong>${secLevel}</strong> — Theft chance/car/day: <strong>${theftPct}%</strong>
       ${secLevel === 0 && state.day >= 50 ? `<span class="text-red"> ⚠️ Consider Security upgrades to protect your lot.</span>` : ''}
     </div>
@@ -4794,6 +4876,7 @@ function renderForSale() {
             ${car.source === 'tradein' ? '<span class="badge badge-tradein">TRADE-IN</span>' : ''}
             ${condBadge(car.condition)}
             ${titleBadge(car.titleStatus)}
+            ${car.discontinued ? `<span class="badge badge-purple" title="No longer made — produced ${car.productionStart}–${car.productionEnd}">🏛️ Discontinued</span>` : ''}
           </div>
         </div>
         ${car.source === 'tradein' ? `<div class="tradein-source-banner">${uiIcon('refresh')} Accepted trade-in vehicle</div>` : ''}
