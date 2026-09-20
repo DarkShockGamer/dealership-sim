@@ -1415,10 +1415,16 @@ body.dark .tradein-summary {
 .tutorial-spotlight {
   position: fixed;
   border-radius: 8px;
-  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.62);
+  border: 2px solid rgba(130, 190, 255, .85);
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.62), 0 0 18px 2px rgba(100, 165, 255, .55);
   transition: top 0.35s ease, left 0.35s ease, width 0.35s ease, height 0.35s ease;
   pointer-events: none;
   z-index: 0;
+  animation: tutorialSpotlightBreathe 1.8s ease-in-out infinite;
+}
+@keyframes tutorialSpotlightBreathe {
+  0%, 100% { box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.62), 0 0 14px 1px rgba(100, 165, 255, .4); }
+  50%      { box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.62), 0 0 22px 4px rgba(100, 165, 255, .75); }
 }
 
 /* When there is no specific target to highlight, use a full-screen dim */
@@ -1488,6 +1494,27 @@ body.dark .tradein-summary {
   color: #d8e9ff;
   line-height: 1.5;
   margin: 0 0 14px;
+  white-space: pre-line;
+}
+
+/* Brief pulse used to redirect a blocked click back to the highlighted element */
+@keyframes tutorialNudgePulse {
+  0%   { filter: brightness(1); }
+  30%  { filter: brightness(1.55); }
+  100% { filter: brightness(1); }
+}
+.tutorial-spotlight.tutorial-nudge {
+  animation: tutorialNudgePulse 0.45s ease;
+}
+.tutorial-tooltip.tutorial-nudge {
+  animation: tutorialTooltipShake 0.45s ease;
+}
+@keyframes tutorialTooltipShake {
+  0%, 100% { transform: translateX(0); }
+  20%      { transform: translateX(-6px); }
+  40%      { transform: translateX(5px); }
+  60%      { transform: translateX(-3px); }
+  80%      { transform: translateX(2px); }
 }
 
 .tutorial-actions {
