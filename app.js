@@ -11,9 +11,17 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.5.2';
+const GAME_VERSION = '1.5.3';
 
 const PATCH_NOTES = [
+  {
+    version: '1.5.3',
+    date: 'September 2026',
+    notes: [
+      { type: 'feature', text: 'Sound pass across the whole game. Every button now has a light tactile click, the main menu has its own audio identity (an engine-ignition sound for Play/Continue/New Save, a soft whoosh for moving between menu panels, a chime for opening/closing dialogs), the tutorial plays a chime each step and a fanfare on completion, advancing to a new day has its own rising sweep, and the Game Over screen plays a somber closing phrase.' },
+      { type: 'feature', text: 'Deleting a save slot, opening the delete-confirmation dialog, and adjusting the SFX volume slider now all have their own distinct sounds instead of being silent.' },
+    ],
+  },
   {
     version: '1.5.2',
     date: 'September 2026',
@@ -2394,6 +2402,7 @@ function triggerBankruptcy() {
 function showGameOverScreen() {
   const el = document.getElementById('game-over-screen');
   if (!el) return;
+  playSfx('gameOver');
   const statsEl = document.getElementById('game-over-stats');
   if (statsEl) {
     statsEl.innerHTML = `
@@ -3170,7 +3179,7 @@ function nextDay() {
   const tradeAlert = newTIR.length   ? ` ${newTIR.length} trade-in request(s)!` : '';
   const leaseIncome = computeLeaseIncomePerDay();
   const leaseAlert = leaseIncome > 0 ? ` Active lease income/day: ${formatCurrency(leaseIncome)}.` : '';
-  showToast(`Day ${state.day} — new used cars available!${offerAlert}${tradeAlert}${leaseAlert}`);
+  showToast(`Day ${state.day} — new used cars available!${offerAlert}${tradeAlert}${leaseAlert}`, 'info', 'day');
 }
 
 // ============================================================
@@ -5346,8 +5355,12 @@ function showModal(title, message, onConfirm) {
   document.getElementById('modal-message').textContent = message;
   document.getElementById('modal-confirm').onclick = () => { closeModal(); onConfirm(); };
   document.getElementById('modal').classList.remove('hidden');
+  playSfx('modalOpen');
 }
-function closeModal() { document.getElementById('modal').classList.add('hidden'); }
+function closeModal() {
+  document.getElementById('modal').classList.add('hidden');
+  playSfx('modalClose');
+}
 
 // ============================================================
 // PATCH NOTES MODAL
@@ -5373,12 +5386,14 @@ function showPatchNotesModal() {
   document.getElementById('patch-notes-content').innerHTML = content;
   document.getElementById('patch-notes-title').textContent = `📋 What's New in v${latest.version}`;
   document.getElementById('patch-notes-modal').classList.remove('hidden');
+  playSfx('modalOpen');
 }
 
 /** Close the patch notes modal and mark this version as seen. */
 function closePatchNotesModal() {
   document.getElementById('patch-notes-modal').classList.add('hidden');
   localStorage.setItem('dealerSim_lastSeenVersion', GAME_VERSION);
+  playSfx('modalClose');
 }
 
 /** Render the compact patch notes panel on the home screen (collapsible). */
@@ -5422,6 +5437,7 @@ function toggleMenuChangelog() {
   body.classList.toggle('hidden', isOpen);
   if (arrow) arrow.textContent = isOpen ? '▼' : '▲';
   if (btn)   btn.setAttribute('aria-expanded', String(!isOpen));
+  playSfx('navigate');
 }
 
 /** Show the patch notes popup once per version after an update. */
@@ -5566,6 +5582,42 @@ const SFX = {
   // Soft two-note "ping" for deliveries and notifications.
   notify:      [{ freq: 740, dur: 0.06, type: 'sine', gain: 0.4 },
                 { freq: 988, dur: 0.11, type: 'sine', gain: 0.45, delay: 0.09 }],
+  // Very light, neutral tap layered under every button press across the whole
+  // game (see bindGlobalClickSfx) so the UI has a consistent tactile feel.
+  tap:         [{ freq: 720, dur: 0.022, type: 'sine', gain: 0.28 }],
+  // Soft descending two-note "whoosh" for moving between menu panels/screens
+  // (Play → Load, Settings → Back, closing a modal, etc.).
+  navigate:    [{ freq: 520, dur: 0.035, type: 'sine', gain: 0.35 },
+                { freq: 400, dur: 0.05,  type: 'sine', gain: 0.3,  delay: 0.03 }],
+  // Low three-note rising "ignition" — plays whenever a game session is about
+  // to begin (Play, resuming a save, creating a new save).
+  start:       [{ freq: 110, dur: 0.08, type: 'sawtooth', gain: 0.3,  delay: 0,    glide: 1.5 },
+                { freq: 165, dur: 0.10, type: 'sawtooth', gain: 0.4,  delay: 0.07, glide: 1.35 },
+                { freq: 247, dur: 0.20, type: 'sawtooth', gain: 0.55, delay: 0.16, glide: 1.15 }],
+  // Gentle rising two-note swell for a modal/dialog opening.
+  modalOpen:   [{ freq: 440, dur: 0.05, type: 'triangle', gain: 0.32 },
+                { freq: 587, dur: 0.06, type: 'triangle', gain: 0.4,  delay: 0.045 }],
+  // Mirror of modalOpen, falling, for a modal/dialog closing.
+  modalClose:  [{ freq: 587, dur: 0.045, type: 'triangle', gain: 0.32 },
+                { freq: 440, dur: 0.06,  type: 'triangle', gain: 0.3,  delay: 0.035 }],
+  // Short descending "trash" tone for deleting a save slot — distinct from
+  // the harsher error/warning stingers used for gameplay problems.
+  delete:      [{ freq: 380, dur: 0.07, type: 'square', gain: 0.4 },
+                { freq: 250, dur: 0.11, type: 'square', gain: 0.4, delay: 0.06 }],
+  // Single warm chime for each tutorial step advancing.
+  tutorialStep:[{ freq: 660, dur: 0.05, type: 'sine', gain: 0.4 },
+                { freq: 880, dur: 0.08, type: 'sine', gain: 0.45, delay: 0.045 }],
+  // Very quiet, short low buzz — a gentle "not yet" when a blocked click is
+  // nudged back onto the tutorial's highlighted step.
+  denied:      [{ freq: 200, dur: 0.05, type: 'square', gain: 0.22 }],
+  // Soft rising sweep marking a new day beginning.
+  day:         [{ freq: 392, dur: 0.07, type: 'sine', gain: 0.35 },
+                { freq: 523.25, dur: 0.09, type: 'sine', gain: 0.4, delay: 0.06 },
+                { freq: 659.25, dur: 0.14, type: 'sine', gain: 0.45, delay: 0.13 }],
+  // Somber descending three-note minor phrase for the Game Over screen.
+  gameOver:    [{ freq: 392,    dur: 0.16, type: 'triangle', gain: 0.5 },
+                { freq: 349.23, dur: 0.18, type: 'triangle', gain: 0.48, delay: 0.15 },
+                { freq: 261.63, dur: 0.36, type: 'triangle', gain: 0.5,  delay: 0.32 }],
 };
 
 function loadSettings() {
@@ -5613,6 +5665,7 @@ function setSfxVolume(raw) {
   const vol = clamp(parseFloat(raw), 0, 1);
   settings.sfxVolume = isNaN(vol) ? 0.22 : vol;
   saveSettings();
+  playSfx('click'); // audible preview of the new volume level
 }
 
 function toggleTutorials() {
@@ -5675,6 +5728,29 @@ function playSfx(kind = 'click') {
       osc.stop(end + 0.02);
     });
   } catch (_) {}
+}
+
+/**
+ * Global delegated "tap" sound for every button press across the whole game.
+ * Rather than threading playSfx() into every individual onclick handler
+ * (there are hundreds across factory/market/service/staff/etc.), one bubble
+ * listener on the document gives every button in the game a consistent
+ * tactile click — layered underneath any louder, purpose-built sound (cash,
+ * hire, achievement...) a specific action already plays via showToast().
+ * Menu, tutorial, and modal buttons are excluded here because they already
+ * get bespoke navigate/start/modal sounds wired at their own call sites.
+ */
+const SFX_GLOBAL_TAP_SELECTOR = '.btn, .cheat-btn, .cheat-close-btn';
+const SFX_GLOBAL_TAP_SKIP_SELECTOR =
+  '.tab-btn, .toggle-btn, .menu-btn, .menu-back-btn, .menu-changelog-btn, ' +
+  '.tutorial-btn-next, .tutorial-btn-skip, .tutorial-btn-disable, [disabled]';
+function bindGlobalClickSfx() {
+  document.addEventListener('click', (e) => {
+    const el = e.target.closest(SFX_GLOBAL_TAP_SELECTOR);
+    if (!el || el.disabled) return;
+    if (el.closest(SFX_GLOBAL_TAP_SKIP_SELECTOR)) return;
+    playSfx('tap');
+  });
 }
 
 /** Live tone preview as player types in an offer amount on used market cards. */
@@ -5776,6 +5852,7 @@ function initHomeScreen() {
   function openLoadView() {
     renderSaveSlots();
     showMenuView('menu-view-load');
+    playSfx('navigate');
   }
 
   // ── Button event listeners ───────────────────────────────
@@ -5787,9 +5864,11 @@ function initHomeScreen() {
       // Fall back to first existing slot if lastSlot save was deleted
       const slot = getSlotSummary(last) !== null ? last
         : ([1, 2, 3].find(s => getSlotSummary(s) !== null) || 1);
+      playSfx('start');
       launchGame(slot, false);
     } else {
       // No saves — show difficulty picker for slot 1
+      playSfx('navigate');
       showDifficultyPicker(1);
     }
   });
@@ -5799,16 +5878,18 @@ function initHomeScreen() {
   document.getElementById('menu-btn-settings').addEventListener('click', () => {
     syncMenuSettings();
     showMenuView('menu-view-settings');
+    playSfx('navigate');
   });
 
-  document.getElementById('menu-load-back').addEventListener('click', () => showMenuView('menu-view-main'));
-  document.getElementById('menu-settings-back').addEventListener('click', () => showMenuView('menu-view-main'));
+  document.getElementById('menu-load-back').addEventListener('click', () => { showMenuView('menu-view-main'); playSfx('navigate'); });
+  document.getElementById('menu-settings-back').addEventListener('click', () => { showMenuView('menu-view-main'); playSfx('navigate'); });
 
   // ── Delete confirmation dialog ───────────────────────────
   let pendingDeleteSlot = null;
   document.getElementById('menu-del-no').addEventListener('click', () => {
     document.getElementById('menu-delete-confirm').classList.add('hidden');
     pendingDeleteSlot = null;
+    playSfx('navigate');
   });
   document.getElementById('menu-del-yes').addEventListener('click', () => {
     if (pendingDeleteSlot !== null) {
@@ -5816,14 +5897,15 @@ function initHomeScreen() {
       pendingDeleteSlot = null;
     }
     document.getElementById('menu-delete-confirm').classList.add('hidden');
+    playSfx('delete');
     openLoadView();
   });
 
   // Difficulty picker button listeners
-  document.getElementById('diff-picker-prev').addEventListener('click', diffPickerPrev);
-  document.getElementById('diff-picker-next').addEventListener('click', diffPickerNext);
-  document.getElementById('diff-picker-cancel').addEventListener('click', diffPickerCancel);
-  document.getElementById('diff-picker-confirm').addEventListener('click', diffPickerConfirm);
+  document.getElementById('diff-picker-prev').addEventListener('click', () => { diffPickerPrev(); playSfx('tab'); });
+  document.getElementById('diff-picker-next').addEventListener('click', () => { diffPickerNext(); playSfx('tab'); });
+  document.getElementById('diff-picker-cancel').addEventListener('click', () => { diffPickerCancel(); playSfx('navigate'); });
+  document.getElementById('diff-picker-confirm').addEventListener('click', () => { playSfx('start'); diffPickerConfirm(); });
 
   // Expose slot deletion trigger for dynamically rendered cards
   window._confirmDeleteSlot = (slot) => {
@@ -5832,6 +5914,7 @@ function initHomeScreen() {
       `Save Slot ${slot} will be permanently deleted. This cannot be undone.`;
     document.getElementById('menu-delete-confirm').classList.remove('hidden');
     document.getElementById('menu-del-yes').focus();
+    playSfx('warning');
   };
 }
 
@@ -5932,7 +6015,7 @@ function renderSaveSlots() {
         <button class="slot-delete-btn" aria-label="Delete Save Slot ${slot}"
           onclick="event.stopPropagation(); window._confirmDeleteSlot(${slot})">🗑 Delete</button>
       `;
-      const activateExisting = () => launchGame(slot, false);
+      const activateExisting = () => { playSfx('start'); launchGame(slot, false); };
       card.addEventListener('click', activateExisting);
       card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activateExisting(); } });
     } else {
@@ -5942,7 +6025,7 @@ function renderSaveSlots() {
         <div class="slot-name" style="opacity:.6;">Empty</div>
         <div class="slot-cta">Create Save</div>
       `;
-      const activateNew = () => showDifficultyPicker(slot);
+      const activateNew = () => { playSfx('navigate'); showDifficultyPicker(slot); };
       card.addEventListener('click', activateNew);
       card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activateNew(); } });
     }
@@ -5973,6 +6056,7 @@ function menuToggleDark() {
   applyDarkMode();
   saveSettings();
   syncMenuSettings();
+  playSfx('toggle');
 }
 
 /** Toggle SFX from the home-screen settings panel. */
@@ -5980,6 +6064,7 @@ function menuToggleSfx() {
   settings.sfxMuted = !settings.sfxMuted;
   saveSettings();
   syncMenuSettings();
+  if (!settings.sfxMuted) playSfx('toggle'); // audible confirmation that sound is back on
 }
 
 /** Toggle tutorials from the home-screen settings panel. */
@@ -5987,6 +6072,7 @@ function menuToggleTutorials() {
   settings.tutorialsEnabled = !settings.tutorialsEnabled;
   saveSettings();
   syncMenuSettings();
+  playSfx('toggle');
 }
 
 /** Set difficulty from the home-screen settings panel — kept for backward compat but no longer wired to any UI. */
@@ -6190,7 +6276,7 @@ function _tutorialNudge() {
   const now = Date.now();
   if (now - _tutorialLastNudge > 1500) {
     _tutorialLastNudge = now;
-    showToast('Follow the highlighted step to continue the tutorial.', 'info');
+    showToast('Follow the highlighted step to continue the tutorial.', 'info', 'denied');
   }
 }
 
@@ -6246,6 +6332,7 @@ function _tutorialReposition() {
 function tutorialStart() {
   _tutorialSteps = getTutorialSteps();
   _tutorialStep = 0;
+  playSfx('notify');
   _tutorialShowStep();
   // Keep spotlight + tooltip aligned whenever layout changes
   window.addEventListener('scroll', _tutorialReposition, { passive: true, capture: true });
@@ -6261,14 +6348,17 @@ function tutorialNext() {
   if (step && step.isComplete && !step.isComplete()) return; // guard: not yet complete
   _tutorialStep++;
   if (_tutorialStep >= _tutorialSteps.length) {
+    playSfx('achievement'); // finished the whole tutorial — celebratory fanfare
     tutorialEnd();
   } else {
+    playSfx('tutorialStep');
     _tutorialShowStep();
   }
 }
 
 /** Skip the tutorial entirely for this session. */
 function tutorialSkip() {
+  playSfx('navigate');
   tutorialEnd();
 }
 
@@ -6551,6 +6641,7 @@ function returnToMenu() {
   saveState();
   // Deliberately leaving the game — a refresh from here should show the menu
   clearActiveSession();
+  playSfx('navigate');
 
   // Restore home screen
   const hs = document.getElementById('home-screen');
@@ -6808,6 +6899,7 @@ function cheatToggleGameOver() {
 function init() {
   loadSettings(); // must be before any render so dark mode applies
   bindAudioUnlock(); // catch the first real click/tap/keypress so audio isn't stuck suspended
+  bindGlobalClickSfx(); // give every button in the game a consistent tactile click
 
   // Wire up game-shell event listeners (panel stays hidden until launchGame)
   document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -6944,6 +7036,7 @@ function init() {
   // ── Easter Egg: Header logo click 7 times ───────────────────
   document.querySelector('.header-brand')?.addEventListener('click', () => {
     if (document.getElementById('home-screen') && !document.getElementById('home-screen').classList.contains('hidden')) return;
+    playSfx('tap');
     state.logoClickCount = (state.logoClickCount || 0) + 1;
     if (state.logoClickCount === 7) {
       saveState();
