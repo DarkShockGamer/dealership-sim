@@ -11,9 +11,16 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.5.4';
+const GAME_VERSION = '1.5.5';
 
 const PATCH_NOTES = [
+  {
+    version: '1.5.5',
+    date: 'September 2026',
+    notes: [
+      { type: 'feature', text: 'Added a Credit Score (300–850) on the Finance tab, tracked separately from the loan itself. On Normal/Hard, ending a day cash-negative dings your credit score even with no loan — it doesn\'t trigger a "missed payment" strike, but it does raise the APR you\'re offered on any loan, current or future. Staying cash-positive slowly rebuilds the score, and bankruptcy takes a severe one-time hit.' },
+    ],
+  },
   {
     version: '1.5.4',
     date: 'September 2026',
@@ -312,6 +319,7 @@ const DEFAULT_STATE = {
   loanFrozen: false,
   missedPayments: 0,
   delinquencyLevel: 0,
+  creditScore: 700, // starting credit score — see CREDIT_SCORE_START below for the same value used elsewhere
   totalInterestPaid: 0,
   totalLoanDrawn: 0,
   totalLoanPaidDown: 0,
@@ -528,6 +536,16 @@ const LEASE_MILES_PER_DAY = {
 const DELINQUENCY_WARNING_LEVEL = 1;
 const DELINQUENCY_DEFAULT_LEVEL = 2;
 const DELINQUENCY_BANKRUPTCY_LEVEL = 3;
+// Credit score — tracks the player's overall ability to cover obligations
+// (operating costs AND loan payments) independent of whether a loan is even
+// active. It's what future/ongoing loan APR is priced from, so it's the one
+// thing that can quietly get worse even with a $0 loan balance.
+const CREDIT_SCORE_MIN   = 300;
+const CREDIT_SCORE_MAX   = 850;
+const CREDIT_SCORE_START = 700;
+const CREDIT_SCORE_DROP  = { normal: 12, hard: 20 }; // points lost per day cash ends negative
+const CREDIT_SCORE_RECOVERY_PER_DAY = 3;             // points regained per day cash stays non-negative
+const CREDIT_SCORE_BANKRUPTCY_DROP  = 120;           // severe one-time hit on bankruptcy
 // SVG icon helper — returns a 28×28 SVG icon (stroke-based, matches blue theme)
 function achSvg(pathD) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24"
@@ -1056,6 +1074,14 @@ function getBaseLoanTerms() {
   return LOAN_TERMS[diff] || LOAN_TERMS.normal;
 }
 
+function creditScoreAprAdjustment() {
+  const score = state.creditScore ?? CREDIT_SCORE_START;
+  // Every 50 points away from the 700 baseline shifts APR by ~1 percentage
+  // point — worse credit costs more, better credit costs a little less.
+  const delta = (CREDIT_SCORE_START - score) / 50 * 0.01;
+  return clamp(delta, -0.02, 0.08);
+}
+
 function syncLoanTermsToDifficulty() {
   const terms = getBaseLoanTerms();
   if (state.loanBalance === undefined) state.loanBalance = 0;
@@ -1069,6 +1095,9 @@ function syncLoanTermsToDifficulty() {
     if (state.upgrades?.creditLineBoost1) { upgradeLimit += 50000;  upgradeApr = Math.max(0.01, upgradeApr - 0.005); }
     if (state.upgrades?.creditLineBoost2) { upgradeLimit += 100000; upgradeApr = Math.max(0.01, upgradeApr - 0.005); }
     if (state.upgrades?.creditLineBoost3) { upgradeLimit += 250000; upgradeApr = Math.max(0.01, upgradeApr - 0.005); }
+    // Credit score (driven by covering operating costs & loan payments over time,
+    // see processLoanAndDelinquency) nudges the priced APR up or down.
+    upgradeApr = Math.max(0.01, upgradeApr + creditScoreAprAdjustment());
     state.loanLimit = upgradeLimit;
     state.loanApr   = upgradeApr;
   }
@@ -1372,6 +1401,7 @@ function loadState(slot) {
       loaded.loanFrozen = !!loaded.loanFrozen;
       loaded.missedPayments = loaded.missedPayments ?? 0;
       loaded.delinquencyLevel = loaded.delinquencyLevel ?? 0;
+      loaded.creditScore = loaded.creditScore ?? CREDIT_SCORE_START;
       loaded.totalInterestPaid = loaded.totalInterestPaid ?? 0;
       loaded.totalLoanDrawn = loaded.totalLoanDrawn ?? 0;
       loaded.totalLoanPaidDown = loaded.totalLoanPaidDown ?? 0;
@@ -2311,6 +2341,22 @@ function processLoanAndDelinquency() {
     }
   }
 
+  // Credit score tracks whether obligations (operating costs AND, if present,
+  // loan payments) actually got covered each day — independent of whether a
+  // loan is even active. This is what loan APR is priced from (see
+  // creditScoreAprAdjustment), so running cash-negative on Normal/Hard still
+  // quietly costs you even with a $0 loan balance.
+  const prevCreditScore = state.creditScore ?? CREDIT_SCORE_START;
+  if (state.cash < 0) {
+    const drop = CREDIT_SCORE_DROP[state.difficulty] ?? CREDIT_SCORE_DROP.normal;
+    state.creditScore = Math.max(CREDIT_SCORE_MIN, prevCreditScore - drop);
+    if (state.creditScore < prevCreditScore) {
+      addNote(`📉 Credit score dropped to ${state.creditScore} — operating costs weren't fully covered.`, 'warning');
+    }
+  } else {
+    state.creditScore = Math.min(CREDIT_SCORE_MAX, prevCreditScore + CREDIT_SCORE_RECOVERY_PER_DAY);
+  }
+
   // Only the loan itself can trigger a missed-payment strike — going cash-negative
   // with no outstanding loan balance is not a loan default and should not touch
   // the delinquency ladder at all.
@@ -2358,6 +2404,9 @@ function processLoanAndDelinquency() {
 
 function triggerBankruptcy() {
   state.delinquencyLevel = DELINQUENCY_BANKRUPTCY_LEVEL;
+  // Bankruptcy is a major credit event on its own, on top of whatever the
+  // daily cash-negative dings already did to the score.
+  state.creditScore = Math.max(CREDIT_SCORE_MIN, (state.creditScore ?? CREDIT_SCORE_START) - CREDIT_SCORE_BANKRUPTCY_DROP);
   if (state.difficulty === 'hard') {
     state.gameOver = true;
     state.hardBankruptcyOccurred = true;
@@ -5097,6 +5146,15 @@ function renderStaff() {
     <div class="category-section"><h3>${uiIcon('person')} Staff Activity</h3>${staffLogs}</div>`;
 }
 
+/** Qualitative label + color class for a credit score, used on the Finance tab. */
+function creditScoreInfo(score) {
+  if (score >= 800) return { label: 'Excellent', cls: 'text-green' };
+  if (score >= 740) return { label: 'Very Good',  cls: 'text-green' };
+  if (score >= 670) return { label: 'Good',       cls: 'text-blue'  };
+  if (score >= 580) return { label: 'Fair',        cls: 'text-yellow' };
+  return { label: 'Poor', cls: 'text-red' };
+}
+
 function renderFinance() {
   const available = Math.max(0, state.loanLimit - state.loanBalance);
   const dailyInterest = state.loanBalance > 0 ? Math.max(1, Math.round(state.loanBalance * state.loanApr / 365)) : 0;
@@ -5112,9 +5170,26 @@ function renderFinance() {
         <span class="text-red">${formatCurrency(item.salePrice)}</span>
       </div>`).join('')
     : '<p class="empty-msg">No liquidation events yet.</p>';
+  const creditScore = state.creditScore ?? 700;
+  const creditInfo   = creditScoreInfo(creditScore);
+  const creditPct    = clamp((creditScore - CREDIT_SCORE_MIN) / (CREDIT_SCORE_MAX - CREDIT_SCORE_MIN), 0, 1) * 100;
 
   document.getElementById('tab-finance').innerHTML = `
     <div class="dashboard-grid">
+      <div class="dash-card">
+        <h3>${uiIcon('trendingUp')} Credit Score</h3>
+        ${state.difficulty === 'easy'
+          ? `<p class="text-muted" style="font-size:.82rem">Easy mode: no credit tracking, no loan interest.</p>`
+          : `
+          <div class="stat-row"><span>Score</span><strong class="${creditInfo.cls}" style="font-size:1.3rem">${creditScore}</strong></div>
+          <div class="stat-row"><span>Rating</span><strong class="${creditInfo.cls}">${creditInfo.label}</strong></div>
+          <div style="height:8px;border-radius:5px;background:rgba(128,128,128,.25);margin:8px 0 10px;overflow:hidden">
+            <div style="height:100%;width:${creditPct}%;border-radius:5px;background:${creditScore >= 670 ? 'var(--success, #3ecf6c)' : creditScore >= 580 ? 'var(--warning, #f0b429)' : 'var(--danger, #ff7a85)'}"></div>
+          </div>
+          <p class="text-muted" style="font-size:.78rem">Ending a day cash-negative dings your score even without a loan — it's what your loan APR is priced from. Staying cash-positive slowly rebuilds it.</p>
+          `}
+      </div>
+
       <div class="dash-card">
         <h3>${uiIcon('bank')} Dealership Credit Line</h3>
         <div class="stat-row"><span>Balance</span><strong class="${state.loanBalance > 0 ? 'text-red' : 'text-green'}">${formatCurrency(state.loanBalance)}</strong></div>
@@ -5155,6 +5230,7 @@ function renderFinance() {
           if (state.difficulty === 'easy') return 'Easy: N/A (no late payments)';
           return 'Normal: Instant liquidation then continue';
         })()}</strong></div>
+        ${state.difficulty !== 'easy' ? `<p class="text-muted" style="font-size:.8rem;margin-top:8px">💡 This ladder only applies with an active loan. Running cash-negative with no loan can't default — but it still dings your Credit Score above, which raises the APR on any loan you do take out.</p>` : ''}
         ${state.difficulty === 'normal' && state.delinquencyLevel > 0 ? `<p class="text-muted" style="font-size:.8rem;margin-top:8px">💡 Credit rebuilds on Normal: every 10 days of good standing reduces your late payment level by 1.</p>` : ''}
       </div>
 
