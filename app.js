@@ -11,9 +11,17 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.5.0';
+const GAME_VERSION = '1.5.1';
 
 const PATCH_NOTES = [
+  {
+    version: '1.5.1',
+    date: 'September 2026',
+    notes: [
+      { type: 'feature', text: 'Overhauled the new-game tutorial. It now actually guides you: while it\'s running, only the glowing highlighted element responds to clicks, so you can\'t wander off-script and end up with the highlight stuck in the wrong place. The Factory step spotlights one specific, pre-selected car (the cheapest available — the best low-risk first buy) instead of the whole tab, and the tutorial now continues past your first sale to walk you through buying a car on the Used Market, including a nod to Inspect and Negotiate, before wrapping up with a pointer to Service, Finance, Staff, Upgrades, and Achievements.' },
+      { type: 'fix', text: 'Fixed the tutorial\'s highlight box drifting to the wrong spot after navigating away from the expected tab or resizing the window.' },
+    ],
+  },
   {
     version: '1.5.0',
     date: 'September 2026',
@@ -4063,7 +4071,7 @@ function renderFactory() {
     const adjMargin  = adjMarket - car.basePrice;
     const canBuy     = !garageFull && state.cash >= car.basePrice;
     html += `
-      <div class="car-card factory-card">
+      <div class="car-card factory-card" data-car-idx="${car.idx}">
         <div class="car-card-header">
           <div>
             <span class="car-name">2026 ${car.make} ${car.model}</span>
@@ -4207,7 +4215,7 @@ function renderUsedMarket() {
       : '';
 
     return `
-        <div class="car-card tradein-card">
+        <div class="car-card tradein-card" data-offer-id="${offer.id}">
           <div class="car-card-header">
             <div>
                 <span class="car-name">${formatCarDisplayName(offer)}</span>
@@ -4359,7 +4367,7 @@ function renderCarLot() {
     }
 
     return `
-        <div class="car-card garage-card ${car.isForSale ? 'for-sale' : ''} ${inService ? 'in-service' : ''}">
+        <div class="car-card garage-card ${car.isForSale ? 'for-sale' : ''} ${inService ? 'in-service' : ''}" data-car-id="${car.id}">
           <div class="car-card-header">
             <div>
               <span class="car-name">${formatCarDisplayName(car)}</span>
@@ -4406,7 +4414,7 @@ function renderCarLot() {
           </div>` : ''}
         ${reconHtml}
         <div class="car-actions" style="margin-top:4px">
-          <button class="btn ${car.isForSale ? 'btn-warning' : 'btn-primary'}"
+          <button class="btn mark-for-sale-btn ${car.isForSale ? 'btn-warning' : 'btn-primary'}"
             onclick="markForSale('${car.id}')" ${inService || isLeased ? 'disabled' : ''}>
             ${car.isForSale ? `${uiIcon('upload')} Unlist` : `${uiIcon('tag')} Mark for Sale`}
           </button>
@@ -5955,33 +5963,57 @@ function menuSetDifficulty(_level) {
  * Step definitions for the new-save onboarding tutorial.
  * Each step has:
  *   - message    : instruction text shown in the tooltip
- *   - target     : CSS selector of the element to spotlight (null = no spotlight)
+ *   - target     : CSS selector (or a function returning one, for a dynamically
+ *                  chosen element) of the element to spotlight. null = no
+ *                  spotlight, centered modal.
+ *   - allowed    : optional array of selectors/selector-functions the player is
+ *                  permitted to click while this step is showing. Defaults to
+ *                  [target]. Everything else in the game is click-blocked while
+ *                  the tutorial is active, so the player can't wander off-script.
  *   - tab        : optional tab id to auto-switch to before showing the step
  *   - noAutoTab  : if true, don't auto-switch; user must navigate themselves
  *   - isComplete : optional predicate — Next is disabled until this returns true
+ *   - onEnter    : optional side-effect run every time the step is (re)shown,
+ *                  e.g. to pick a recommended car and pre-select it in a picker
  */
-function getTutorialSteps() {
-  // Dynamically pick the cheapest factory car model for the beginner tip
-  let cheapestLabel = 'an Economy car';
-  try {
-    let bestPrice = Infinity;
-    for (const entry of CAR_CATALOG) {
-      if ((entry.basePrice ?? Infinity) < bestPrice) {
-        bestPrice = entry.basePrice;
-        cheapestLabel = `${entry.make} ${entry.model}`;
-      }
-    }
-  } catch (_) {}
 
+/** Pick the cheapest currently-orderable factory car — the recommended first buy. */
+function _tutorialPickRecommendedFactoryCar() {
+  let best = null;
+  for (let i = 0; i < CAR_CATALOG.length; i++) {
+    const entry = CAR_CATALOG[i];
+    if (entry.discontinued) continue;
+    if (!best || (entry.basePrice ?? Infinity) < best.basePrice) best = { ...entry, idx: i };
+  }
+  return best;
+}
+
+/** Pick a sensible recommended Used Market offer — affordable, clean title preferred, cheapest. */
+function _tutorialPickRecommendedUsedOffer() {
+  const offers = state.usedMarketOffers || [];
+  if (!offers.length) return null;
+  const priceOf = o => o.sellerCounter ?? o.askingPrice;
+  const affordable = offers.filter(o => priceOf(o) <= state.cash);
+  const pool = affordable.length ? affordable : offers;
+  return [...pool].sort((a, b) => {
+    const aClean = a.titleStatus === 'clean' ? 0 : 1;
+    const bClean = b.titleStatus === 'clean' ? 0 : 1;
+    if (aClean !== bClean) return aClean - bClean;
+    return priceOf(a) - priceOf(b);
+  })[0] || null;
+}
+
+function getTutorialSteps() {
   const getActiveTab = () => document.querySelector('.tab-btn.active')?.dataset?.tab ?? null;
-  const initialDeliveryCount = (state.deliveries || []).length;
-  const initialGarageCount   = (state.garage     || []).length;
-  const initialSalesCount    = (state.salesHistory || []).length;
+  const initialDeliveryCount = (state.deliveries    || []).length;
+  const initialGarageCount   = (state.garage         || []).length;
+  const initialSalesCount    = (state.salesHistory   || []).length;
+  const initialUsedOwnedCount= (state.garage         || []).filter(c => c.source === 'used').length;
 
   return [
     {
       // Step 0: Welcome — no spotlight, centered modal
-      message: '👋 Welcome to DealerSim! This quick tutorial will walk you through making your first car sale. Click Next to begin, or skip at any time.',
+      message: '👋 Welcome to DealerSim! This walkthrough covers buying a factory car, listing it for sale, and buying from the Used Market — everything you need for your first flip.\n\nWhile the tutorial is running, only the glowing highlighted element will respond to clicks. Follow the glow!',
       target: null,
       tab: null,
     },
@@ -5994,15 +6026,29 @@ function getTutorialSteps() {
       isComplete: () => getActiveTab() === 'factory',
     },
     {
-      // Step 2: Order a car — factory tab is already active
-      message: `🚗 Find a beginner-friendly car (e.g. ${cheapestLabel}) and click "Order" to buy it. Economy cars are cheapest and arrive in just 1 day during the tutorial — perfect for your first deal!`,
-      target: '#tab-factory',
+      // Step 2: Order the recommended (cheapest) car — pre-selected and spotlighted directly
+      message: '🚗 This is highlighted for a reason: it\'s the cheapest car in the factory, so it ties up the least cash, and during the tutorial it arrives in just 1 day. A great, low-risk first flip. Click "Order" to buy it.',
+      target: () => {
+        const rec = _tutorialPickRecommendedFactoryCar();
+        return rec ? `.car-card[data-car-idx="${rec.idx}"]` : '#tab-factory';
+      },
+      allowed: () => {
+        const rec = _tutorialPickRecommendedFactoryCar();
+        return rec ? [`.car-card[data-car-idx="${rec.idx}"] .btn-primary`] : ['#tab-factory'];
+      },
       tab: 'factory',
+      onEnter: () => {
+        const rec = _tutorialPickRecommendedFactoryCar();
+        if (rec) {
+          factorySelection = { make: rec.make, model: rec.model };
+          renderFactory();
+        }
+      },
       isComplete: () => (state.deliveries || []).length > initialDeliveryCount,
     },
     {
       // Step 3: Wait for delivery — press Next Day
-      message: '📦 Your car is on its way and will arrive tomorrow! Click "Next Day" to advance time. Watch the top bar — your car will appear in Car Lot once delivered.',
+      message: '📦 Your car is on its way and will arrive tomorrow! Click the glowing "Next Day" button in the top bar to advance time. (That\'s the game\'s day-advance button — different from this tutorial box\'s "Continue" button.)',
       target: '#btn-next-day',
       tab: 'dashboard',
       isComplete: () => (state.garage || []).length > initialGarageCount,
@@ -6016,19 +6062,57 @@ function getTutorialSteps() {
       isComplete: () => getActiveTab() === 'carlot',
     },
     {
-      // Step 5: Mark for Sale — car lot tab is active
-      message: '🏷️ Find your new car and click "List for Sale". Set a price close to the car\'s estimated value (within +10%), then confirm. The tutorial will advance as soon as you list the car.',
-      target: '#tab-carlot',
+      // Step 5: Mark for Sale — spotlight the exact car the player just bought
+      message: '🏷️ Here\'s your new car. Click "Mark for Sale" to list it — DealerSim automatically prices it at fair Market Value, which is exactly the sweet spot for a quick sale. No need to touch the price for this first one.',
+      target: () => _tutorialCarId ? `.car-card[data-car-id="${_tutorialCarId}"]` : '#tab-carlot',
+      allowed: () => _tutorialCarId ? [`.car-card[data-car-id="${_tutorialCarId}"] .mark-for-sale-btn`] : ['#tab-carlot'],
       tab: 'carlot',
-      isComplete: () => (state.garage || []).some(c => c.isForSale && c.listPrice > 0),
+      isComplete: () => (state.garage || []).some(c => c.id === _tutorialCarId && c.isForSale && c.listPrice > 0),
     },
     {
       // Step 6: Press Next Day until sold (tutorial forces instant sale if price is fair)
-      message: '⏩ Press "Next Day" to advance time. If your price is at or near Market value (≤+10%), the car will sell instantly! 🎉',
+      message: '⏩ Press "Next Day" again. Since your price is right at Market Value, the car will sell instantly! 🎉',
       target: '#btn-next-day',
       tab: 'forsale',
       tutorialForceSale: true,
       isComplete: () => (state.salesHistory || []).length > initialSalesCount,
+    },
+    {
+      // Step 7: Recap / bridge into Used Market — no spotlight
+      message: '🎉 Sold! That\'s a complete flip: buy low, list smart, sell fast. Factory cars are only one way to stock your lot, though — next, let\'s buy a car the other way: from a private seller on the Used Market.',
+      target: null,
+      tab: null,
+    },
+    {
+      // Step 8: Navigate to Used Market — user must click the tab themselves
+      message: '🚙 Click the "Used Market" tab. Private sellers list cars here — often for less than a factory car, but they can hide issues, so it pays to look closely.',
+      target: '.tab-btn[data-tab="usedmarket"]',
+      tab: null,
+      noAutoTab: true,
+      isComplete: () => getActiveTab() === 'usedmarket',
+    },
+    {
+      // Step 9: Buy the recommended used car — spotlight the exact offer card
+      message: '🔍 This listing is highlighted because it\'s a solid, affordable deal. Two optional tools first: "Inspect" reveals hidden mechanical issues before you commit, and the offer box lets you negotiate a lower price. Neither is required — when you\'re ready, click "Buy" to add this car to your lot.',
+      target: () => {
+        const rec = _tutorialPickRecommendedUsedOffer();
+        return rec ? `.car-card[data-offer-id="${rec.id}"]` : '#tab-usedmarket';
+      },
+      allowed: () => {
+        const rec = _tutorialPickRecommendedUsedOffer();
+        return rec
+          ? [`.car-card[data-offer-id="${rec.id}"] .btn-success`, `.car-card[data-offer-id="${rec.id}"] .btn-secondary`]
+          : ['#tab-usedmarket'];
+      },
+      tab: 'usedmarket',
+      onEnter: () => { renderUsedMarket(); },
+      isComplete: () => (state.garage || []).filter(c => c.source === 'used').length > initialUsedOwnedCount,
+    },
+    {
+      // Step 10: Finish — no spotlight, points toward the rest of the game
+      message: '🏁 You\'re all set! You now know how to buy from the Factory, buy Used, and list cars for sale. From here, check out Service (repairs & detailing), Finance (loans), Staff, Upgrades, and Achievements to grow your dealership. Good luck!',
+      target: null,
+      tab: null,
     },
   ];
 }
@@ -6037,6 +6121,65 @@ let _tutorialStep = -1;
 let _tutorialSteps = [];
 /** ID of the car ordered during the tutorial, used to force an instant sale. */
 let _tutorialCarId = null;
+/** Timestamp of the last "blocked click" nudge, so we don't spam toasts. */
+let _tutorialLastNudge = 0;
+
+/** Resolve a step's target/allowed entry, which may be a plain selector or a function returning one. */
+function _tutorialResolveSelector(sel) {
+  return typeof sel === 'function' ? sel() : sel;
+}
+
+/** The set of concrete CSS selectors the player is currently permitted to click. */
+function _tutorialAllowedSelectors(step) {
+  if (!step) return [];
+  const raw = step.allowed || (step.target ? [step.target] : []);
+  return raw.map(_tutorialResolveSelector).filter(Boolean);
+}
+
+/** Briefly pulse the spotlight/tooltip and (throttled) toast, to redirect a stray click. */
+function _tutorialNudge() {
+  const spotlight = document.getElementById('tutorial-spotlight');
+  const tooltip   = document.getElementById('tutorial-tooltip');
+  [spotlight, tooltip].forEach(el => {
+    if (!el) return;
+    el.classList.remove('tutorial-nudge');
+    void el.offsetWidth; // restart the CSS animation
+    el.classList.add('tutorial-nudge');
+    // Drop the class once the one-shot nudge animation finishes, so the
+    // spotlight's own idle "breathing" glow animation resumes afterward.
+    setTimeout(() => el.classList.remove('tutorial-nudge'), 500);
+  });
+  const now = Date.now();
+  if (now - _tutorialLastNudge > 1500) {
+    _tutorialLastNudge = now;
+    showToast('Follow the highlighted step to continue the tutorial.', 'info');
+  }
+}
+
+/**
+ * Global click gate: while the tutorial is active, only the current step's
+ * allowed element(s) — plus the tutorial box itself and a few permanent escape
+ * hatches — may be clicked. Everything else is blocked so players can't wander
+ * off-script and end up confused (or with a misplaced spotlight).
+ */
+function _tutorialClickGate(e) {
+  if (_tutorialStep < 0 || !_tutorialSteps.length) return;
+  const alwaysAllowed = ['#tutorial-overlay', '#btn-return-menu', '#modal', '#cheat-menu-overlay', '#cheat-password-overlay', '#game-over-screen'];
+  for (const sel of alwaysAllowed) {
+    const el = document.querySelector(sel);
+    if (el && !el.classList.contains('hidden') && el.contains(e.target)) return;
+  }
+  const step = _tutorialSteps[_tutorialStep];
+  const selectors = _tutorialAllowedSelectors(step);
+  for (const sel of selectors) {
+    try { if (e.target.closest(sel)) return; } catch (_) { /* ignore invalid selector */ }
+  }
+  // Not an allowed interaction for this step — block it and nudge the player back.
+  e.preventDefault();
+  e.stopPropagation();
+  e.stopImmediatePropagation();
+  _tutorialNudge();
+}
 
 /** Bound reposition handler stored so it can be removed when tutorial ends. */
 let _tutorialRepositionPending = false;
@@ -6070,6 +6213,8 @@ function tutorialStart() {
   window.addEventListener('scroll', _tutorialReposition, { passive: true, capture: true });
   window.addEventListener('resize', _tutorialReposition, { passive: true });
   window.addEventListener('orientationchange', _tutorialReposition, { passive: true });
+  // Gate clicks so only the highlighted element (plus the tutorial box) responds
+  document.addEventListener('click', _tutorialClickGate, true);
 }
 
 /** Advance to the next tutorial step, or finish if done. */
@@ -6108,9 +6253,10 @@ function tutorialEnd() {
   window.removeEventListener('scroll', _tutorialReposition, { capture: true });
   window.removeEventListener('resize', _tutorialReposition);
   window.removeEventListener('orientationchange', _tutorialReposition);
+  document.removeEventListener('click', _tutorialClickGate, true);
 }
 
-/** Enable/disable the Next button based on the current step's completion predicate. */
+/** Enable/disable the Next button based on the current step's completion predicate, and keep the spotlight in sync. */
 function _tutorialUpdateNextButton() {
   if (_tutorialStep < 0 || !_tutorialSteps.length) return;
   const btnNext = document.getElementById('tutorial-btn-next');
@@ -6118,14 +6264,13 @@ function _tutorialUpdateNextButton() {
   const step = _tutorialSteps[_tutorialStep];
   const complete = !step || !step.isComplete || step.isComplete();
   btnNext.disabled = !complete;
-  // Re-position spotlight in case state/layout changed (e.g. user navigated to a tab)
-  if (complete && step && step.noAutoTab) {
-    const overlay   = document.getElementById('tutorial-overlay');
-    const spotlight = document.getElementById('tutorial-spotlight');
-    const tooltip   = document.getElementById('tutorial-tooltip');
-    if (overlay && spotlight && tooltip) {
-      _tutorialPositionSpotlight(step, overlay, spotlight, tooltip);
-    }
+  // Re-position the spotlight any time state/layout may have changed (new render,
+  // tab switch, price edit, etc.) so it never lags behind the actual target.
+  const overlay   = document.getElementById('tutorial-overlay');
+  const spotlight = document.getElementById('tutorial-spotlight');
+  const tooltip   = document.getElementById('tutorial-tooltip');
+  if (overlay && spotlight && tooltip && step) {
+    _tutorialPositionSpotlight(step, overlay, spotlight, tooltip);
   }
 }
 
@@ -6146,12 +6291,16 @@ function _tutorialShowStep() {
 
   stepLabel.textContent = `Step ${_tutorialStep + 1} of ${_tutorialSteps.length}`;
   message.textContent   = step.message;
-  btnNext.textContent   = isLast ? 'Finish ✓' : 'Next ▶';
+  btnNext.textContent   = isLast ? 'Finish ✓' : 'Continue ▶';
 
   // Switch to the required tab only when the step doesn't require user navigation
   if (step.tab && !step.noAutoTab) {
     switchTab(step.tab);
   }
+
+  // Run any step-specific setup (e.g. pre-selecting a recommended car) now that
+  // the right tab is showing, so the spotlight below targets the final DOM.
+  if (step.onEnter) step.onEnter();
 
   // Update Next button state immediately
   _tutorialUpdateNextButton();
@@ -6169,7 +6318,8 @@ function _tutorialPositionSpotlight(step, overlay, spotlight, tooltip) {
   const PADDING  = 6;
   const MARGIN   = 8;   // min gap from viewport edge
   const GAP      = 12;  // gap between target and tooltip
-  const target   = step.target ? document.querySelector(step.target) : null;
+  const targetSel= _tutorialResolveSelector(step.target);
+  const target   = targetSel ? document.querySelector(targetSel) : null;
   const vw       = window.innerWidth;
   const vh       = window.innerHeight;
   // Use 92vw as the upper bound so we never clip on phones
@@ -6356,6 +6506,9 @@ function launchGame(slot, isNew, difficulty, opts = {}) {
 // ============================================================
 /** Save state and return to the main menu / home screen. */
 function returnToMenu() {
+  // Leaving mid-tutorial — clean up its overlay/listeners so nothing lingers
+  // into the home screen or the next game session.
+  if (_tutorialStep >= 0) tutorialEnd();
   // Persist current progress before leaving the game
   saveState();
   // Deliberately leaving the game — a refresh from here should show the menu
