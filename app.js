@@ -11,9 +11,16 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.5.3';
+const GAME_VERSION = '1.5.4';
 
 const PATCH_NOTES = [
+  {
+    version: '1.5.4',
+    date: 'September 2026',
+    notes: [
+      { type: 'fix', text: 'Going cash-negative with no outstanding loan balance no longer counts as a missed payment. The late-payment/delinquency ladder (warnings, credit freeze, APR hikes, bankruptcy) now only triggers off an actual loan — being broke with no loan is no longer treated as loan default.' },
+    ],
+  },
   {
     version: '1.5.3',
     date: 'September 2026',
@@ -2304,7 +2311,10 @@ function processLoanAndDelinquency() {
     }
   }
 
-  if (state.cash < 0 || (due > 0 && state.loanBalance > 0 && state.difficulty === 'hard' && state.cash < 250)) {
+  // Only the loan itself can trigger a missed-payment strike — going cash-negative
+  // with no outstanding loan balance is not a loan default and should not touch
+  // the delinquency ladder at all.
+  if (state.loanBalance > 0 && (state.cash < 0 || (due > 0 && state.difficulty === 'hard' && state.cash < 250))) {
     state.daysGoodStanding = 0;
     state.missedPayments = (state.missedPayments || 0) + 1;
     state.delinquencyLevel = Math.max(state.delinquencyLevel || 0, state.missedPayments);
