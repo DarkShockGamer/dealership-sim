@@ -11,9 +11,16 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.5.1';
+const GAME_VERSION = '1.5.2';
 
 const PATCH_NOTES = [
+  {
+    version: '1.5.2',
+    date: 'September 2026',
+    notes: [
+      { type: 'feature', text: '10 more funny achievements — Flash Flip, Brand Loyalist, Yelp Reviews Be Like, Local Legend, Something For Everyone, Lot Lizard, Fire Sale Friday, Grandma\'s Car, It\'s Got Stories, and Rookie Mistake, plus four new secrets.' },
+    ],
+  },
   {
     version: '1.5.1',
     date: 'September 2026',
@@ -720,11 +727,40 @@ const ACHIEVEMENT_DEFS = [
     check: s => (s.day || 1) >= 365, progress: s => Math.min(s.day||1, 365) + '/365' },
   { id: 'hard_knocks',         icon: ACH_ICONS.flame,      name: 'Hard Knocks',             desc: 'Go bankrupt on Hard mode. At least you learned something... right?',
     check: s => !!(s.hardBankruptcyOccurred) },
+  // ── v1.5.2 More Funny Achievements ────────────────
+  { id: 'flash_flip',          icon: ACH_ICONS.zap,        name: 'Flash Flip',              desc: 'Sell a car the same day it lands on your lot. Buy it, flip it, never even wash it.',
+    check: s => (s.salesHistory||[]).some(h => (h.daysInLot||0) === 0) },
+  { id: 'brand_loyalist',      icon: ACH_ICONS.car,        name: 'Brand Loyalist',          desc: 'Have 4 cars from the same make on your lot at once. Diversification is for cowards.',
+    check: s => { const counts = {}; for (const c of (s.garage||[])) counts[c.make] = (counts[c.make]||0) + 1; return Object.values(counts).some(n => n >= 4); } },
+  { id: 'rock_bottom_rep',     icon: ACH_ICONS.alert,      name: 'Yelp Reviews Be Like',    desc: 'Watch your reputation crater to rock bottom. One star, would not recommend.',
+    check: s => (s.reputation||1) <= 0.15 },
+  { id: 'local_legend',        icon: ACH_ICONS.award,      name: 'Local Legend',            desc: 'Max out your reputation. Everyone in town sends their cousin to you.',
+    check: s => (s.reputation||1) >= 1.95 },
+  { id: 'full_lineup',         icon: ACH_ICONS.layers,     name: 'Something For Everyone',  desc: 'Own a car from every category at once — Economy, Sedan, SUV, Truck, Sports, and Luxury.',
+    check: s => new Set((s.garage||[]).map(c => c.category)).size >= 6 },
+  { id: 'lot_lizard',          icon: ACH_ICONS.clock,      name: 'Lot Lizard',              desc: 'Let a car sit for sale 60+ days without moving it. It has its own zip code now.',
+    check: s => (s.garage||[]).some(c => c.isForSale && (c.daysInLot||0) >= 60) },
+  { id: 'fire_sale_friday',    icon: ACH_ICONS.flame,      name: 'Fire Sale Friday',        desc: 'Sell 5 cars in a single day. Everything must go!',
+    check: s => (s.salesHistory||[]).filter(h => h.soldDay === s.day).length >= 5 },
+  { id: 'grandmas_car',        icon: ACH_ICONS.star,       name: "Grandma's Car",           desc: 'Sell a used car with under 5,000 miles on it. Only driven to church on Sundays.',
+    check: s => (s.salesHistory||[]).some(h => h.source === 'used' && (h.mileage||0) < 5000) },
+  { id: 'its_got_stories',     icon: ACH_ICONS.map,        name: "It's Got Stories",        desc: 'Sell a car with over 250,000 miles. It has seen things.',
+    check: s => (s.salesHistory||[]).some(h => (h.mileage||0) >= 250000) },
+  { id: 'rookie_mistake',      icon: ACH_ICONS.trending,   name: 'Rookie Mistake',          desc: 'Sell a car at a loss, any loss. It happens to the best of us. Ouch.',
+    check: s => (s.salesHistory||[]).some(h => (h.profit||0) < 0) },
   // Secret achievements
   { id: 'secret_konami',       icon: ACH_ICONS.zap,        name: '🔒 Power User',           desc: '???',
     check: s => !!(s.konamiActivated) },
   { id: 'secret_logo',         icon: ACH_ICONS.star,       name: '🔒 Old School',           desc: '???',
     check: s => (s.logoClickCount || 0) >= 7 },
+  { id: 'secret_nice',         icon: ACH_ICONS.zap,        name: '🔒 Nice.',                desc: '???',
+    check: s => (s.salesHistory||[]).some(h => Math.round(h.salePrice||0) % 1000 === 420) },
+  { id: 'secret_day69',        icon: ACH_ICONS.clock,      name: '🔒 Sixty-Nine Days',      desc: '???',
+    check: s => (s.salesHistory||[]).some(h => h.soldDay === 69) },
+  { id: 'secret_palindrome',   icon: ACH_ICONS.star,       name: '🔒 Math Nerd',            desc: '???',
+    check: s => (s.salesHistory||[]).some(h => { const p = Math.abs(Math.round(h.profit||0)); const str = String(p); return str.length >= 3 && str === [...str].reverse().join(''); }) },
+  { id: 'secret_breakeven',    icon: ACH_ICONS.repeat,     name: '🔒 Full Circle',          desc: '???',
+    check: s => (s.salesHistory||[]).some(h => Math.round(h.profit||0) === 0) },
 ];
 
 const ACHIEVEMENT_ORDER = [
@@ -739,7 +775,9 @@ const ACHIEVEMENT_ORDER = [
   'day_50', 'day_200', 'marathon_man',
   'rust_enthusiast', 'grease_monkey', 'loss_leader',
   'bankruptcy_survivor', 'hard_knocks',
-  'secret_logo', 'secret_konami',
+  'flash_flip', 'brand_loyalist', 'rock_bottom_rep', 'local_legend', 'full_lineup',
+  'lot_lizard', 'fire_sale_friday', 'grandmas_car', 'its_got_stories', 'rookie_mistake',
+  'secret_logo', 'secret_konami', 'secret_nice', 'secret_day69', 'secret_palindrome', 'secret_breakeven',
 ];
 
 const ACHIEVEMENT_MAP = new Map(ACHIEVEMENT_DEFS.map(ach => [ach.id, ach]));
