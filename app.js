@@ -11,9 +11,29 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.5.5';
+const GAME_VERSION = '1.6.0';
 
 const PATCH_NOTES = [
+  {
+    version: '1.6.0',
+    date: 'September 2026',
+    notes: [
+      { type: 'feature', text: 'Upgrades overhaul: every upgrade is now tagged Early / Mid / Late / Endgame, grouped into a logical category order, and shows exactly what it needs ("Requires Garage Tier 3 + Staff Office") instead of misleadingly reading \"Purchased / Max Level\" while locked. Bigger dealerships unlock bigger upgrades — Staff Office, CRM, AI Pricing, and the larger marketing/efficiency levels now scale with your lot size.' },
+      { type: 'feature', text: 'The late game finally has things to spend money on. New: Garage Tier 6 (75 slots) and Tier 7 Auto Mall (100 slots); Credit Line tiers IV and V (up to +$2M of borrowing power); Fortress Protocol security (−90% theft); a 4th Marketing level; a 4th Cost Efficiency level; and Fleet Leasing.' },
+      { type: 'feature', text: 'New Sourcing upgrades — Dealer Trade Network, Wholesale Auction Membership, and Exotic Consignment Network — add Used Market listings and (late game) make premium and exotic cars show up far more often, so a 50–100 slot lot is not starved of inventory.' },
+      { type: 'feature', text: 'New Luxury Clientele chain — Luxury Client Lounge, Private Client Network, and Global Collector Network — widens the buyer pool for $90k+, $140k+ and $220k+ cars. Expensive cars used to sit for months no matter what you did; now there is a real progression to fix it.' },
+      { type: 'feature', text: 'New Certified Pre-Owned Program: inspected or repaired cars with a clean title, Good/Excellent condition, and no open issues, crash history, or legal flags earn a Certified badge and +18% sale chance — finally a payoff for doing the recon work.' },
+      { type: 'feature', text: 'Factory allocation is now real: Factory Allocation Program unlocks $90k+ invoice cars, the new Exotic Allocation License unlocks $250k+ exotics, and the new Hypercar Allocation Charter unlocks $1M+ hypercars. Locked cars stay visible in the Factory with the upgrade they need.' },
+      { type: 'fix', text: 'Reconditioning Workshop did nothing — repairs took the same one day with or without it. It now makes Basic Repairs and Parts Upgrades finish instantly (no bay tied up) and cuts repair costs by 15%.' },
+      { type: 'fix', text: 'Lease Management System now actually does what it claimed: on top of +8% payments it adds +25% lease-lead chance and one extra lease start per day. The new Fleet Leasing Program stacks further.' },
+      { type: 'balance', text: 'Cost Efficiency Program was a trap ($14k for −$50/day). It is now −10% of lot overhead per level with escalating prices ($5k / $12k / $24k / $45k), so it scales with your lot. The Dashboard and Settings overhead readouts now include the discount.' },
+      { type: 'balance', text: 'Marketing Campaign, Reputation Boost, and Cost Efficiency now cost more with each level instead of a flat price forever.' },
+      { type: 'balance', text: 'Service capacity upgrades now also raise the value of the jobs you land (+35% / +90% / +180%) and attract premium cars, so the $30k–$180k price tags pay back in proportion to what the shop earns. Service capacity now requires the Service Bay.' },
+      { type: 'balance', text: 'Detailing and Parts Upgrade costs now scale with the car\'s value (still $500 / $1,500 minimum). A flat $500 detail on a $1M car was effectively free money. Performance Shop now requires the Service Bay.' },
+      { type: 'balance', text: 'Factory Allocation Program now costs $55k (was $35k) since it unlocks the premium factory catalog. Existing owners keep it.' },
+      { type: 'fix', text: 'Removed claims that were never implemented (Inspection Tool "improves accuracy", Security Camera "requires Day 50+"). The "Investing in the Future" achievement now unlocks on your first upgrade of any kind, including a single Marketing Campaign.' },
+    ],
+  },
   {
     version: '1.5.5',
     date: 'September 2026',
@@ -304,6 +324,18 @@ const DEFAULT_STATE = {
     // v1.3.0
     securityLevel: 0,
     serviceCapacityLevel: 0,
+    // v1.6.0 — upgrade overhaul
+    tradeNetwork: false,
+    auctionAccess: false,
+    exoticConsignment: false,
+    certifiedProgram: false,
+    privateClientNetwork: false,
+    collectorNetwork: false,
+    exoticLicense: false,
+    hypercarCharter: false,
+    creditLineBoost4: false,
+    creditLineBoost5: false,
+    fleetLeasing: false,
   },
   salesHistory: [],
   notifications: [],
@@ -423,7 +455,7 @@ const TRANSACTION_FEE  = 0.02;
 const PERF_ELIGIBLE = ['Sports', 'SUV', 'Truck']; // categories eligible for parts upgrade
 
 // Daily garage overhead costs by garage level
-const OVERHEAD_BY_LEVEL = { 1: 300, 2: 600, 3: 1200, 4: 1800, 5: 2600 };
+const OVERHEAD_BY_LEVEL = { 1: 300, 2: 600, 3: 1200, 4: 1800, 5: 2600, 6: 3800, 7: 5400 };
 
 // Legal / VIN / stolen car mechanics
 const LEGAL_STATUSES = ['clean', 'noTitle', 'stolen'];
@@ -701,7 +733,7 @@ const ACHIEVEMENT_DEFS = [
   { id: 'bankruptcy_survivor', icon: ACH_ICONS.flame,      name: 'Back From The Brink',    desc: 'Survive a bankruptcy and keep the doors open.',
     check: s => (s.bankruptcyCount || 0) > 0 && !s.gameOver },
   { id: 'first_upgrade',       icon: ACH_ICONS.layers,     name: 'Investing in the Future',desc: 'Purchase your first dealership upgrade.',
-    check: s => Object.values(s.upgrades||{}).some(v => v === true || (typeof v === 'number' && v > 1)) },
+    check: s => Object.entries(s.upgrades||{}).some(([k, v]) => v === true || (typeof v === 'number' && v > (k === 'garageLevel' ? 1 : 0))) },
   { id: 'garage_tier4',        icon: ACH_ICONS.map,        name: 'Mega Lot',               desc: 'Expand to Garage Tier 4 (35 slots).',
     check: s => (s.upgrades?.garageLevel || 1) >= 4 },
   { id: 'first_lease',         icon: ACH_ICONS.key,        name: 'Lease Launch',           desc: 'Get your first active lease.',
@@ -816,228 +848,459 @@ const ACHIEVEMENT_ORDER = [
 const ACHIEVEMENT_MAP = new Map(ACHIEVEMENT_DEFS.map(ach => [ach.id, ach]));
 const ACHIEVEMENTS = ACHIEVEMENT_ORDER.map(id => ACHIEVEMENT_MAP.get(id)).filter(Boolean);
 
+// ============================================================
+// UPGRADES — v1.6.0 rework
+// ============================================================
+// Every upgrade is tagged with the stage of the game it is built for, and gated by
+// something that makes sense (lot size or a prerequisite upgrade) so the tab reads
+// as a progression path instead of a flat shopping list:
+//   Early game — first ~30 days, tens of thousands of dollars
+//   Mid game   — Garage Tier 3–4, low six figures
+//   Late game  — Garage Tier 5+, hundreds of thousands
+//   Endgame    — seven-figure cash, exotic/hypercar inventory
+//
+// Fields
+//   id / key   – upgrade id, and the state.upgrades field it drives
+//   stage      – 1–4, shown as a badge on the card
+//   cost       – single price, or `costs` – price per level for stackable upgrades
+//   maxLevel   – >1 for stackable upgrades (level comes from state.upgrades[key])
+//   level(u)   – optional custom level getter (tiered chains that share one counter)
+//   lock(u,lv) – returns null when purchasable, or the "Requires …" text shown on the card
+//   apply(s)   – optional custom effect; default just sets the flag / bumps the counter
+const UPGRADE_STAGES = {
+  1: { label: 'Early Game', cls: 'badge-green'  },
+  2: { label: 'Mid Game',   cls: 'badge-blue'   },
+  3: { label: 'Late Game',  cls: 'badge-purple' },
+  4: { label: 'Endgame',    cls: 'badge-orange' },
+};
+const UPGRADE_CATEGORY_ORDER = [
+  'Car Lot', 'Sourcing', 'Marketing', 'Luxury Clientele', 'Tools & Inspection',
+  'Reconditioning', 'Factory', 'Management', 'Finance', 'Leasing',
+  'Legal & Compliance', 'Security', 'Service Garage',
+];
+
+// Tunable upgrade constants
+const OVERHEAD_REDUCTION_PER_LEVEL = 0.10;          // Cost Efficiency Program: −10% lot overhead per level
+const SERVICE_JOB_VALUE_MULT = [1, 1.35, 1.9, 2.8]; // bigger service departments land bigger jobs
+const THEFT_REDUCTION_BY_LEVEL = [0, 0.25, 0.50, 0.75, 0.90];
+const WORKSHOP_REPAIR_DISCOUNT = 0.15;
+const CERTIFIED_SALE_BONUS = 1.18;
+
+// Prerequisite helpers — each returns null when satisfied, or a short label when not.
+const reqTier = n => u => ((u.garageLevel || 1) >= n ? null : `Garage Tier ${n}`);
+const reqHas  = (key, label) => u => (u[key] ? null : label);
+const requireAll = (...checks) => u => {
+  const missing = checks.map(c => c(u)).filter(Boolean);
+  return missing.length ? `Requires ${missing.join(' + ')}` : null;
+};
+const tierLevel = (key, n) => u => ((u[key] || 0) >= n ? 1 : 0); // "have I reached tier n of this chain?"
+
 const UPGRADES_CONFIG = [
+  // ── Car Lot ───────────────────────────────────────────────
   {
-    id: 'garage2', name: 'Garage Tier 2', icon: '🏗️', category: 'Car Lot', cost: 15000,
-    desc: 'Expand to 10 garage slots.',
-    requires: u => u.garageLevel === 1,
+    id: 'garage2', name: 'Garage Tier 2', icon: 'construction', category: 'Car Lot', stage: 1, cost: 15000,
+    desc: 'Expand to 10 garage slots. Base lot overhead rises to $600/day.',
+    level: u => ((u.garageLevel || 1) >= 2 ? 1 : 0),
     apply: s => { s.upgrades.garageLevel = 2; s.garageSlots = 10; },
   },
   {
-    id: 'garage3', name: 'Garage Tier 3', icon: '🏢', category: 'Car Lot', cost: 40000,
-    desc: 'Expand to 20 garage slots.',
-    requires: u => u.garageLevel === 2,
+    id: 'garage3', name: 'Garage Tier 3', icon: 'building', category: 'Car Lot', stage: 1, cost: 40000,
+    desc: 'Expand to 20 garage slots. Base lot overhead rises to $1,200/day.',
+    level: u => ((u.garageLevel || 1) >= 3 ? 1 : 0),
+    lock: requireAll(reqTier(2)),
     apply: s => { s.upgrades.garageLevel = 3; s.garageSlots = 20; },
   },
   {
-    id: 'garage4', name: 'Garage Tier 4', icon: '🏭', category: 'Car Lot', cost: 90000,
-    desc: 'Expand to 35 garage slots.',
-    requires: u => u.garageLevel === 3,
+    id: 'garage4', name: 'Garage Tier 4', icon: 'factory', category: 'Car Lot', stage: 2, cost: 90000,
+    desc: 'Expand to 35 garage slots. Base lot overhead rises to $1,800/day.',
+    level: u => ((u.garageLevel || 1) >= 4 ? 1 : 0),
+    lock: requireAll(reqTier(3)),
     apply: s => { s.upgrades.garageLevel = 4; s.garageSlots = 35; },
   },
   {
-    id: 'garage5', name: 'Garage Tier 5', icon: '🏙️', category: 'Car Lot', cost: 200000,
-    desc: 'Expand to 50 garage slots. Maximum capacity.',
-    requires: u => u.garageLevel === 4,
+    id: 'garage5', name: 'Garage Tier 5', icon: 'building', category: 'Car Lot', stage: 3, cost: 200000,
+    desc: 'Expand to 50 garage slots. Base lot overhead rises to $2,600/day.',
+    level: u => ((u.garageLevel || 1) >= 5 ? 1 : 0),
+    lock: requireAll(reqTier(4)),
     apply: s => { s.upgrades.garageLevel = 5; s.garageSlots = 50; },
   },
   {
-    id: 'marketing', name: 'Marketing Campaign', icon: '📣', category: 'Marketing', cost: 8000,
-    desc: 'Boost daily customer traffic by 20%. Stackable up to 3×.',
-    requires: u => u.marketing < 3,
-    apply: s => { s.upgrades.marketing++; },
+    id: 'garage6', name: 'Garage Tier 6', icon: 'layers', category: 'Car Lot', stage: 3, cost: 550000,
+    desc: 'Expand to 75 garage slots — room for a serious high-end inventory. Base lot overhead rises to $3,800/day.',
+    level: u => ((u.garageLevel || 1) >= 6 ? 1 : 0),
+    lock: requireAll(reqTier(5)),
+    apply: s => { s.upgrades.garageLevel = 6; s.garageSlots = 75; },
   },
   {
-    id: 'inspectionTool', name: 'Inspection Tool', icon: '🔧', category: 'Tools', cost: 5000,
-    desc: 'Reduces inspection cost from $300 to $150 and improves accuracy.',
-    requires: u => !u.inspectionTool,
-    apply: s => { s.upgrades.inspectionTool = true; },
+    id: 'garage7', name: 'Garage Tier 7 — Auto Mall', icon: 'pillar', category: 'Car Lot', stage: 4, cost: 1400000,
+    desc: 'Expand to 100 garage slots. Maximum capacity. Base lot overhead rises to $5,400/day.',
+    level: u => ((u.garageLevel || 1) >= 7 ? 1 : 0),
+    lock: requireAll(reqTier(6)),
+    apply: s => { s.upgrades.garageLevel = 7; s.garageSlots = 100; },
   },
   {
-    id: 'negotiationTraining', name: 'Negotiation Training', icon: '🤝', category: 'Tools', cost: 8000,
-    desc: 'Improves negotiation outcomes when buying used cars and handling customer offers.',
-    requires: u => !u.negotiationTraining,
-    apply: s => { s.upgrades.negotiationTraining = true; },
+    id: 'overheadReduction', key: 'overheadReductions', name: 'Cost Efficiency Program', icon: 'trendingDown',
+    category: 'Car Lot', stage: 1, maxLevel: 4, costs: [5000, 12000, 24000, 45000],
+    levelNames: ['Efficiency Program I — Lighting & HVAC', 'Efficiency Program II — Supplier Contracts',
+                 'Efficiency Program III — Automation', 'Efficiency Program IV — Shared Services'],
+    desc: 'Cuts base lot overhead by 10% per level (up to −40%). It is a percentage, so it keeps paying off as your lot grows — each level needs a bigger lot to be worth it.',
+    lock: (u, lv) => requireAll(reqTier(lv + 2))(u),
+  },
+
+  // ── Sourcing (used-market supply) ─────────────────────────
+  {
+    id: 'tradeNetwork', key: 'tradeNetwork', name: 'Dealer Trade Network', icon: 'inbox', category: 'Sourcing', stage: 2, cost: 28000,
+    desc: 'Tap into other dealers\' trade-ins: +2 Used Market listings every day. Bigger lots need more inventory sources.',
+    lock: requireAll(reqTier(3)),
   },
   {
-    id: 'detailing', name: 'Detailing Bay', icon: '✨', category: 'Reconditioning', cost: 12000,
-    desc: 'Detail cars for $500 each — improves condition one tier and boosts market value by 7%.',
-    requires: u => !u.detailing,
-    apply: s => { s.upgrades.detailing = true; },
+    id: 'auctionAccess', key: 'auctionAccess', name: 'Wholesale Auction Membership', icon: 'tag', category: 'Sourcing', stage: 3, cost: 110000,
+    desc: 'Dealer-only auctions: +3 more Used Market listings every day (+5 total with the Trade Network) and cleaner stock — fewer Poor-condition cars.',
+    lock: requireAll(reqHas('tradeNetwork', 'Dealer Trade Network'), reqTier(4)),
   },
   {
-    id: 'serviceBay', name: 'Service Bay', icon: '🔩', category: 'Reconditioning', cost: 18000,
-    desc: 'Enables Basic Repair ($800, 1 day): fixes mechanical issues, improves condition one tier. Also opens the Service tab for customer repair jobs — a brand-new shop starts small and builds a customer base over time.',
-    requires: u => !u.serviceBay,
+    id: 'exoticConsignment', key: 'exoticConsignment', name: 'Exotic Consignment Network', icon: 'star', category: 'Sourcing', stage: 4, cost: 600000,
+    desc: 'Collectors and estates consign to you: premium ($90k+) and exotic ($180k+) cars show up on the Used Market far more often.',
+    lock: requireAll(reqHas('auctionAccess', 'Wholesale Auction Membership'), reqHas('luxuryLounge', 'Luxury Client Lounge')),
+  },
+
+  // ── Marketing ─────────────────────────────────────────────
+  {
+    id: 'marketing', key: 'marketing', name: 'Marketing Campaign', icon: 'megaphone', category: 'Marketing', stage: 1,
+    maxLevel: 4, costs: [8000, 22000, 60000, 150000],
+    levelNames: ['Local Advertising', 'Regional Ad Campaign', 'Digital & Social Push', 'National Brand Campaign'],
+    desc: 'More customers through the door: +20% sale chance on every listed car per level. Bigger campaigns need a bigger lot to serve the traffic.',
+    lock: (u, lv) => (lv === 0 ? null : requireAll(reqTier(lv + 1))(u)),
+  },
+  {
+    id: 'reputationBoost', key: 'reputationBoosts', name: 'Reputation Boost', icon: 'star', category: 'Marketing', stage: 1,
+    maxLevel: 3, costs: [10000, 30000, 90000],
+    levelNames: ['Reputation Boost I — Reviews Program', 'Reputation Boost II — Customer Care', 'Reputation Boost III — Community Sponsor'],
+    desc: 'Each level permanently adds +15% sale chance and +0.1 reputation.',
+    lock: (u, lv) => (lv === 0 ? null : requireAll(reqTier(lv === 1 ? 2 : 4))(u)),
+    apply: s => { s.upgrades.reputationBoosts = (s.upgrades.reputationBoosts || 0) + 1; s.reputation = Math.min(s.reputation + 0.1, 2.0); },
+  },
+  {
+    id: 'photoStudio', key: 'photoStudio', name: 'Photo Studio', icon: 'camera', category: 'Marketing', stage: 1, cost: 9500,
+    desc: 'Professional listing photos: +10% sale chance on all listed cars.',
+  },
+  {
+    id: 'certifiedProgram', key: 'certifiedProgram', name: 'Certified Pre-Owned Program', icon: 'clipboard', category: 'Marketing', stage: 2, cost: 85000,
+    desc: 'Cars that are inspected (or repaired in your shop), clean-title, Good/Excellent condition, with no open issues, crash history, or legal flags earn a Certified badge and +18% sale chance. Rewards doing the recon work.',
+    lock: requireAll(reqHas('serviceBay', 'Service Bay'), reqHas('inspectionTool', 'Inspection Tool')),
+  },
+
+  // ── Luxury Clientele (high-end buyer pool) ────────────────
+  // Expensive cars sell slowly because the pool of people who can afford them is small
+  // (see getPriceTierFactor). These upgrades widen that pool for the price bands where it bites.
+  {
+    id: 'luxuryLounge', key: 'luxuryLounge', name: 'Luxury Client Lounge', icon: 'wine', category: 'Luxury Clientele', stage: 3, cost: 180000,
+    desc: 'Attracts high-value buyers: +30% buyer pool for cars worth $90,000+, plus more haggling offers on them.',
+    lock: requireAll(reqTier(4)),
+  },
+  {
+    id: 'privateClientNetwork', key: 'privateClientNetwork', name: 'Private Client Network', icon: 'key', category: 'Luxury Clientele', stage: 3, cost: 650000,
+    desc: 'A book of wealthy repeat clients: +40% buyer pool for cars worth $140,000+ (stacks with the Lounge).',
+    lock: requireAll(reqHas('luxuryLounge', 'Luxury Client Lounge'), reqTier(5)),
+  },
+  {
+    id: 'collectorNetwork', key: 'collectorNetwork', name: 'Global Collector Network', icon: 'trophy', category: 'Luxury Clientele', stage: 4, cost: 2500000,
+    desc: 'Worldwide collectors, brokers and private buyers: +75% buyer pool for cars worth $220,000+ — the fix for seven-figure cars that otherwise sit for months.',
+    lock: requireAll(reqHas('privateClientNetwork', 'Private Client Network'), reqTier(6)),
+  },
+
+  // ── Tools & Inspection ────────────────────────────────────
+  {
+    id: 'inspectionTool', key: 'inspectionTool', name: 'Inspection Tool', icon: 'search', category: 'Tools & Inspection', stage: 1, cost: 5000,
+    desc: 'Pro diagnostic kit: used-car and trade-in inspections cost $150 instead of $300. Prerequisite for Frame Damage Tools and the Certified Pre-Owned Program.',
+  },
+  {
+    id: 'negotiationTraining', key: 'negotiationTraining', name: 'Negotiation Training', icon: 'handshake', category: 'Tools & Inspection', stage: 1, cost: 8000,
+    desc: 'Sharper haggling: +8% chance sellers accept your used-car offers, +8% on trade-in counters, and buyers tolerate ~6% higher counters on your listings.',
+  },
+  {
+    id: 'frameDamageTools', key: 'frameDamageTools', name: 'Frame Damage Inspection Tools', icon: 'gauge', category: 'Tools & Inspection', stage: 2, cost: 10000,
+    desc: 'Frame straightening gauges: inspections reveal the exact severity (minor / moderate / severe) of crash damage.',
+    lock: requireAll(reqHas('inspectionTool', 'Inspection Tool')),
+  },
+
+  // ── Reconditioning ────────────────────────────────────────
+  {
+    id: 'detailing', key: 'detailing', name: 'Detailing Bay', icon: 'sparkles', category: 'Reconditioning', stage: 1, cost: 12000,
+    desc: 'Detail a car (once per car): +1 condition tier and +7% market value. Costs $500, or 1.5% of the car\'s value on pricier cars.',
+  },
+  {
+    id: 'serviceBay', key: 'serviceBay', name: 'Service Bay', icon: 'wrench', category: 'Reconditioning', stage: 1, cost: 18000,
+    desc: 'Unlocks Basic Repair (cost depends on damage and mileage; fixes every issue and restores Excellent condition, ready next day) and the Service tab for paid customer jobs. A new shop starts small and builds its customer base over time.',
     apply: s => { s.upgrades.serviceBay = true; s.serviceBayUnlockedDay = s.day; },
   },
   {
-    id: 'performanceShop', name: 'Performance Shop', icon: '🏎️', category: 'Reconditioning', cost: 30000,
-    desc: 'Enables Parts Upgrade on Sports/SUV/Truck ($1,500, 1 day): +15% market value.',
-    requires: u => !u.performanceShop,
-    apply: s => { s.upgrades.performanceShop = true; },
+    id: 'performanceShop', key: 'performanceShop', name: 'Performance Shop', icon: 'gauge', category: 'Reconditioning', stage: 2, cost: 30000,
+    desc: 'Parts Upgrade for Sports, SUV and Truck (once per car): +15% market value. Costs $1,500, or 4% of the car\'s value on pricier cars; ready next day and uses a service bay.',
+    lock: requireAll(reqHas('serviceBay', 'Service Bay')),
   },
   {
-    id: 'reputationBoost', name: 'Reputation Boost', icon: '⭐', category: 'Marketing', cost: 10000,
-    desc: 'Permanently multiplies daily sale chance. Stackable up to 3×.',
-    requires: u => u.reputationBoosts < 3,
-    apply: s => { s.upgrades.reputationBoosts++; s.reputation = Math.min(s.reputation + 0.1, 2.0); },
+    id: 'reconditioningWorkshop', key: 'reconditioningWorkshop', name: 'Reconditioning Workshop', icon: 'toolbox', category: 'Reconditioning', stage: 2, cost: 25000,
+    desc: 'Fully-equipped workshop: Basic Repairs and Parts Upgrades finish instantly instead of taking a day (and never tie up a bay), and repairs cost 15% less.',
+    lock: requireAll(reqHas('serviceBay', 'Service Bay')),
   },
+
+  // ── Factory ───────────────────────────────────────────────
   {
-    id: 'expressDelivery', name: 'Delivery Express', icon: '🚚', category: 'Factory', cost: 7500,
+    id: 'expressDelivery', key: 'expressDelivery', name: 'Delivery Express', icon: 'truck', category: 'Factory', stage: 1, cost: 7500,
     desc: 'Reduces factory delivery time by 1 day (minimum 1 day).',
-    requires: u => !u.expressDelivery,
-    apply: s => { s.upgrades.expressDelivery = true; },
   },
   {
-    id: 'staffOffice', name: 'Staff Office', icon: '🧑‍💼', category: 'Management', cost: 28000,
-    desc: 'Unlock hiring sales staff (Mode 2: staff suggest counters, you finalize).',
-    requires: u => !u.staffOffice,
-    apply: s => { s.upgrades.staffOffice = true; },
+    id: 'factoryAllocation', key: 'factoryAllocation', name: 'Factory Allocation Program', icon: 'package', category: 'Factory', stage: 2, cost: 55000,
+    desc: 'Priority manufacturer relationship: delivery time −1 additional day, and unlocks Premium Allocations — you can order factory cars with a $90,000+ invoice price.',
+    lock: requireAll(reqHas('expressDelivery', 'Delivery Express')),
   },
   {
-    id: 'crmSuite', name: 'CRM Suite', icon: '📚', category: 'Management', cost: 60000,
-    desc: 'High-volume tools: bulk list/unlist and smarter staff suggestions (+1 patience to generated customer offers).',
-    requires: u => u.staffOffice && !u.crmSuite,
-    apply: s => { s.upgrades.crmSuite = true; },
+    id: 'exoticLicense', key: 'exoticLicense', name: 'Exotic Allocation License', icon: 'car', category: 'Factory', stage: 3, cost: 300000,
+    desc: 'Unlocks factory orders for exotics with a $250,000+ invoice price — Ferrari, McLaren, Lamborghini, Bentley and friends.',
+    lock: requireAll(reqHas('factoryAllocation', 'Factory Allocation Program')),
   },
   {
-    id: 'aiPricing', name: 'AI Pricing Terminal', icon: '🧠', category: 'Management', cost: 120000,
-    desc: 'Late-game pricing support: improves chance of buyer accepting close counters.',
-    requires: u => u.crmSuite && !u.aiPricing,
-    apply: s => { s.upgrades.aiPricing = true; },
+    id: 'hypercarCharter', key: 'hypercarCharter', name: 'Hypercar Allocation Charter', icon: 'trophy', category: 'Factory', stage: 4, cost: 1200000,
+    desc: 'Unlocks factory orders for $1,000,000+ hypercars — Pagani, Koenigsegg, Bugatti, Rimac. Only a handful of build slots exist; you now have a seat at the table.',
+    lock: requireAll(reqHas('exoticLicense', 'Exotic Allocation License')),
+  },
+
+  // ── Management ────────────────────────────────────────────
+  {
+    id: 'staffOffice', key: 'staffOffice', name: 'Staff Office', icon: 'person', category: 'Management', stage: 2, cost: 28000,
+    desc: 'Unlock hiring sales staff (up to 4). They review your customer offers and suggest counters; you approve. Wages are charged daily.',
+    lock: requireAll(reqTier(3)),
   },
   {
-    id: 'luxuryLounge', name: 'Luxury Client Lounge', icon: '🥂', category: 'Marketing', cost: 180000,
-    desc: 'Attracts high-value buyers for premium inventory and supercars.',
-    requires: u => !u.luxuryLounge,
-    apply: s => { s.upgrades.luxuryLounge = true; },
+    id: 'crmSuite', key: 'crmSuite', name: 'CRM Suite', icon: 'book', category: 'Management', stage: 2, cost: 60000,
+    desc: 'High-volume tools: bulk list/unlist, +1 patience on new customer offers, and the staff cap rises from 4 to 8.',
+    lock: requireAll(reqHas('staffOffice', 'Staff Office'), reqTier(4)),
   },
   {
-    id: 'financeOffice', name: 'Finance Office', icon: '🏦', category: 'Finance', cost: 22000,
-    desc: 'Unlocks a dedicated finance desk: reduces loan APR by 1% and raises credit limit by $25,000.',
-    requires: u => !u.financeOffice,
-    apply: s => { s.upgrades.financeOffice = true; },
+    id: 'aiPricing', key: 'aiPricing', name: 'AI Pricing Terminal', icon: 'brain', category: 'Management', stage: 3, cost: 120000,
+    desc: 'Late-game pricing support: buyers accept counters up to 4% above their limit.',
+    lock: requireAll(reqHas('crmSuite', 'CRM Suite'), reqTier(5)),
+  },
+
+  // ── Finance ───────────────────────────────────────────────
+  {
+    id: 'financeOffice', key: 'financeOffice', name: 'Finance Office', icon: 'bank', category: 'Finance', stage: 1, cost: 22000,
+    desc: 'A dedicated finance desk: −1% loan APR and +$25,000 credit limit.',
   },
   {
-    id: 'creditLineBoost1', name: 'Credit Line Expansion I', icon: '💳', category: 'Finance', cost: 45000,
-    desc: 'Negotiate a larger revolving credit facility: +$50,000 loan limit and −0.5% APR.',
-    requires: u => u.financeOffice && !u.creditLineBoost1,
-    apply: s => { s.upgrades.creditLineBoost1 = true; },
+    id: 'creditLineBoost1', key: 'creditLineBoost1', name: 'Credit Line Expansion I', icon: 'creditCard', category: 'Finance', stage: 2, cost: 45000,
+    desc: 'Larger revolving credit facility: +$50,000 loan limit and −0.5% APR.',
+    lock: requireAll(reqHas('financeOffice', 'Finance Office')),
   },
   {
-    id: 'creditLineBoost2', name: 'Credit Line Expansion II', icon: '💳💳', category: 'Finance', cost: 95000,
-    desc: 'Secure institutional lending terms: +$100,000 loan limit and −0.5% APR.',
-    requires: u => u.creditLineBoost1 && !u.creditLineBoost2,
-    apply: s => { s.upgrades.creditLineBoost2 = true; },
+    id: 'creditLineBoost2', key: 'creditLineBoost2', name: 'Credit Line Expansion II', icon: 'creditCard', category: 'Finance', stage: 2, cost: 95000,
+    desc: 'Institutional lending terms: +$100,000 loan limit and −0.5% APR.',
+    lock: requireAll(reqHas('creditLineBoost1', 'Credit Line Expansion I')),
   },
   {
-    id: 'creditLineBoost3', name: 'Premium Credit Facility', icon: '🏛️', category: 'Finance', cost: 210000,
-    desc: 'Elite floor-plan lending relationship: +$250,000 loan limit and −0.5% APR. Maximum available.',
-    requires: u => u.creditLineBoost2 && !u.creditLineBoost3,
-    apply: s => { s.upgrades.creditLineBoost3 = true; },
+    id: 'creditLineBoost3', key: 'creditLineBoost3', name: 'Premium Credit Facility', icon: 'pillar', category: 'Finance', stage: 3, cost: 210000,
+    desc: 'Elite floor-plan lending relationship: +$250,000 loan limit and −0.5% APR.',
+    lock: requireAll(reqHas('creditLineBoost2', 'Credit Line Expansion II')),
   },
   {
-    id: 'overheadReduction', name: 'Cost Efficiency Program', icon: '📉', category: 'Finance', cost: 14000,
-    desc: 'Streamlines operations — reduces daily overhead by $50/day. Stackable up to 3×.',
-    requires: u => (u.overheadReductions || 0) < 3,
-    apply: s => { s.upgrades.overheadReductions = (s.upgrades.overheadReductions || 0) + 1; },
+    id: 'creditLineBoost4', key: 'creditLineBoost4', name: 'Corporate Credit Facility', icon: 'layers', category: 'Finance', stage: 4, cost: 450000,
+    desc: 'Corporate-grade financing sized for exotic inventory: +$500,000 loan limit and −0.5% APR.',
+    lock: requireAll(reqHas('creditLineBoost3', 'Premium Credit Facility'), reqTier(5)),
   },
   {
-    id: 'photoStudio', name: 'Photo Studio', icon: '📸', category: 'Marketing', cost: 9500,
-    desc: 'Professional listing photos improve sale-chance by 10% for all listed cars.',
-    requires: u => !u.photoStudio,
-    apply: s => { s.upgrades.photoStudio = true; },
+    id: 'creditLineBoost5', key: 'creditLineBoost5', name: 'Investment-Grade Facility', icon: 'money', category: 'Finance', stage: 4, cost: 1100000,
+    desc: 'Investment-grade credit for hypercar-scale deals: +$1,500,000 loan limit and −0.5% APR. Maximum available.',
+    lock: requireAll(reqHas('creditLineBoost4', 'Corporate Credit Facility'), reqTier(6)),
+  },
+
+  // ── Leasing ───────────────────────────────────────────────
+  {
+    id: 'leaseManagement', key: 'leaseManagement', name: 'Lease Management System', icon: 'document', category: 'Leasing', stage: 1, cost: 16000,
+    desc: 'Dedicated lease desk: +8% daily lease payment rate, +25% lease-lead chance, and one extra lease can start per day (3 max).',
   },
   {
-    id: 'leaseManagement', name: 'Lease Management System', icon: '📝', category: 'Leasing', cost: 16000,
-    desc: 'Dedicated lease desk: increases daily lease payment rate by 8% and improves lease-signing probability.',
-    requires: u => !u.leaseManagement,
-    apply: s => { s.upgrades.leaseManagement = true; },
+    id: 'fleetLeasing', key: 'fleetLeasing', name: 'Fleet Leasing Program', icon: 'fileText', category: 'Leasing', stage: 3, cost: 150000,
+    desc: 'Corporate and fleet contracts: +5% lease payment rate, another +25% lease-lead chance, and two more leases can start per day (5 max).',
+    lock: requireAll(reqHas('leaseManagement', 'Lease Management System'), reqTier(5)),
+  },
+
+  // ── Legal & Compliance ────────────────────────────────────
+  {
+    id: 'dmvDatabaseAccess', key: 'dmvDatabaseAccess', name: 'DMV Database Access', icon: 'fileText', category: 'Legal & Compliance', stage: 1, cost: 12000,
+    desc: 'Inspections also pull DMV records, revealing whether a car is clean, title-less, or stolen before you buy.',
   },
   {
-    id: 'factoryAllocation', name: 'Factory Allocation Program', icon: '🏭', category: 'Factory', cost: 35000,
-    desc: 'Priority manufacturer relationship: factory delivery time −1 additional day, and access to rare high-trim allocations.',
-    requires: u => u.expressDelivery && !u.factoryAllocation,
-    apply: s => { s.upgrades.factoryAllocation = true; },
+    id: 'vinScanner', key: 'vinScanner', name: 'VIN Scanner Kit', icon: 'search', category: 'Legal & Compliance', stage: 1, cost: 8000,
+    desc: 'Blacklight VIN kit: inspections also reveal scratched or altered VINs — a classic sign of a stolen car.',
   },
   {
-    id: 'reconditioningWorkshop', name: 'Reconditioning Workshop', icon: '🛠️', category: 'Reconditioning', cost: 25000,
-    desc: 'Fully-equipped workshop: reduces in-service time for Basic Repair and Parts Upgrade from 1 day to same-day.',
-    requires: u => u.serviceBay && !u.reconditioningWorkshop,
-    apply: s => { s.upgrades.reconditioningWorkshop = true; },
-  },
-  // ── Legal / VIN / Stolen-Car Upgrades ─────────────────────
-  {
-    id: 'dmvDatabaseAccess', name: 'DMV Database Access', icon: '🗂️', category: 'Legal & Compliance', cost: 12000,
-    desc: 'Connect to DMV records: inspecting a used car reveals its legal status (clean/no-title/stolen) before purchase.',
-    requires: u => !u.dmvDatabaseAccess,
-    apply: s => { s.upgrades.dmvDatabaseAccess = true; },
+    id: 'complianceTraining', key: 'complianceTraining', name: 'Compliance Training', icon: 'book', category: 'Legal & Compliance', stage: 1, cost: 15000,
+    desc: 'Staff legal training: police fines cut by 40%, a lower chance of being caught, and fewer surprise lot audits.',
   },
   {
-    id: 'vinScanner', name: 'VIN Scanner Kit', icon: '🔦', category: 'Legal & Compliance', cost: 8000,
-    desc: 'Blacklight VIN verification kit: reveals scratched or altered VINs during inspection, lowering the risk of buying stolen cars.',
-    requires: u => !u.vinScanner,
-    apply: s => { s.upgrades.vinScanner = true; },
+    id: 'titleRecovery', key: 'titleRecovery', name: 'Title Recovery Service', icon: 'clipboard', category: 'Legal & Compliance', stage: 2, cost: 20000,
+    desc: 'Licensed title agent on retainer: convert no-title cars to clean title for $800 per car during inspection.',
+    lock: requireAll(reqHas('dmvDatabaseAccess', 'DMV Database Access')),
   },
+
+  // ── Security ──────────────────────────────────────────────
+  // Theft starts around Day 50 and climbs with the calendar, and every stolen car costs its full
+  // value — so these pay for themselves as the lot (and the value on it) grows.
   {
-    id: 'titleRecovery', name: 'Title Recovery Service', icon: '📋', category: 'Legal & Compliance', cost: 20000,
-    desc: 'Licensed title agent on retainer: convert no-title cars to clean title for $800/car during inspection.',
-    requires: u => u.dmvDatabaseAccess && !u.titleRecovery,
-    apply: s => { s.upgrades.titleRecovery = true; },
-  },
-  {
-    id: 'complianceTraining', name: 'Compliance Training', icon: '⚖️', category: 'Legal & Compliance', cost: 15000,
-    desc: 'Staff legal training: reduces police fine amounts by 40% and lowers the chance of being caught selling problematic cars.',
-    requires: u => !u.complianceTraining,
-    apply: s => { s.upgrades.complianceTraining = true; },
-  },
-  // ── Inspection / Damage Upgrades ───────────────────────────
-  {
-    id: 'frameDamageTools', name: 'Frame Damage Inspection Tools', icon: '🔭', category: 'Inspection', cost: 10000,
-    desc: 'Advanced frame straightening gauges: reveals exact crash damage severity (minor/moderate/severe) during inspection.',
-    requires: u => u.inspectionTool && !u.frameDamageTools,
-    apply: s => { s.upgrades.frameDamageTools = true; },
-  },
-  // ── Security Upgrades (v1.3.0) ────────────────────────────
-  {
-    id: 'security1', name: 'Security Camera System', icon: '📹', category: 'Security', cost: 75000,
-    desc: 'HD cameras covering the entire lot. Reduces car theft chance by 25%. Requires Day 50+ to unlock.',
-    requires: u => (u.securityLevel || 0) === 0,
+    id: 'security1', name: 'Security Camera System', icon: 'camera', category: 'Security', stage: 2, cost: 75000,
+    desc: 'HD cameras covering the whole lot. Reduces car theft chance by 25%. Theft begins around Day 50 and rises from there.',
+    level: tierLevel('securityLevel', 1),
     apply: s => { s.upgrades.securityLevel = 1; },
   },
   {
-    id: 'security2', name: 'Guard Station', icon: '💂', category: 'Security', cost: 175000,
-    desc: 'On-site security guard on overnight patrol. Reduces theft chance by 50% total.',
-    requires: u => (u.securityLevel || 0) === 1,
+    id: 'security2', name: 'Guard Station', icon: 'person', category: 'Security', stage: 3, cost: 175000,
+    desc: 'On-site guard on overnight patrol. Reduces theft chance by 50% total.',
+    level: tierLevel('securityLevel', 2),
+    lock: requireAll(reqHas('securityLevel', 'Security Camera System')),
     apply: s => { s.upgrades.securityLevel = 2; },
   },
   {
-    id: 'security3', name: 'Elite Security Suite', icon: '🛡️', category: 'Security', cost: 400000,
+    id: 'security3', name: 'Elite Security Suite', icon: 'shield', category: 'Security', stage: 3, cost: 400000,
     desc: 'Armed response team, GPS trackers on every car, and a private monitoring center. Reduces theft chance by 75% total.',
-    requires: u => (u.securityLevel || 0) === 2,
+    level: tierLevel('securityLevel', 3),
+    lock: u => ((u.securityLevel || 0) >= 2 ? null : 'Requires Guard Station'),
     apply: s => { s.upgrades.securityLevel = 3; },
   },
-  // ── Service Garage Capacity (v1.3.0) ──────────────────────
   {
-    id: 'serviceCapacity1', name: 'Expanded Service Bays', icon: '🔧', category: 'Service Garage', cost: 30000,
-    desc: 'Add two extra service bays: handle up to 5 customer repair jobs at once.',
-    requires: u => (u.serviceCapacityLevel || 0) === 0,
+    id: 'security4', name: 'Fortress Protocol', icon: 'lock', category: 'Security', stage: 4, cost: 1200000,
+    desc: 'Biometric access, live satellite tracking, and a private security firm. Reduces theft chance by 90% total — essential once millions of dollars of cars sit on your lot.',
+    level: tierLevel('securityLevel', 4),
+    lock: u => ((u.securityLevel || 0) >= 3 ? null : 'Requires Elite Security Suite'),
+    apply: s => { s.upgrades.securityLevel = 4; },
+  },
+
+  // ── Service Garage ────────────────────────────────────────
+  // Bigger departments also attract bigger jobs (see SERVICE_JOB_VALUE_MULT), so the upgrade
+  // cost stays in proportion to what the shop can actually earn.
+  {
+    id: 'serviceCapacity1', name: 'Expanded Service Bays', icon: 'wrench', category: 'Service Garage', stage: 2, cost: 30000,
+    desc: 'Two extra service bays: up to 5 jobs at once. A bigger shop also lands better-paying jobs (+35% job value).',
+    level: tierLevel('serviceCapacityLevel', 1),
+    lock: requireAll(reqHas('serviceBay', 'Service Bay')),
     apply: s => { s.upgrades.serviceCapacityLevel = 1; s.serviceGarageCapacity = 5; },
   },
   {
-    id: 'serviceCapacity2', name: 'Service Center Expansion', icon: '🏗️', category: 'Service Garage', cost: 80000,
-    desc: 'Full service center build-out: up to 8 customer repair jobs simultaneously.',
-    requires: u => (u.serviceCapacityLevel || 0) === 1,
+    id: 'serviceCapacity2', name: 'Service Center Expansion', icon: 'construction', category: 'Service Garage', stage: 3, cost: 80000,
+    desc: 'Full service center build-out: up to 8 jobs at once, fleet work and premium cars (+90% job value vs. a starter shop).',
+    level: tierLevel('serviceCapacityLevel', 2),
+    lock: u => ((u.serviceCapacityLevel || 0) >= 1 ? null : 'Requires Expanded Service Bays'),
     apply: s => { s.upgrades.serviceCapacityLevel = 2; s.serviceGarageCapacity = 8; },
   },
   {
-    id: 'serviceCapacity3', name: 'Flagship Service Department', icon: '🏢', category: 'Service Garage', cost: 180000,
-    desc: 'Full-scale flagship service operation: up to 12 customer repair jobs at once.',
-    requires: u => (u.serviceCapacityLevel || 0) === 2,
+    id: 'serviceCapacity3', name: 'Flagship Service Department', icon: 'building', category: 'Service Garage', stage: 3, cost: 180000,
+    desc: 'Flagship operation: up to 12 jobs at once with luxury and fleet clients (+180% job value vs. a starter shop).',
+    level: tierLevel('serviceCapacityLevel', 3),
+    lock: u => ((u.serviceCapacityLevel || 0) >= 2 ? null : 'Requires Service Center Expansion'),
     apply: s => { s.upgrades.serviceCapacityLevel = 3; s.serviceGarageCapacity = 12; },
   },
 ];
+
+// ---- Upgrade state helpers -----------------------------------------------------
+function getUpgradeLevel(upg, u = state.upgrades) {
+  if (typeof upg.level === 'function') return upg.level(u);
+  const v = u[upg.key];
+  return typeof v === 'number' ? v : (v ? 1 : 0);
+}
+
+/** Everything the UI / buy flow needs to know about one upgrade right now. */
+function getUpgradeStatus(upg) {
+  const u     = state.upgrades;
+  const level = getUpgradeLevel(upg, u);
+  const max   = upg.maxLevel || 1;
+  const owned = level >= max;
+  const idx   = Math.min(level, max - 1);
+  const cost  = Array.isArray(upg.costs) ? upg.costs[Math.min(level, upg.costs.length - 1)] : upg.cost;
+  const name  = upg.levelNames ? upg.levelNames[idx] : upg.name;
+  const lock  = owned ? null : (typeof upg.lock === 'function' ? upg.lock(u, level) : null);
+  return { level, max, owned, cost, name, lock };
+}
+
+/** Apply an upgrade's effect (custom `apply`, or bump the counter / set the flag). */
+function applyUpgrade(upg) {
+  if (typeof upg.apply === 'function') { upg.apply(state); return; }
+  const isCounter = typeof DEFAULT_STATE.upgrades[upg.key] === 'number';
+  state.upgrades[upg.key] = isCounter ? (state.upgrades[upg.key] || 0) + 1 : true;
+}
+
+// ---- Upgrade effect helpers ----------------------------------------------------
+/** Daily lot rent/utilities after difficulty and Cost Efficiency Program. */
+function getLotOverhead() {
+  const base     = OVERHEAD_BY_LEVEL[state.upgrades.garageLevel] ?? 300;
+  const diffMult = state.difficulty === 'hard' ? 1.5 : state.difficulty === 'easy' ? 0 : 1.0;
+  const cut      = clamp((state.upgrades.overheadReductions || 0) * OVERHEAD_REDUCTION_PER_LEVEL, 0, 0.6);
+  return Math.max(0, Math.round(base * diffMult * (1 - cut)));
+}
+
+/** Luxury Clientele chain: widens the buyer pool for the price bands where it is smallest. */
+function getHighEndBuyerBoost(marketValue) {
+  const u = state.upgrades || {};
+  let boost = 1;
+  if (u.luxuryLounge         && marketValue >= 90000)  boost *= 1.30;
+  if (u.privateClientNetwork && marketValue >= 140000) boost *= 1.40;
+  if (u.collectorNetwork     && marketValue >= 220000) boost *= 1.75;
+  return boost;
+}
+
+/** Certified Pre-Owned: only cars the player has actually vetted can qualify (no info leak on un-inspected cars). */
+function isCertifiedCar(car) {
+  if (!car || !state.upgrades?.certifiedProgram) return false;
+  if ((car.titleStatus || 'clean') !== 'clean') return false;
+  if (car.condition !== 'A' && car.condition !== 'B') return false;
+  if ((car.hiddenIssues || []).length > 0) return false;
+  if ((car.crashDamageSeverity || 'none') !== 'none' || car.hasCrashRepair) return false;
+  if ((car.legalStatus || 'clean') !== 'clean' || (car.vinStatus || 'normal') !== 'normal') return false;
+  return !!car.inspected || car.source === 'factory' || (car.reconditionLog || []).some(r => r.type === 'Basic Repair');
+}
+
+function getLeaseStartCap() {
+  const u = state.upgrades;
+  return MAX_LEASE_STARTS_PER_DAY + (u.leaseManagement ? 1 : 0) + (u.fleetLeasing ? 2 : 0);
+}
+function getLeaseLeadChanceMult() {
+  const u = state.upgrades;
+  return (u.leaseManagement ? 1.25 : 1) * (u.fleetLeasing ? 1.25 : 1);
+}
+function getLeasePaymentMult() {
+  const u = state.upgrades;
+  return 1 + (u.leaseManagement ? 0.08 : 0) + (u.fleetLeasing ? 0.05 : 0);
+}
+
+function getUsedMarketBonusListings() {
+  const u = state.upgrades;
+  return (u.tradeNetwork ? 2 : 0) + (u.auctionAccess ? 3 : 0);
+}
+function getUsedConditionWeights() {
+  return state.upgrades.auctionAccess ? [0.14, 0.34, 0.33, 0.19] : [0.08, 0.28, 0.37, 0.27];
+}
+
+// Factory ordering is gated by invoice price. Highest matching band wins.
+const FACTORY_ALLOCATION_TIERS = [
+  { minInvoice: 1000000, key: 'hypercarCharter',   label: 'Hypercar Allocation Charter' },
+  { minInvoice: 250000,  key: 'exoticLicense',     label: 'Exotic Allocation License'   },
+  { minInvoice: 90000,   key: 'factoryAllocation', label: 'Factory Allocation Program'  },
+];
+/** Returns the name of the upgrade required to order this catalog entry from the factory, or null. */
+function getFactoryLock(entry) {
+  for (const t of FACTORY_ALLOCATION_TIERS) {
+    if (entry.basePrice >= t.minInvoice) return state.upgrades[t.key] ? null : t.label;
+  }
+  return null;
+}
+
+function getServiceJobValueMult() {
+  return SERVICE_JOB_VALUE_MULT[state.upgrades.serviceCapacityLevel || 0] ?? 1;
+}
+
+// Recon prices scale with the car so the Detailing Bay / Performance Shop stay balanced from a
+// $15k economy car to a $1M exotic (a flat $500 detail on a supercar was effectively free money).
+function getDetailCost(car) { return Math.max(500,  Math.round((car.marketValue * 0.015) / 50) * 50); }
+function getPartsCost(car)  { return Math.max(1500, Math.round((car.marketValue * 0.04)  / 50) * 50); }
 
 // ============================================================
 // HELPERS
@@ -1095,6 +1358,8 @@ function syncLoanTermsToDifficulty() {
     if (state.upgrades?.creditLineBoost1) { upgradeLimit += 50000;  upgradeApr = Math.max(0.01, upgradeApr - 0.005); }
     if (state.upgrades?.creditLineBoost2) { upgradeLimit += 100000; upgradeApr = Math.max(0.01, upgradeApr - 0.005); }
     if (state.upgrades?.creditLineBoost3) { upgradeLimit += 250000; upgradeApr = Math.max(0.01, upgradeApr - 0.005); }
+    if (state.upgrades?.creditLineBoost4) { upgradeLimit += 500000; upgradeApr = Math.max(0.01, upgradeApr - 0.005); }
+    if (state.upgrades?.creditLineBoost5) { upgradeLimit += 1500000; upgradeApr = Math.max(0.01, upgradeApr - 0.005); }
     // Credit score (driven by covering operating costs & loan payments over time,
     // see processLoanAndDelinquency) nudges the priced APR up or down.
     upgradeApr = Math.max(0.01, upgradeApr + creditScoreAprAdjustment());
@@ -1190,6 +1455,11 @@ function loadState(slot) {
       if (!loaded.staffActivity) loaded.staffActivity = [];
       // Migrate upgrade keys
       if (!loaded.upgrades) loaded.upgrades = {};
+      // v1.6.0: any upgrade field this save predates (new upgrades, older saves) gets its default,
+      // so future upgrades never need a hand-written migration line.
+      for (const [k, v] of Object.entries(DEFAULT_STATE.upgrades)) {
+        if (loaded.upgrades[k] === undefined) loaded.upgrades[k] = v;
+      }
       if (loaded.upgrades.serviceBay          === undefined) loaded.upgrades.serviceBay = false;
       // v1.5.0: existing saves that already have the Service Bay keep full, established
       // job volume (no ramp-down) — only brand-new unlocks after this update start small.
@@ -1754,8 +2024,10 @@ function buildCar(entry, condition, source, inspected = false) {
 /** Generate a fresh batch of Used Market offers (cars available to buy). */
 function pickCatalogEntryForUsed() {
   const rep = state.reputation || 1;
+  const consign = !!state.upgrades?.exoticConsignment; // Exotic Consignment Network: premium/exotic cars listed far more often
   const weighted = CAR_CATALOG.map(entry => {
-    const expensive = entry.marketValue >= 180000 ? 0.08 : entry.marketValue >= 90000 ? 0.35 : 1.0;
+    const expensive = entry.marketValue >= 180000 ? (consign ? 0.35 : 0.08)
+                    : entry.marketValue >= 90000  ? (consign ? 0.85 : 0.35) : 1.0;
     const repBoost  = entry.marketValue >= 90000 ? clamp(0.5 + rep * 0.6, 0.5, 1.6) : 1.0;
     const weight    = (entry.usedWeight ?? 1) * expensive * repBoost;
     return { entry, weight };
@@ -1786,11 +2058,11 @@ function pickAskingPriceMultiplier() {
 }
 
 function generateUsedMarket() {
-  const count = randomInt(4, 7);
+  const count = randomInt(4, 7) + getUsedMarketBonusListings(); // Trade Network / Auction Membership add listings
   const offers = [];
   for (let i = 0; i < count; i++) {
     const entry     = pickCatalogEntryForUsed();
-    const condition = pickCondition([0.08, 0.28, 0.37, 0.27]);
+    const condition = pickCondition(getUsedConditionWeights());
     const car       = buildCar(entry, condition, 'used', false);
     const ownerAwareOfIssues = Math.random() < 0.4;
     const effectiveMV = ownerAwareOfIssues ? car.marketValue - car.repairCost * 0.5 : car.marketValue;
@@ -1967,7 +2239,8 @@ function computeSaleChance(car) {
   // tier. These three govern how big the buyer pool is — separate from whether the
   // price is fair (that's priceAtt above).
   const categoryFactor = CATEGORY_POPULARITY[car.category] || 1.0;
-  const priceTierFactor = getPriceTierFactor(car.marketValue);
+  // Luxury Clientele upgrades widen the buyer pool for pricey cars (see getHighEndBuyerBoost).
+  const priceTierFactor = getPriceTierFactor(car.marketValue) * getHighEndBuyerBoost(car.marketValue);
 
   // Crash/accident history — a live severity is a harder sell than the same car
   // with no known damage; a past (repaired) accident still leaves a smaller dent.
@@ -1990,10 +2263,11 @@ function computeSaleChance(car) {
   const washBonus          = car.washBoostDays > 0 ? 1.08 : 1.0;
   const titleFactor        = TITLE_BUYER_MULT[car.titleStatus] || 1.0;
   const photoStudioFactor  = state.upgrades.photoStudio ? 1.10 : 1.0;
+  const certifiedFactor    = isCertifiedCar(car) ? CERTIFIED_SALE_BONUS : 1.0;
 
   chance = chance * priceAtt * condFactor * categoryFactor * priceTierFactor * crashFactor
          * lotFactor * marketingFactor * repFactor
-         * repBoostFactor * demandFactor * washBonus * titleFactor * photoStudioFactor;
+         * repBoostFactor * demandFactor * washBonus * titleFactor * photoStudioFactor * certifiedFactor;
 
   // No guaranteed floor for overpriced cars — retries must never converge to a sale.
   const floor = askRatio > 2.0 ? 0 : askRatio > 1.5 ? 0.001 : askRatio > 1.2 ? 0.004 : 0.01;
@@ -2011,7 +2285,7 @@ function computeSaleChance(car) {
  */
 function getPopularityLabel(car) {
   const categoryFactor  = CATEGORY_POPULARITY[car.category] || 1.0;
-  const priceTierFactor = getPriceTierFactor(car.marketValue);
+  const priceTierFactor = getPriceTierFactor(car.marketValue) * getHighEndBuyerBoost(car.marketValue);
   const combined = categoryFactor * priceTierFactor;
   if (combined >= 1.05) return { text: 'High Demand',    cls: 'text-green'  };
   if (combined >= 0.80) return { text: 'Average Demand', cls: 'text-yellow' };
@@ -2060,11 +2334,8 @@ function getBuyerTone(offeredPrice, listPrice, patience) {
 
 /** Deduct daily garage/staff/utility overhead from cash. */
 function processOverhead() {
-  const baseOverhead    = OVERHEAD_BY_LEVEL[state.upgrades.garageLevel] ?? 300;
-  const reductionAmount = (state.upgrades.overheadReductions || 0) * 50;
-  const diffMult        = state.difficulty === 'hard' ? 1.5 : state.difficulty === 'easy' ? 0 : 1.0;
   const staffWages      = getTotalStaffWages();
-  const lotCost         = Math.max(0, Math.round(baseOverhead * diffMult) - reductionAmount);
+  const lotCost         = getLotOverhead(); // garage tier × difficulty, minus Cost Efficiency Program
   const total           = lotCost + staffWages;
   state.cash           -= total;
   addNote(`🏢 Overhead: −${formatCurrency(total)} (lot rent/utilities ${formatCurrency(lotCost)}${staffWages ? ` + wages ${formatCurrency(staffWages)}` : ''})`, 'warning');
@@ -2133,7 +2404,7 @@ function getLeaseRate(car) {
 
 function computeLeasePaymentPerDay(car) {
   const base = Math.max(75, Math.round((car.marketValue * getLeaseRate(car)) / 30));
-  return state.upgrades.leaseManagement ? Math.round(base * 1.08) : base;
+  return Math.round(base * getLeasePaymentMult());
 }
 
 function computeLeaseIncomePerDay() {
@@ -2177,7 +2448,8 @@ function computeRepairCost(car) {
     repairCount === 3 ? 4.2 :
     Math.min(6.5 + (repairCount - 4) * 2.0, 18.0);
 
-  return Math.round(basePartsCost * mileageMult * repairMult);
+  const workshopMult = state.upgrades?.reconditioningWorkshop ? (1 - WORKSHOP_REPAIR_DISCOUNT) : 1;
+  return Math.round(basePartsCost * mileageMult * repairMult * workshopMult);
 }
 
 function processLeases() {
@@ -2286,16 +2558,18 @@ function processLeases() {
 
   let startedToday = 0;
   for (const car of state.garage) {
-    if (startedToday >= MAX_LEASE_STARTS_PER_DAY) break;
+    if (startedToday >= getLeaseStartCap()) break;
     if (car.leaseStatus !== 'available' || car.inServiceUntilDay || car.isForSale) continue;
     const valueScore = clamp(1 - ((car.marketValue || 0) / LEASE_VALUE_SCORE_DIVISOR), 0.18, 0.95);
     const demand = clamp(car.demandFactor || 1, 0.7, 1.4);
     // Lease lead chance = base + (value-driven factor × demand), then clamped to keep pacing stable.
-    const chance = clamp(
+    const baseChance = clamp(
       LEASE_START_CHANCE_BASE + (LEASE_START_CHANCE_FACTOR * valueScore * demand),
       LEASE_START_CHANCE_MIN,
       LEASE_START_CHANCE_MAX
     );
+    // Lease Management System / Fleet Leasing Program bring in more lease leads.
+    const chance = Math.min(baseChance * getLeaseLeadChanceMult(), 0.5);
     if (Math.random() >= chance) continue;
 
     const termDays = randomFrom(LEASE_TERM_DAYS);
@@ -2685,40 +2959,46 @@ function processDeliveries() {
   state.deliveries = stillPending;
 }
 
+/** Apply the result of a finished repair / parts upgrade to a car and free it from service. */
+function finishCarService(car) {
+  const svc = car.pendingService;
+  if (!svc) return;
+  if (svc.type === 'repair') {
+    const oldCond = car.condition;
+    // Repair always restores to excellent condition and clears all issues
+    car.condition    = 'A';
+    // Mark crash repair if this car had crash damage
+    if ((car.crashDamageSeverity || 'none') !== 'none') car.hasCrashRepair = true;
+    car.crashDamageSeverity = 'none';
+    car.hiddenIssues = [];
+    car.repairCost   = 0;
+    car.repairCount  = (car.repairCount || 0) + 1;
+    // Value boost diminishes with each repair and with high mileage — reflects
+    // diminishing returns on a wearing vehicle.
+    const repairCount = car.repairCount;
+    const mileagePenalty = clamp(car.mileage / 300000, 0, 0.8); // 0→0.8 at 300k miles
+    const rawBoost = repairCount === 1 ? 0.12 :
+                     repairCount === 2 ? 0.07 :
+                     repairCount === 3 ? 0.03 :
+                     0; // 4+ repairs: no value boost — car is a high-mileage beater
+    const boostFactor = rawBoost * (1 - mileagePenalty);
+    if (boostFactor > 0) car.marketValue = Math.round(car.marketValue * (1 + boostFactor));
+    car.reconditionLog.push({ type: 'Basic Repair', day: state.day });
+    addNote(`🔩 ${car.year} ${car.make} ${car.model} repair complete: ${oldCond} → ${car.condition}. Repair #${repairCount}${boostFactor > 0 ? ` (+${Math.round(boostFactor * 100)}% value)` : ' (no value gain at this mileage)'}.`, 'success');
+  } else if (svc.type === 'parts') {
+    car.marketValue = Math.round(car.marketValue * 1.15);
+    car.reconditionLog.push({ type: 'Parts Upgrade', day: state.day });
+    addNote(`🏎️ ${car.year} ${car.make} ${car.model} parts upgrade complete! +15% market value.`, 'success');
+  }
+  car.inServiceUntilDay = null;
+  car.pendingService    = null;
+}
+
 /** Resolve pending service (repair / parts upgrade) on cars. */
 function processService() {
   for (const car of state.garage) {
     if (car.pendingService && car.inServiceUntilDay !== null && car.inServiceUntilDay <= state.day) {
-      const svc = car.pendingService;
-      if (svc.type === 'repair') {
-        const oldCond = car.condition;
-        // Repair always restores to excellent condition and clears all issues
-        car.condition    = 'A';
-        // Mark crash repair if this car had crash damage
-        if ((car.crashDamageSeverity || 'none') !== 'none') car.hasCrashRepair = true;
-        car.crashDamageSeverity = 'none';
-        car.hiddenIssues = [];
-        car.repairCost   = 0;
-        car.repairCount  = (car.repairCount || 0) + 1;
-        // Value boost diminishes with each repair and with high mileage — reflects
-        // diminishing returns on a wearing vehicle.
-        const repairCount = car.repairCount;
-        const mileagePenalty = clamp(car.mileage / 300000, 0, 0.8); // 0→0.8 at 300k miles
-        const rawBoost = repairCount === 1 ? 0.12 :
-                         repairCount === 2 ? 0.07 :
-                         repairCount === 3 ? 0.03 :
-                         0; // 4+ repairs: no value boost — car is a high-mileage beater
-        const boostFactor = rawBoost * (1 - mileagePenalty);
-        if (boostFactor > 0) car.marketValue = Math.round(car.marketValue * (1 + boostFactor));
-        car.reconditionLog.push({ type: 'Basic Repair', day: state.day });
-        addNote(`🔩 ${car.year} ${car.make} ${car.model} repair complete: ${oldCond} → ${car.condition}. Repair #${repairCount}${boostFactor > 0 ? ` (+${Math.round(boostFactor * 100)}% value)` : ' (no value gain at this mileage)'}.`, 'success');
-      } else if (svc.type === 'parts') {
-        car.marketValue = Math.round(car.marketValue * 1.15);
-        car.reconditionLog.push({ type: 'Parts Upgrade', day: state.day });
-        addNote(`🏎️ ${car.year} ${car.make} ${car.model} parts upgrade complete! +15% market value.`, 'success');
-      }
-      car.inServiceUntilDay = null;
-      car.pendingService    = null;
+      finishCarService(car);
     }
     // Decay wash boost
     if (car.washBoostDays > 0) car.washBoostDays--;
@@ -2734,7 +3014,7 @@ function getTheftChancePerCar() {
   const dayProgress = Math.max(0, state.day - 50);
   const baseChance  = clamp(dayProgress / 300, 0, 1) * 0.025;
   const secLevel    = state.upgrades.securityLevel || 0;
-  const reduction   = secLevel === 1 ? 0.25 : secLevel === 2 ? 0.50 : secLevel === 3 ? 0.75 : 0;
+  const reduction   = THEFT_REDUCTION_BY_LEVEL[Math.min(secLevel, THEFT_REDUCTION_BY_LEVEL.length - 1)] || 0;
   return baseChance * (1 - reduction);
 }
 
@@ -2809,20 +3089,34 @@ const SERVICE_CAR_MAKES_MODELS = [
   { make: 'Kia',      model: 'Sorento' }, { make: 'Jeep',   model: 'Wrangler'},
   { make: 'Mercedes', model: 'C-Class' }, { make: 'Dodge',  model: 'Charger' },
 ];
+// Larger service departments attract fleet and luxury customers.
+const SERVICE_PREMIUM_MAKES_MODELS = [
+  { make: 'Porsche',   model: '911'          }, { make: 'Land Rover', model: 'Range Rover' },
+  { make: 'Tesla',     model: 'Model S'      }, { make: 'BMW',        model: 'M5'          },
+  { make: 'Mercedes',  model: 'S-Class'      }, { make: 'Audi',       model: 'RS6 Avant'   },
+  { make: 'Cadillac',  model: 'Escalade'     }, { make: 'Lexus',      model: 'LX 600'      },
+];
 const CUSTOMER_NAMES = [
   'Alex P.', 'Jordan K.', 'Sam R.', 'Taylor B.', 'Morgan L.', 'Casey H.',
   'Riley M.', 'Quinn T.', 'Avery S.', 'Drew C.', 'Parker W.', 'Logan N.',
 ];
 
 function generateServiceCar() {
-  const mm    = randomFrom(SERVICE_CAR_MAKES_MODELS);
+  const svcLevel = state.upgrades.serviceCapacityLevel || 0;
+  const usePremium = svcLevel >= 2 && Math.random() < (svcLevel >= 3 ? 0.6 : 0.35);
+  const mm    = randomFrom(usePremium ? SERVICE_PREMIUM_MAKES_MODELS : SERVICE_CAR_MAKES_MODELS);
   const year  = 2016 + randomInt(0, 9);
   const mileage = randomInt(20000, 180000);
   // Pick 1–3 issues, first one may be major (rare), rest are small
   const issueCount = Math.random() < 0.2 ? randomInt(2, 3) : 1;
   const issues = [];
+  // Bigger departments land bigger jobs — scale both what the customer pays and the labor bill.
+  const valueMult = getServiceJobValueMult();
   for (let i = 0; i < issueCount; i++) {
-    issues.push({ ...pickServiceIssue() });
+    const issue = { ...pickServiceIssue() };
+    issue.labor   = Math.round(issue.labor   * valueMult);
+    issue.revenue = Math.round(issue.revenue * valueMult);
+    issues.push(issue);
   }
   const totalLabor   = issues.reduce((s, i) => s + i.labor, 0);
   const totalRevenue = issues.reduce((s, i) => s + i.revenue, 0);
@@ -3259,6 +3553,8 @@ function buyFromFactory(catalogIdx) {
   const entry = CAR_CATALOG[catalogIdx];
   if (!entry) return;
   if (entry.discontinued) { showToast('This model is discontinued — only available on the used market.', 'error'); return; }
+  const factoryLock = getFactoryLock(entry);
+  if (factoryLock) { showToast(`Ordering this car requires the ${factoryLock} upgrade.`, 'error'); return; }
   if (state.cash < entry.basePrice) { showToast('Not enough cash!', 'error'); return; }
   const occupied = state.garage.length + state.deliveries.length;
   if (occupied >= state.garageSlots) {
@@ -3761,16 +4057,18 @@ function bulkSetListing(mult) {
 function buyUpgrade(upgradeId) {
   const upg = UPGRADES_CONFIG.find(u => u.id === upgradeId);
   if (!upg) return;
-  if (!upg.requires(state.upgrades)) { showToast('Upgrade unavailable or already purchased!', 'error'); return; }
-  if (state.cash < upg.cost)         { showToast('Not enough cash!', 'error'); return; }
-  state.cash -= upg.cost;
-  upg.apply(state);
+  const st = getUpgradeStatus(upg);
+  if (st.owned) { showToast('Already purchased!', 'error'); return; }
+  if (st.lock)  { showToast(`${st.lock} first.`, 'error'); return; }
+  if (state.cash < st.cost) { showToast('Not enough cash!', 'error'); return; }
+  state.cash -= st.cost;
+  applyUpgrade(upg);
   syncLoanTermsToDifficulty();   // recompute loan limit/APR after any upgrade
   if (upgradeId === 'staffOffice') ensureStaffCandidates();
-  addNote(`⬆️ Purchased: ${upg.name}`, 'success');
+  addNote(`⬆️ Purchased: ${st.name} (${formatCurrency(st.cost)})`, 'success');
   saveState();
   renderAll();
-  showToast(`${upg.name} purchased!`, 'success', 'purchase');
+  showToast(`${st.name} purchased!`, 'success', 'purchase');
 }
 
 // ============================================================
@@ -3815,13 +4113,19 @@ function basicRepair(carId) {
   }
   if (state.cash < cost) { showToast(`Repair estimate is ${formatCurrency(cost)} — not enough cash!`, 'error'); return; }
   state.cash -= cost;
-  car.inServiceUntilDay = state.upgrades.reconditioningWorkshop ? state.day : state.day + 1;
+  // Reconditioning Workshop: the job is done on the spot and never occupies a bay.
+  const instant = !!state.upgrades.reconditioningWorkshop;
+  car.inServiceUntilDay = instant ? state.day : state.day + 1;
   car.pendingService    = { type: 'repair' };
   car.isForSale         = false;
-  addNote(`🔩 ${car.year} ${car.make} ${car.model} is in the service bay (${formatCurrency(cost)}). ${state.upgrades.reconditioningWorkshop ? 'Ready same day.' : 'Ready next day.'}`, 'info');
+  if (instant) {
+    finishCarService(car);
+  } else {
+    addNote(`🔩 ${car.year} ${car.make} ${car.model} is in the service bay (${formatCurrency(cost)}). Ready next day.`, 'info');
+  }
   saveState();
   renderAll();
-  showToast(`Car is being repaired — ${state.upgrades.reconditioningWorkshop ? 'ready same day' : 'ready next day'}.`, 'info');
+  showToast(instant ? 'Repair finished instantly at your workshop.' : 'Car is being repaired — ready next day.', instant ? 'success' : 'info');
 }
 
 function partsUpgrade(carId) {
@@ -3840,16 +4144,21 @@ function partsUpgrade(carId) {
   }
   const perfAlreadyDone = car.reconditionLog.some(r => r.type === 'Parts Upgrade');
   if (perfAlreadyDone) { showToast('Parts upgrade already applied to this car!', 'error'); return; }
-  const cost = 1500;
+  const cost = getPartsCost(car); // scales with the car's value (min $1,500)
   if (state.cash < cost) { showToast(`Parts Upgrade costs ${formatCurrency(cost)} — not enough cash!`, 'error'); return; }
   state.cash -= cost;
-  car.inServiceUntilDay = state.upgrades.reconditioningWorkshop ? state.day : state.day + 1;
+  const instant = !!state.upgrades.reconditioningWorkshop;
+  car.inServiceUntilDay = instant ? state.day : state.day + 1;
   car.pendingService    = { type: 'parts' };
   car.isForSale         = false;
-  addNote(`🏎️ ${car.year} ${car.make} ${car.model} is getting a performance upgrade. ${state.upgrades.reconditioningWorkshop ? 'Ready same day.' : 'Ready next day.'}`, 'info');
+  if (instant) {
+    finishCarService(car);
+  } else {
+    addNote(`🏎️ ${car.year} ${car.make} ${car.model} is getting a performance upgrade (${formatCurrency(cost)}). Ready next day.`, 'info');
+  }
   saveState();
   renderAll();
-  showToast(`Parts upgrade in progress — ${state.upgrades.reconditioningWorkshop ? 'ready same day' : 'ready next day'}.`, 'info');
+  showToast(instant ? 'Parts upgrade installed instantly at your workshop.' : 'Parts upgrade in progress — ready next day.', instant ? 'success' : 'info');
 }
 
 function detailCar(carId) {
@@ -3860,8 +4169,9 @@ function detailCar(carId) {
   if (car.hasBeenDetailed) { showToast('This car has already been detailed — detailing can only be done once per ownership.', 'error'); return; }
   if (car.condition === 'A') { showToast('Car is already in excellent condition!', 'error'); return; }
   if (car.inServiceUntilDay) { showToast('Car is currently in service — wait until complete.', 'error'); return; }
-  if (state.cash < 500) { showToast('Not enough cash for detailing ($500)!', 'error'); return; }
-  state.cash -= 500;
+  const detailCost = getDetailCost(car); // scales with the car's value (min $500)
+  if (state.cash < detailCost) { showToast(`Not enough cash for detailing (${formatCurrency(detailCost)})!`, 'error'); return; }
+  state.cash -= detailCost;
   const idx = CONDITIONS.indexOf(car.condition);
   car.condition   = CONDITIONS[idx - 1];
   car.marketValue = Math.round(car.marketValue * 1.07);
@@ -4007,8 +4317,7 @@ function renderDashboard() {
   const inService     = state.garage.filter(c => c.inServiceUntilDay).length;
   const activeLeases  = state.garage.filter(c => c.leaseStatus === 'active' && c.activeLease).length;
   const leaseIncome   = computeLeaseIncomePerDay();
-  const overhead      = OVERHEAD_BY_LEVEL[state.upgrades.garageLevel] ?? 300;
-  const diffMult      = state.difficulty === 'hard' ? 1.5 : state.difficulty === 'easy' ? 0 : 1.0;
+  const overhead      = getLotOverhead();
   const wageTotal     = getTotalStaffWages();
 
   const deliveryRows = state.deliveries.length
@@ -4079,7 +4388,7 @@ function renderDashboard() {
       <div class="dash-card">
         <h3>${uiIcon('cash')} Finances</h3>
         <div class="stat-row"><span>Daily Overhead</span>
-          <strong class="text-red">−${formatCurrency(Math.round(overhead * diffMult))}/day</strong></div>
+          <strong class="text-red">−${formatCurrency(overhead)}/day</strong></div>
         <div class="stat-row"><span>Daily Wages</span><strong class="text-red">−${formatCurrency(wageTotal)}/day</strong></div>
         <div class="stat-row"><span>Credit Line Balance</span><strong class="${state.loanBalance > 0 ? 'text-red' : 'text-green'}">${formatCurrency(state.loanBalance)}</strong></div>
         <div class="stat-row"><span>Loan APR</span><strong>${(state.loanApr * 100).toFixed(1)}%</strong></div>
@@ -4175,9 +4484,10 @@ function renderFactory() {
     const marketIdx  = (state.marketIndices || {})[car.category] ?? 1.0;
     const adjMarket  = Math.round(car.marketValue * marketIdx);
     const adjMargin  = adjMarket - car.basePrice;
-    const canBuy     = !garageFull && state.cash >= car.basePrice;
+    const factoryLock = getFactoryLock(car);
+    const canBuy     = !factoryLock && !garageFull && state.cash >= car.basePrice;
     html += `
-      <div class="car-card factory-card" data-car-idx="${car.idx}">
+      <div class="car-card factory-card ${factoryLock ? 'disabled-card' : ''}" data-car-idx="${car.idx}">
         <div class="car-card-header">
           <div>
             <span class="car-name">2026 ${car.make} ${car.model}</span>
@@ -4196,7 +4506,7 @@ function renderFactory() {
           <div class="detail-row"><span>Delivery</span><span>${delivDays} day${delivDays !== 1 ? 's' : ''}</span></div>
         </div>
         <button class="btn btn-primary btn-full" onclick="buyFromFactory(${car.idx})" ${canBuy ? '' : 'disabled'}>
-          ${garageFull ? `${uiIcon('ban')} Lot Full` : state.cash < car.basePrice ? `${uiIcon('warning')} Need ${formatCurrency(car.basePrice - state.cash)} more` : `Order — ${formatCurrency(car.basePrice)}`}
+          ${factoryLock ? `${uiIcon('lock')} Requires ${factoryLock}` : garageFull ? `${uiIcon('ban')} Lot Full` : state.cash < car.basePrice ? `${uiIcon('warning')} Need ${formatCurrency(car.basePrice - state.cash)} more` : `Order — ${formatCurrency(car.basePrice)}`}
         </button>
       </div>`;
   }
@@ -4432,13 +4742,14 @@ function renderCarLot() {
         reconHtml += `<button class="btn btn-sm btn-secondary recon-btn" disabled title="Wash boost active for ${car.washBoostDays} more day(s)">${uiIcon('droplet')} Washed (${car.washBoostDays}d)</button>`;
       }
       // Detailing
-      const canDetail = Number(state.cash) >= 500;
+      const detailCost = getDetailCost(car);
+      const canDetail = Number(state.cash) >= detailCost;
       if (state.upgrades.detailing) {
         if (car.hasBeenDetailed) {
           reconHtml += `<button class="btn btn-sm btn-secondary recon-btn" disabled title="Already detailed once this ownership">${uiIcon('sparkles')} Detailed</button>`;
         } else if (car.condition !== 'A') {
           reconHtml += `<button class="btn btn-sm btn-secondary recon-btn" onclick="detailCar('${car.id}')"
-            ${canDetail ? '' : 'disabled'} title="Instant: +1 condition tier, +7% value">${uiIcon('sparkles')} Detail ($500)</button>`;
+            ${canDetail ? '' : 'disabled'} title="Instant: +1 condition tier, +7% value">${uiIcon('sparkles')} Detail (${formatCurrency(detailCost)})</button>`;
         }
       }
       // Basic Repair — show button whenever the function would allow repair
@@ -4451,13 +4762,14 @@ function renderCarLot() {
                            costRatio >= REPAIR_WARN_COST_RATIO  ? '⚠️ Expensive repair — ' : '';
         const repairBtnClass = costRatio >= REPAIR_WARN_COST_RATIO ? 'btn-danger' : 'btn-secondary';
         reconHtml += `<button class="btn btn-sm ${repairBtnClass} recon-btn" onclick="basicRepair('${car.id}')"
-          ${canRepair ? '' : 'disabled'} title="${junkWarn}1 day: fixes all issues, restores to Excellent condition">${uiIcon('wrench')} Repair (${formatCurrency(repairEst)})</button>`;
+          ${canRepair ? '' : 'disabled'} title="${junkWarn}${state.upgrades.reconditioningWorkshop ? 'Instant' : '1 day'}: fixes all issues, restores to Excellent condition">${uiIcon('wrench')} Repair (${formatCurrency(repairEst)})</button>`;
       }
       // Parts Upgrade
-      const canPartsUpgrade = Number(state.cash) >= 1500;
+      const partsCost = getPartsCost(car);
+      const canPartsUpgrade = Number(state.cash) >= partsCost;
       if (state.upgrades.performanceShop && perfEligible && !perfDone) {
         reconHtml += `<button class="btn btn-sm btn-secondary recon-btn" onclick="partsUpgrade('${car.id}')"
-          ${canPartsUpgrade ? '' : 'disabled'} title="1 day: +15% market value">${uiIcon('gauge')} Parts ($1,500)</button>`;
+          ${canPartsUpgrade ? '' : 'disabled'} title="${state.upgrades.reconditioningWorkshop ? 'Instant' : '1 day'}: +15% market value">${uiIcon('gauge')} Parts (${formatCurrency(partsCost)})</button>`;
       }
       reconHtml += `</div>`;
     }
@@ -4481,6 +4793,7 @@ function renderCarLot() {
             <div class="badge-stack">
               ${condBadge(car.condition)}
               ${titleBadge(car.titleStatus)}
+              ${isCertifiedCar(car) ? '<span class="badge badge-green" title="Certified Pre-Owned: +18% sale chance">✔ CERTIFIED</span>' : ''}
               ${(car.legalDiscovered && (car.legalStatus || 'clean') !== 'clean') ? `<span class="badge ${car.legalStatus === 'stolen' ? 'badge-red' : 'badge-orange'}">${car.legalStatus === 'stolen' ? '🚨 STOLEN' : '⚠️ NO TITLE'}</span>` : ''}
               ${(car.vinDiscovered && (car.vinStatus || 'normal') === 'scratched') ? `<span class="badge badge-yellow">🔦 SCRATCHED VIN</span>` : ''}
               ${(car.crashDamageDiscovered && (car.crashDamageSeverity || 'none') !== 'none') ? `<span class="badge ${car.crashDamageSeverity === 'severe' ? 'badge-red' : car.crashDamageSeverity === 'moderate' ? 'badge-orange' : 'badge-yellow'}">🔨 ${car.crashDamageSeverity.charAt(0).toUpperCase() + car.crashDamageSeverity.slice(1)} Crash</span>` : ''}
@@ -4669,7 +4982,7 @@ function renderServiceGarage() {
       : isLeased  ? 'Lease active — repair unavailable'
       : baysFull ? 'All service bays are occupied'
       : state.cash < repairCost ? 'Not enough cash'
-      : '1 day: fixes all issues, restores condition';
+      : `${state.upgrades.reconditioningWorkshop ? 'Instant' : '1 day'}: fixes all issues, restores condition`;
 
     return `
       <div class="car-card service-car-card">
@@ -5052,32 +5365,38 @@ function renderForSale() {
 function renderUpgrades() {
   const grouped = {};
   UPGRADES_CONFIG.forEach(u => (grouped[u.category] = grouped[u.category] || []).push(u));
+  const cats = UPGRADE_CATEGORY_ORDER.filter(c => grouped[c])
+    .concat(Object.keys(grouped).filter(c => !UPGRADE_CATEGORY_ORDER.includes(c)));
 
-  let html = '';
-  for (const [cat, upgrades] of Object.entries(grouped)) {
+  let html = `<div class="tab-info">${uiIcon('arrowUp')} Upgrades are tagged by the stage of the game they are built for. Locked upgrades show what they need — usually a bigger lot or a prerequisite upgrade.</div>`;
+  for (const cat of cats) {
     html += `<div class="category-section"><h3>${cat}</h3><div class="card-grid">`;
-    for (const upg of upgrades) {
-      const available = upg.requires(state.upgrades);
-      const canAfford = state.cash >= upg.cost;
-      let stackInfo = '';
-      if (upg.id === 'marketing')          stackInfo = ` (${state.upgrades.marketing}/3)`;
-      if (upg.id === 'reputationBoost')    stackInfo = ` (${state.upgrades.reputationBoosts}/3)`;
-      if (upg.id === 'overheadReduction')  stackInfo = ` (${state.upgrades.overheadReductions || 0}/3)`;
+    for (const upg of grouped[cat]) {
+      const st        = getUpgradeStatus(upg);
+      const canAfford = state.cash >= st.cost;
+      const stage     = UPGRADE_STAGES[upg.stage || 1];
+      const stackInfo = st.max > 1 ? ` (${st.level}/${st.max})` : '';
+      const iconKey   = _P[upg.icon] ? upg.icon : (UPGRADE_ICON_MAP[upg.icon] || 'gear');
+
+      let btn;
+      if (st.owned) {
+        btn = `<button class="btn btn-primary btn-full" disabled>${uiIcon('check')} ${st.max > 1 ? 'Max Level' : 'Purchased'}</button>`;
+      } else if (st.lock) {
+        btn = `<button class="btn btn-primary btn-full" disabled>${uiIcon('lock')} ${st.lock}</button>`;
+      } else if (!canAfford) {
+        btn = `<button class="btn btn-primary btn-full" disabled>${uiIcon('warning')} Need ${formatCurrency(st.cost - state.cash)} more</button>`;
+      } else {
+        btn = `<button class="btn btn-primary btn-full" onclick="buyUpgrade('${upg.id}')">Buy — ${formatCurrency(st.cost)}</button>`;
+      }
 
       html += `
-        <div class="car-card upgrade-card ${!available ? 'disabled-card' : ''}">
-          <div class="upgrade-icon">${uiIconLg(UPGRADE_ICON_MAP[upg.icon] || 'gear')}</div>
-          <h4>${upg.name}${stackInfo}</h4>
+        <div class="car-card upgrade-card ${st.owned || st.lock ? 'disabled-card' : ''}">
+          <div class="upgrade-icon">${uiIconLg(iconKey)}</div>
+          <h4>${st.name}${stackInfo}</h4>
+          <span class="badge ${stage.cls}">${stage.label}</span>
           <p class="upgrade-desc">${upg.desc}</p>
-          <p class="upgrade-cost">${formatCurrency(upg.cost)}</p>
-          <button class="btn btn-primary btn-full" onclick="buyUpgrade('${upg.id}')"
-            ${!available || !canAfford ? 'disabled' : ''}>
-            ${!available
-              ? `${uiIcon('check')} Purchased / Max Level`
-              : !canAfford
-                ? `${uiIcon('warning')} Need ${formatCurrency(upg.cost - state.cash)} more`
-                : `Buy — ${formatCurrency(upg.cost)}`}
-          </button>
+          <p class="upgrade-cost ${st.owned ? 'text-green' : ''}">${st.owned ? 'Owned' : formatCurrency(st.cost)}</p>
+          ${btn}
         </div>`;
     }
     html += `</div></div>`;
@@ -5269,9 +5588,8 @@ function renderAchievements() {
 function renderSettings() {
   const isDark = settings.darkMode;
   const sfxMuted = !!settings.sfxMuted;
-  const overhead = OVERHEAD_BY_LEVEL[state.upgrades.garageLevel] ?? 300;
+  const overhead = getLotOverhead();
   const diff = state.difficulty || 'normal';
-  const diffMult = diff === 'hard' ? 1.5 : diff === 'easy' ? 0 : 1.0;
   const diffLabel = diff === 'hard' ? `Hard 💪` : diff === 'easy' ? 'Easy 😎' : 'Normal';
   const diffClass = diff === 'hard' ? 'text-red' : diff === 'easy' ? 'text-green' : 'text-blue';
 
@@ -5332,7 +5650,7 @@ function renderSettings() {
         </div>
         <div class="stat-row">
           <span>Daily Overhead</span>
-          <strong class="${diff === 'easy' ? 'text-green' : 'text-red'}">${diff === 'easy' ? 'Free (Easy mode)' : `−${formatCurrency(Math.round(overhead * diffMult))}/day`}</strong>
+          <strong class="${diff === 'easy' ? 'text-green' : 'text-red'}">${diff === 'easy' ? 'Free (Easy mode)' : `−${formatCurrency(overhead)}/day`}</strong>
         </div>
         <div class="stat-row">
           <span>Daily Wages</span>
@@ -6898,25 +7216,22 @@ function cheatMaxReputation() {
 }
 
 function cheatMaxGarage() {
-  state.upgrades.garageLevel = 5;
-  state.garageSlots = 50;
-  _cheatApply('🏠 Garage upgraded to Tier 5 (50 slots).');
+  state.upgrades.garageLevel = 7;
+  state.garageSlots = 100;
+  _cheatApply('🏠 Garage upgraded to Tier 7 (100 slots).');
 }
 
 function cheatUnlockAllUpgrades() {
-  Object.assign(state.upgrades, {
-    garageLevel: 5, marketing: 3, inspectionTool: true, detailing: true,
-    reputationBoosts: 3, expressDelivery: true, serviceBay: true, performanceShop: true,
-    negotiationTraining: true, staffOffice: true, crmSuite: true, aiPricing: true,
-    luxuryLounge: true, financeOffice: true, creditLineBoost1: true, creditLineBoost2: true,
-    creditLineBoost3: true, overheadReductions: 3, photoStudio: true, leaseManagement: true,
-    factoryAllocation: true, reconditioningWorkshop: true, dmvDatabaseAccess: true,
-    vinScanner: true, titleRecovery: true, frameDamageTools: true, complianceTraining: true,
-    securityLevel: 3, serviceCapacityLevel: 3,
-  });
-  state.garageSlots = 50;
-  state.loanLimit = Math.max(state.loanLimit, 485000);
-  state.loanApr = 0.12 - 0.03;
+  // Applies every upgrade in the config (ignoring prerequisites and cost), so new upgrades are covered automatically.
+  for (const upg of UPGRADES_CONFIG) {
+    let guard = 0;
+    while (!getUpgradeStatus(upg).owned && guard++ < 10) {
+      applyUpgrade(upg);
+    }
+  }
+  state.serviceBayUnlockedDay = -9999;
+  syncLoanTermsToDifficulty();
+  ensureStaffCandidates();
   _cheatApply('⬆️ All upgrades unlocked.');
 }
 
