@@ -11,9 +11,18 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.6.0';
+const GAME_VERSION = '1.6.1';
 
 const PATCH_NOTES = [
+  {
+    version: '1.6.1',
+    date: 'September 2026',
+    notes: [
+      { type: 'balance', text: 'Car Wash now requires a new Wash Station upgrade ($4,000, Reconditioning category) instead of being available for free from day one. Washing is still cheap and repeatable once unlocked.' },
+      { type: 'balance', text: 'Reworked the payoff for washing: value boost per wash is up from +3% to +4% (so it is a real, permanent bump to what the car is worth — not just a temporary sale-chance trick), and the temporary sale-chance bonus is up from +8% to +10%. Wash price down from $150 to $125 per wash to offset the new upgrade cost.' },
+      { type: 'fix', text: 'Wash button now shows a clear "Locked" state with a tooltip when you have not bought the Wash Station yet, matching how Detailing and Repair already communicate their upgrade requirements.' },
+    ],
+  },
   {
     version: '1.6.0',
     date: 'September 2026',
@@ -296,6 +305,7 @@ const DEFAULT_STATE = {
     garageLevel: 1,
     marketing: 0,
     inspectionTool: false,
+    washStation: false,
     detailing: false,
     reputationBoosts: 0,
     expressDelivery: false,
@@ -885,6 +895,10 @@ const SERVICE_JOB_VALUE_MULT = [1, 1.35, 1.9, 2.8]; // bigger service department
 const THEFT_REDUCTION_BY_LEVEL = [0, 0.25, 0.50, 0.75, 0.90];
 const WORKSHOP_REPAIR_DISCOUNT = 0.15;
 const CERTIFIED_SALE_BONUS = 1.18;
+const WASH_COST = 125;             // requires the Wash Station upgrade
+const WASH_VALUE_BOOST = 0.04;     // +4% market value, every wash
+const WASH_SALE_CHANCE_BONUS = 1.10; // +10% sale chance while boost is active
+const WASH_BOOST_DAYS = 3;
 
 // Prerequisite helpers — each returns null when satisfied, or a short label when not.
 // Lock text shown on a button must stay short (buttons don't wrap gracefully), so requireAll
@@ -1027,6 +1041,10 @@ const UPGRADES_CONFIG = [
   },
 
   // ── Reconditioning ────────────────────────────────────────
+  {
+    id: 'washStation', key: 'washStation', name: 'Wash Station', icon: 'droplet', category: 'Reconditioning', stage: 1, cost: 4000,
+    desc: 'Unlocks car washes — a cheap value bump and a temporary sale-chance boost.',
+  },
   {
     id: 'detailing', key: 'detailing', name: 'Detailing Bay', icon: 'sparkles', category: 'Reconditioning', stage: 1, cost: 12000,
     desc: 'Detail a car for a condition and value boost.',
@@ -2271,7 +2289,7 @@ function computeSaleChance(car) {
   const repBoostFactor     = 1 + 0.15 * state.upgrades.reputationBoosts;
   const repFactor          = state.reputation;
   const demandFactor       = car.demandFactor || 1;
-  const washBonus          = car.washBoostDays > 0 ? 1.08 : 1.0;
+  const washBonus          = car.washBoostDays > 0 ? WASH_SALE_CHANCE_BONUS : 1.0;
   const titleFactor        = TITLE_BUYER_MULT[car.titleStatus] || 1.0;
   const photoStudioFactor  = state.upgrades.photoStudio ? 1.10 : 1.0;
   const certifiedFactor    = isCertifiedCar(car) ? CERTIFIED_SALE_BONUS : 1.0;
@@ -4086,17 +4104,18 @@ function buyUpgrade(upgradeId) {
 // PLAYER ACTIONS — Reconditioning
 // ============================================================
 function carWash(carId) {
+  if (!state.upgrades.washStation) { showToast('You need the Wash Station upgrade first!', 'error'); return; }
   const car = state.garage.find(c => c.id === carId);
   if (!car) return;
   if (car.leaseStatus === 'active' && car.activeLease) { showToast('No recon actions allowed while lease is active.', 'error'); return; }
-  const cost = 150;
+  const cost = WASH_COST;
   if (state.cash < cost) { showToast(`Car wash costs ${formatCurrency(cost)} — not enough cash!`, 'error'); return; }
   if (car.washBoostDays > 0) { showToast('Car was recently washed — wait for the boost to fade.', 'error'); return; }
   state.cash     -= cost;
-  car.marketValue = Math.round(car.marketValue * 1.03);
-  car.washBoostDays = 3; // +8% sale chance for 3 days
+  car.marketValue = Math.round(car.marketValue * (1 + WASH_VALUE_BOOST));
+  car.washBoostDays = WASH_BOOST_DAYS;
   car.reconditionLog.push({ type: 'Car Wash', day: state.day });
-  addNote(`🚿 Washed ${car.year} ${car.make} ${car.model} — looks great! +3% value, boosted sale chance for 3 days.`, 'success');
+  addNote(`🚿 Washed ${car.year} ${car.make} ${car.model} — looks great! +${Math.round(WASH_VALUE_BOOST * 100)}% value, boosted sale chance for ${WASH_BOOST_DAYS} days.`, 'success');
   saveState();
   renderAll();
   showToast(`Washed — looking sharp!`, 'success');
@@ -4745,12 +4764,16 @@ function renderCarLot() {
     } else if (!inService) {
       reconHtml = `<div class="recon-actions">`;
       // Car Wash
-      const canWash = Number(state.cash) >= 150;
-      if (car.washBoostDays <= 0) {
-        reconHtml += `<button class="btn btn-sm btn-secondary recon-btn" onclick="carWash('${car.id}')"
-          ${canWash ? '' : 'disabled'} title="Instant: +3% value, boosted sale chance 3 days">${uiIcon('droplet')} Wash ($150)</button>`;
+      const canWash = Number(state.cash) >= WASH_COST;
+      if (state.upgrades.washStation) {
+        if (car.washBoostDays <= 0) {
+          reconHtml += `<button class="btn btn-sm btn-secondary recon-btn" onclick="carWash('${car.id}')"
+            ${canWash ? '' : 'disabled'} title="Instant: +${Math.round(WASH_VALUE_BOOST * 100)}% value, boosted sale chance ${WASH_BOOST_DAYS} days">${uiIcon('droplet')} Wash (${formatCurrency(WASH_COST)})</button>`;
+        } else {
+          reconHtml += `<button class="btn btn-sm btn-secondary recon-btn" disabled title="Wash boost active for ${car.washBoostDays} more day(s)">${uiIcon('droplet')} Washed (${car.washBoostDays}d)</button>`;
+        }
       } else {
-        reconHtml += `<button class="btn btn-sm btn-secondary recon-btn" disabled title="Wash boost active for ${car.washBoostDays} more day(s)">${uiIcon('droplet')} Washed (${car.washBoostDays}d)</button>`;
+        reconHtml += `<button class="btn btn-sm btn-secondary recon-btn" disabled title="Requires the Wash Station upgrade">${uiIcon('droplet')} Wash (Locked)</button>`;
       }
       // Detailing
       const detailCost = getDetailCost(car);
