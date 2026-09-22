@@ -242,6 +242,10 @@ h1, h2, h3, h4, h5,
 
 .btn-full { width: 100%; }
 
+/* Upgrade cards: lock/afford text is short by design, but wrap instead of overflowing
+   if a translation or an unusually long name ever runs past the button width. */
+.upgrade-card .btn { white-space: normal; line-height: 1.25; text-align: center; }
+
 .btn-sm { padding: 5px 10px; font-size: .78rem; }
 
 /* ============================================================
