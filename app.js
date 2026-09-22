@@ -11,9 +11,21 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.6.1';
+const GAME_VERSION = '1.6.2';
 
 const PATCH_NOTES = [
+  {
+    version: '1.6.2',
+    date: 'September 2026',
+    notes: [
+      { type: 'balance', text: 'Big sell-rate rebalance — selling on Normal was taking far too long, especially for cheap cars priced with any normal profit margin. Base daily sale chance is up from 8% to 10%.' },
+      { type: 'balance', text: 'The "fair price" zone before any overpricing penalty kicks in is now 10% over market value (was 5%), and the penalty past that point ramps up more gently — a normal dealer markup no longer tanks your sale odds.' },
+      { type: 'balance', text: 'Cheap cars now sell noticeably faster: the price-tier factor for cars under $30k is up from 1.10× to 1.40×, and under $55k from 1.00× to 1.18×. A fairly-priced, decent-condition cheap car should now sell within about a week, often much sooner.' },
+      { type: 'balance', text: 'Expensive cars are correspondingly harder, on purpose — the $140k–$220k tier factor is down from 0.38× to 0.32×, and $220k+ down from 0.20× to 0.16×. High-end cars still need the Luxury Clientele upgrades to move at a reasonable pace, and an overpriced expensive car can now sit for a very long time.' },
+      { type: 'balance', text: 'Condition B (Good) cars get a small sale-chance bump (was neutral, now +5%); Condition C and D no longer tank sale chance quite as hard (0.70×/0.40× → 0.75×/0.45×).' },
+      { type: 'balance', text: 'Price-rating labels (Fair Price / Slightly High / Above Market) in the Garage and For Sale tabs now line up with the new 10%/25% thresholds instead of the old 5%/20%.' },
+    ],
+  },
   {
     version: '1.6.1',
     date: 'September 2026',
@@ -405,7 +417,7 @@ const CONDITIONS = ['A', 'B', 'C', 'D'];
 const CONDITION_NAMES  = { A: 'Excellent', B: 'Good', C: 'Fair', D: 'Poor' };
 // Condition affects how fast a car sells, not just what it's worth. Widened so a rough
 // (D) car is a real drag on lot turnover, not a minor footnote.
-const CONDITION_FACTOR = { A: 1.25, B: 1.00, C: 0.70, D: 0.40 };
+const CONDITION_FACTOR = { A: 1.25, B: 1.05, C: 0.75, D: 0.45 };
 const CONDITION_VALUE  = { A: 1.05, B: 0.92, C: 0.75, D: 0.58 };
 
 // ------------------------------------------------------------------
@@ -439,12 +451,12 @@ const CATEGORY_POPULARITY = {
  * than cheap ones even when both are priced fairly.
  */
 function getPriceTierFactor(marketValue) {
-  if (marketValue < 30000)  return 1.10;
-  if (marketValue < 55000)  return 1.00;
-  if (marketValue < 90000)  return 0.82;
-  if (marketValue < 140000) return 0.60;
-  if (marketValue < 220000) return 0.38;
-  return 0.20;
+  if (marketValue < 30000)  return 1.40;
+  if (marketValue < 55000)  return 1.18;
+  if (marketValue < 90000)  return 0.88;
+  if (marketValue < 140000) return 0.55;
+  if (marketValue < 220000) return 0.32;
+  return 0.16;
 }
 
 // Crash history spooks buyers beyond the price hit it already takes on market value —
@@ -2240,26 +2252,29 @@ function computeSaleChance(car) {
   const askRatio = car.listPrice / car.marketValue;
   if (askRatio > 3.0) return 0;
 
-  let chance = 0.08;
+  let chance = 0.10;
 
   // Price attractiveness — steep exponential penalty for overpricing.
   // Retries do NOT improve this: every day uses the same curve independently.
+  // Fair-price zone extends to 10% over market value (normal dealer margin)
+  // before any penalty kicks in — a car priced right at or modestly above
+  // market should not be punished for the seller wanting a profit.
   let priceAtt;
-  if (askRatio <= 1.05) {
-    // At or below market: slight reward for competitive pricing.
-    priceAtt = clamp((1 / askRatio) * 0.88, 0.84, 1.9);
-  } else if (askRatio <= 1.2) {
-    // Slightly over: mild reduction (0.84 → 0.40).
-    priceAtt = lerp(0.84, 0.40, (askRatio - 1.05) / 0.15);
+  if (askRatio <= 1.10) {
+    // At or modestly over market: slight reward for competitive pricing.
+    priceAtt = clamp((1 / askRatio) * 0.92, 0.84, 1.9);
+  } else if (askRatio <= 1.25) {
+    // Above a normal margin: mild reduction (0.84 → 0.45).
+    priceAtt = lerp(0.84, 0.45, (askRatio - 1.10) / 0.15);
   } else if (askRatio <= 1.5) {
-    // Moderately over: significant reduction (0.40 → 0.12).
-    priceAtt = lerp(0.40, 0.12, (askRatio - 1.2) / 0.30);
+    // Moderately over: significant reduction (0.45 → 0.15).
+    priceAtt = lerp(0.45, 0.15, (askRatio - 1.25) / 0.25);
   } else if (askRatio <= 2.0) {
-    // Way over: near-zero (0.12 → 0.02).
-    priceAtt = lerp(0.12, 0.02, (askRatio - 1.5) / 0.50);
+    // Way over: near-zero (0.15 → 0.03).
+    priceAtt = lerp(0.15, 0.03, (askRatio - 1.5) / 0.50);
   } else {
-    // Extreme (2× – 3×): effectively impossible (0.02 → 0).
-    priceAtt = lerp(0.02, 0, (askRatio - 2.0) / 1.0);
+    // Extreme (2× – 3×): effectively impossible (0.03 → 0).
+    priceAtt = lerp(0.03, 0, (askRatio - 2.0) / 1.0);
   }
 
   const condFactor = CONDITION_FACTOR[car.condition] || 1;
@@ -2281,7 +2296,7 @@ function computeSaleChance(car) {
 
   // Overpriced listings go stale faster — OVERPRICED_STALE_DECAY_RATE (8%) daily decay once on lot >3 days.
   const staleDays = Math.max(0, daysLot - 3);
-  const stalePenalty = askRatio > 1.2 ? Math.pow(OVERPRICED_STALE_DECAY_RATE, staleDays) : 1.0;
+  const stalePenalty = askRatio > 1.25 ? Math.pow(OVERPRICED_STALE_DECAY_RATE, staleDays) : 1.0;
   const baseLotFactor  = daysLot > 14 ? 0.68 : daysLot > 7 ? 0.84 : 1.0;
   const lotFactor      = baseLotFactor * stalePenalty;
 
@@ -2299,7 +2314,7 @@ function computeSaleChance(car) {
          * repBoostFactor * demandFactor * washBonus * titleFactor * photoStudioFactor * certifiedFactor;
 
   // No guaranteed floor for overpriced cars — retries must never converge to a sale.
-  const floor = askRatio > 2.0 ? 0 : askRatio > 1.5 ? 0.001 : askRatio > 1.2 ? 0.004 : 0.01;
+  const floor = askRatio > 2.0 ? 0 : askRatio > 1.5 ? 0.001 : askRatio > 1.25 ? 0.005 : 0.015;
   return clamp(chance, floor, 0.85);
 }
 
@@ -2328,8 +2343,8 @@ function getPriceLabel(car) {
   if (r > 3.0)  return { text: 'Extreme — No Buyers',      cls: 'text-red',    interest: 'None' };
   if (r > 2.0)  return { text: 'Way Over Market',          cls: 'text-red',    interest: 'Nearly None' };
   if (r > 1.5)  return { text: 'Overpriced',               cls: 'text-red',    interest: 'Very Low' };
-  if (r > 1.2)  return { text: 'Above Market',             cls: 'text-yellow', interest: 'Low' };
-  if (r > 1.05) return { text: 'Slightly High',            cls: 'text-yellow', interest: 'Moderate' };
+  if (r > 1.25) return { text: 'Above Market',             cls: 'text-yellow', interest: 'Low' };
+  if (r > 1.10) return { text: 'Slightly High',            cls: 'text-yellow', interest: 'Moderate' };
   if (r > 0.9)  return { text: 'Fair Price',               cls: 'text-green',  interest: 'Good' };
   return              { text: 'Below Market — Great Deal', cls: 'text-green',  interest: 'High' };
 }
