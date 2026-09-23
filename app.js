@@ -11,9 +11,18 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.6.2';
+const GAME_VERSION = '1.6.3';
 
 const PATCH_NOTES = [
+  {
+    version: '1.6.3',
+    date: 'September 2026',
+    notes: [
+      { type: 'feature', text: 'Huge catalog expansion — over 100 new cars added, bringing the total to 706. New everyday picks include the Chevrolet Tahoe, Ford Escape, Hyundai Palisade, Subaru Crosstrek, Kia Soul, Porsche Macan, Mercedes-Benz G-Class, Tesla Model X, Range Rover, and the Ford Mustang Mach-E.' },
+      { type: 'feature', text: 'Minivans have arrived — Honda Odyssey, Toyota Sienna, Chrysler Pacifica, and Kia Carnival are now buyable (filed under the SUV segment).' },
+      { type: 'feature', text: 'Nearly two dozen new discontinued classics added to the Used Market as rare finds, including the Honda S2000, Mazda RX-7, Mitsubishi Lancer Evolution, Cadillac CTS-V, Toyota FJ Cruiser, Chevrolet Avalanche, and the meme-famous Pontiac Aztek.' },
+    ],
+  },
   {
     version: '1.6.2',
     date: 'September 2026',
