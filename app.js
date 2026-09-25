@@ -11,9 +11,16 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.6.5';
+const GAME_VERSION = '1.6.6';
 
 const PATCH_NOTES = [
+  {
+    version: '1.6.6',
+    date: 'September 2026',
+    notes: [
+      { type: 'fix', text: 'Found the real source of razor-thin (often negative) margins: when a car was priced at or near fair market value, buyer offers averaged only ~84% of list price — below what most cars cost you at invoice, meaning the "average" sale was actually a loss before fees and overhead even kicked in. Buyer offers on fairly-priced cars now average ~93% of list, so pricing a car sensibly actually turns a real profit instead of relying on a lucky high roll.' },
+    ],
+  },
   {
     version: '1.6.5',
     date: 'September 2026',
@@ -2249,9 +2256,13 @@ function generateCustomerOffers() {
         buyerMax     = Math.round(car.marketValue * mvMult * clamp(titleBuyerMult + 0.1, 0.65, 1.05));
         offeredPrice = Math.round(buyerMax * randomFloat(0.87, 0.98));
       } else {
-        // Normal: buyer offers relative to list price as before.
-        buyerMax     = Math.round(car.listPrice * randomFloat(0.86, 0.99) * clamp(titleBuyerMult + 0.1, 0.65, 1.05));
-        const mult   = randomFloat(0.72, 0.97);
+        // Normal: buyer offers relative to list price. Raised from the original 0.72–0.97
+        // range, which averaged out to selling *below* factory invoice cost even when
+        // priced right at fair market value — every sale was a guaranteed loss before
+        // fees and overhead. Buyers now still haggle, but a fairly-priced car should
+        // clear a real margin on average, not just on a lucky roll.
+        buyerMax     = Math.round(car.listPrice * randomFloat(0.92, 1.00) * clamp(titleBuyerMult + 0.1, 0.65, 1.05));
+        const mult   = randomFloat(0.87, 0.99);
         offeredPrice = Math.round(Math.min(buyerMax * 0.98, car.listPrice * mult));
       }
 
