@@ -11,9 +11,18 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.6.3';
+const GAME_VERSION = '1.6.4';
 
 const PATCH_NOTES = [
+  {
+    version: '1.6.4',
+    date: 'September 2026',
+    notes: [
+      { type: 'balance', text: 'Car theft chance roughly halved across the board, so a growing, un-upgraded lot is far less punishing.' },
+      { type: 'balance', text: 'Security Camera System down from $75,000 to $20,000, and Guard Station down from $175,000 to $60,000, so you can afford real theft protection much earlier in the game.' },
+      { type: 'fix', text: 'Leased cars can no longer be stolen off the lot — they\'re out with the lessee under a signed lease agreement, not sitting in inventory, so theft now only targets cars you actually have on the lot.' },
+    ],
+  },
   {
     version: '1.6.3',
     date: 'September 2026',
@@ -1189,13 +1198,13 @@ const UPGRADES_CONFIG = [
   // Theft starts around Day 50 and climbs with the calendar, and every stolen car costs its full
   // value — so these pay for themselves as the lot (and the value on it) grows.
   {
-    id: 'security1', name: 'Security Camera System', icon: 'camera', category: 'Security', stage: 2, cost: 75000,
+    id: 'security1', name: 'Security Camera System', icon: 'camera', category: 'Security', stage: 2, cost: 20000,
     desc: 'Cuts car theft on your lot.',
     level: tierLevel('securityLevel', 1),
     apply: s => { s.upgrades.securityLevel = 1; },
   },
   {
-    id: 'security2', name: 'Guard Station', icon: 'person', category: 'Security', stage: 3, cost: 175000,
+    id: 'security2', name: 'Guard Station', icon: 'person', category: 'Security', stage: 2, cost: 60000,
     desc: 'Cuts theft further with overnight patrols.',
     level: tierLevel('securityLevel', 2),
     lock: requireAll(reqHas('securityLevel', 'Security Cameras')),
@@ -3065,13 +3074,14 @@ function processService() {
 /** Returns the theft chance per car per day based on game progression. */
 function getTheftChancePerCar() {
   const dayProgress = Math.max(0, state.day - 50);
-  const baseChance  = clamp(dayProgress / 300, 0, 1) * 0.025;
+  const baseChance  = clamp(dayProgress / 300, 0, 1) * 0.012;
   const secLevel    = state.upgrades.securityLevel || 0;
   const reduction   = THEFT_REDUCTION_BY_LEVEL[Math.min(secLevel, THEFT_REDUCTION_BY_LEVEL.length - 1)] || 0;
   return baseChance * (1 - reduction);
 }
 
-/** Each night check if any car on the lot gets stolen. */
+/** Each night check if any car on the lot gets stolen. Leased cars are under signed lease
+ *  agreements with the lessee, not sitting exposed on the lot, so they're never at risk. */
 function processTheft() {
   const diffMult = state.difficulty === 'hard' ? 1.5 : state.difficulty === 'easy' ? 0.3 : 1.0;
   const chancePerCar = getTheftChancePerCar() * diffMult;
@@ -3079,6 +3089,11 @@ function processTheft() {
 
   const remaining = [];
   for (const car of state.garage) {
+    if (car.leaseStatus === 'active') {
+      // Leased vehicles are in the lessee's possession under contract — not theft targets.
+      remaining.push(car);
+      continue;
+    }
     if (Math.random() < chancePerCar) {
       // Car stolen
       const value = car.marketValue || car.purchasePrice || 5000;
