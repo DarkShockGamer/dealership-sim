@@ -4967,7 +4967,7 @@ function renderLeasing() {
       </div>
       <div class="kpi-tile kpi-lease-c">
         <div class="kpi-icon-wrap">${uiIconLg('tag')}</div>
-        <div><div class="kpi-value">${offeredCars.length}</div><div class="kpi-label">Awaiting Lessee</div></div>
+        <div><div class="kpi-value">${offeredCars.length}</div><div class="kpi-label">Offered for Lease</div></div>
       </div>
       <div class="kpi-tile kpi-lease-d">
         <div class="kpi-icon-wrap">${uiIconLg('trendingUp')}</div>
@@ -5028,7 +5028,7 @@ function renderLeasing() {
       </div>`).join('')
     : `<div class="lease-column-empty">No eligible cars right now. A car must be in your lot, not for sale, and not in service.</div>`;
 
-  // ── Column 2: awaiting a lessee ──────────────────────────────
+  // ── Column 2: offered for lease, awaiting a lease offer ──────
   const offeredHtml = offeredCars.length
     ? offeredCars.map(car => `
       <div class="lease-mini-card">
@@ -5040,7 +5040,7 @@ function renderLeasing() {
         <div class="lease-mini-sub"><span>Est. Payment</span><span class="text-green">+${formatCurrency(computeLeasePaymentPerDay(car))}/day</span></div>
         <button class="btn btn-sm btn-warning" onclick="stopOfferingLease('${car.id}')">${uiIcon('stop')} Stop Offering</button>
       </div>`).join('')
-    : `<div class="lease-column-empty">Nothing waiting on a lessee. Offer a car for lease from the left column — a lead can arrive as soon as the next day.</div>`;
+    : `<div class="lease-column-empty">Nothing waiting on a lease offer. Offer a car for lease from the left column — an offer can arrive as soon as the next day.</div>`;
 
   // ── Column 3: active leases (rich cards) ─────────────────────
   const activeHtml = activeCars.length
@@ -5074,11 +5074,11 @@ function renderLeasing() {
           <button class="btn btn-sm btn-secondary" onclick="viewLeaseDetails('${car.id}')">${uiIcon('fileText')} Full Details</button>
         </div>`;
       }).join('')
-    : `<div class="lease-column-empty">No active leases yet. Once a car is offered, a lessee may pick it up as soon as the next day.</div>`;
+    : `<div class="lease-column-empty">No active leases yet. Once a car is offered, a lease offer may come in as soon as the next day.</div>`;
 
   el.innerHTML = `
     <div class="tab-info">
-      ${uiIcon('document')} Leasing turns idle inventory into daily income: offer a car, wait for a lessee, then collect
+      ${uiIcon('document')} Leasing turns idle inventory into daily income: offer a car, wait for a lease offer, then collect
       payments until the term ends and the car returns (with mileage, wear, and maybe a surprise issue or two).
       Leased cars can't be sold, reconditioned, or traded in until they come back.
     </div>
@@ -5096,7 +5096,7 @@ function renderLeasing() {
       </div>
       <div class="lease-column">
         <div class="lease-column-header">
-          <span class="lease-column-title">${uiIcon('inbox')} Awaiting Lessee</span>
+          <span class="lease-column-title">${uiIcon('inbox')} Offered for Lease</span>
           <span class="lease-column-count">${offeredCars.length}</span>
         </div>
         <div class="lease-column-list">${offeredHtml}</div>
