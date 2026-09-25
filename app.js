@@ -11,9 +11,17 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.6.4';
+const GAME_VERSION = '1.6.5';
 
 const PATCH_NOTES = [
+  {
+    version: '1.6.5',
+    date: 'September 2026',
+    notes: [
+      { type: 'balance', text: 'Tier 1 (starting) lot overhead cut from $300/day to $125/day, and Tier 2 from $600/day to $450/day. A factory car only clears about a 12-13% margin over invoice, so heavy day-one overhead was silently eating that whole profit before the car even sold.' },
+      { type: 'balance', text: 'New small-lot focus bonus: with only 1-2 cars listed for sale, sale chance gets a +35% boost (+15% at 3-4 listings), reflecting the extra hustle a dealer can put behind a small inventory. This mainly helps in the opening days when you\'ve only got a car or two on the lot.' },
+    ],
+  },
   {
     version: '1.6.4',
     date: 'September 2026',
@@ -495,7 +503,10 @@ const TRANSACTION_FEE  = 0.02;
 const PERF_ELIGIBLE = ['Sports', 'SUV', 'Truck']; // categories eligible for parts upgrade
 
 // Daily garage overhead costs by garage level
-const OVERHEAD_BY_LEVEL = { 1: 300, 2: 600, 3: 1200, 4: 1800, 5: 2600, 6: 3800, 7: 5400 };
+// Tier 1 (the default starting lot) is much lighter than before — a factory car bought
+// at invoice and sold at market value only clears a ~12-13% margin, so heavy day-one
+// overhead was quietly eating the whole profit before the car even sold.
+const OVERHEAD_BY_LEVEL = { 1: 125, 2: 450, 3: 1200, 4: 1800, 5: 2600, 6: 3800, 7: 5400 };
 
 // Legal / VIN / stolen car mechanics
 const LEGAL_STATUSES = ['clean', 'noTitle', 'stolen'];
@@ -2327,9 +2338,15 @@ function computeSaleChance(car) {
   const photoStudioFactor  = state.upgrades.photoStudio ? 1.10 : 1.0;
   const certifiedFactor    = isCertifiedCar(car) ? CERTIFIED_SALE_BONUS : 1.0;
 
+  // Small-lot focus bonus: with only a car or two for sale, a dealer can put real attention
+  // and hustle behind each one — the exact scenario at the start of a new game.
+  const activeListings = (state.garage || []).filter(c => c.isForSale).length || 1;
+  const focusFactor = activeListings <= 2 ? 1.35 : activeListings <= 4 ? 1.15 : 1.0;
+
   chance = chance * priceAtt * condFactor * categoryFactor * priceTierFactor * crashFactor
          * lotFactor * marketingFactor * repFactor
-         * repBoostFactor * demandFactor * washBonus * titleFactor * photoStudioFactor * certifiedFactor;
+         * repBoostFactor * demandFactor * washBonus * titleFactor * photoStudioFactor * certifiedFactor
+         * focusFactor;
 
   // No guaranteed floor for overpriced cars — retries must never converge to a sale.
   const floor = askRatio > 2.0 ? 0 : askRatio > 1.5 ? 0.001 : askRatio > 1.25 ? 0.005 : 0.015;
