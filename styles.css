@@ -283,6 +283,16 @@ h1, h2, h3, h4, h5,
 .tab-btn:active { transform: scale(.96); }
 .tab-btn.active { color: #f4f9ff; background: linear-gradient(145deg, #2f7be6, #245ebd); border-color: rgba(170, 206, 255, .45); box-shadow: 0 8px 22px rgba(24, 64, 147, .42); transform: translateY(-1px) scale(1.03); }
 
+/* Icon-only tab buttons (Achievements / Settings) live in the header instead
+   of the scrolling tab strip, so the strip has room to breathe and nothing
+   gets clipped at the edge. */
+.tab-btn-icon {
+  padding: 9px 11px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+.tab-btn-icon .ui-icon { width: 18px; height: 18px; }
+
 /* ============================================================
    Tab Panels
    ============================================================ */
