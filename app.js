@@ -4246,6 +4246,7 @@ function makeLeaseAvailable(carId) {
   car.leaseStatus = 'available';
   saveState();
   renderCarLot();
+  renderLeasing();
 }
 
 function stopOfferingLease(carId) {
@@ -4255,6 +4256,7 @@ function stopOfferingLease(carId) {
   car.leaseStatus = 'none';
   saveState();
   renderCarLot();
+  renderLeasing();
 }
 
 function viewLeaseDetails(carId) {
@@ -4832,14 +4834,10 @@ function renderCarLot() {
       reconHtml += `</div>`;
     }
     const leaseActionButtons = [];
-    if (car.leaseStatus === 'none') {
+    if (car.leaseStatus !== 'none' || (!car.isForSale && !inService)) {
       leaseActionButtons.push(
-        `<button class="btn btn-secondary" onclick="makeLeaseAvailable('${car.id}')" ${car.isForSale || inService ? 'disabled' : ''}>${uiIcon('document')} Offer Lease</button>`
+        `<button class="btn btn-secondary" onclick="switchTab('leasing')">${uiIcon('document')} Manage Leasing</button>`
       );
-    } else if (car.leaseStatus === 'available') {
-      leaseActionButtons.push(`<button class="btn btn-warning" onclick="stopOfferingLease('${car.id}')">${uiIcon('stop')} Stop Offering Lease</button>`);
-    } else if (isLeased) {
-      leaseActionButtons.push(`<button class="btn btn-secondary" onclick="viewLeaseDetails('${car.id}')">${uiIcon('fileText')} Lease Details</button>`);
     }
 
     return `
@@ -4876,8 +4874,6 @@ function renderCarLot() {
           <div class="detail-row"><span>Purchased For</span><span>${formatCurrency(car.purchasePrice)}</span></div>
           <div class="detail-row"><span>Market Value</span><span class="text-green">${formatCurrency(car.marketValue)}</span></div>
           <div class="detail-row"><span>Source</span><span>${car.source === 'factory' ? `${uiIcon('factory')} Factory` : `${uiIcon('car')} Used Market`}</span></div>
-          <div class="detail-row"><span>Lease Status</span><span>${isLeased ? `Active (${leaseDaysLeft}d left)` : car.leaseStatus === 'available' ? 'Available' : 'Not Offered'}</span></div>
-          ${isLeased ? `<div class="detail-row"><span>Lease Income / Day</span><span class="text-green">+${formatCurrency(car.activeLease.paymentPerDay)}</span></div>` : ''}
           ${car.isForSale ? `<div class="detail-row"><span>Days on Lot</span><span>${car.daysInLot}</span></div>` : ''}
           ${car.isForSale ? `<div class="detail-row"><span>Sale Chance</span><span>${saleChance}</span></div>` : ''}
         </div>
@@ -4912,6 +4908,7 @@ function renderCarLot() {
     </div>
     <div class="bulk-row">
       <button class="btn btn-sm btn-secondary" onclick="toggleShowLeasedCars()">${showLeased ? 'Hide Leased Cars' : 'Show Leased Cars'}</button>
+      <button class="btn btn-sm btn-secondary" onclick="switchTab('leasing')">${uiIcon('document')} Open Leasing Page</button>
     </div>
     ${state.upgrades.crmSuite ? `
       <div class="bulk-row">
@@ -4923,6 +4920,195 @@ function renderCarLot() {
         <button class="btn btn-sm btn-secondary" onclick="staffListCars()">${uiIcon('person')} Staff: List All Cars</button>
       </div>` : ''}
     <div class="card-grid">${cards}</div>`;
+}
+
+// ============================================================
+// RENDER — Leasing (dedicated page)
+// ============================================================
+function renderLeasing() {
+  const el = document.getElementById('tab-leasing');
+  if (!el) return;
+
+  const eligibleCars = state.garage.filter(c =>
+    c.leaseStatus === 'none' && !c.inServiceUntilDay && !c.isForSale);
+  const offeredCars = state.garage.filter(c => c.leaseStatus === 'available');
+  const activeCars  = state.garage.filter(c => c.leaseStatus === 'active' && c.activeLease);
+
+  if (!state.garage.length) {
+    el.innerHTML = `<div class="empty-state">
+      <p>Your lot is empty. Order from the <strong>Factory</strong> tab or buy from <strong>Used Market</strong>
+      before you can offer cars for lease.</p></div>`;
+    return;
+  }
+
+  const leaseIncome     = computeLeaseIncomePerDay();
+  const earnedThisCycle = activeCars.reduce((s, c) => s + (c.activeLease.totalPaid || 0), 0);
+
+  // ── Program status chips ──────────────────────────────────
+  const lm = !!state.upgrades.leaseManagement;
+  const fl = !!state.upgrades.fleetLeasing;
+  const programChips = `
+    <div class="program-chip-row">
+      <span class="program-chip ${lm ? 'active' : ''}">${uiIcon('document')} Lease Management System — ${lm ? 'Active (+8% pay, +25% leads, +1 start/day)' : 'Not purchased'}</span>
+      <span class="program-chip ${fl ? 'active' : ''}">${uiIcon('fileText')} Fleet Leasing Program — ${fl ? 'Active (+5% pay, +25% leads, +2 starts/day)' : 'Not purchased'}</span>
+      <span class="program-chip active">${uiIcon('calendar')} Lease Starts Cap — ${getLeaseStartCap()}/day</span>
+    </div>`;
+
+  // ── KPI strip ──────────────────────────────────────────────
+  const kpiRow = `
+    <div class="kpi-row">
+      <div class="kpi-tile kpi-lease-a">
+        <div class="kpi-icon-wrap">${uiIconLg('document')}</div>
+        <div><div class="kpi-value">${activeCars.length}</div><div class="kpi-label">Active Leases</div></div>
+      </div>
+      <div class="kpi-tile kpi-lease-b">
+        <div class="kpi-icon-wrap">${uiIconLg('cash')}</div>
+        <div><div class="kpi-value text-green">+${formatCurrency(leaseIncome)}</div><div class="kpi-label">Income / Day</div></div>
+      </div>
+      <div class="kpi-tile kpi-lease-c">
+        <div class="kpi-icon-wrap">${uiIconLg('tag')}</div>
+        <div><div class="kpi-value">${offeredCars.length}</div><div class="kpi-label">Awaiting Lessee</div></div>
+      </div>
+      <div class="kpi-tile kpi-lease-d">
+        <div class="kpi-icon-wrap">${uiIconLg('trendingUp')}</div>
+        <div><div class="kpi-value">${formatCurrency(earnedThisCycle)}</div><div class="kpi-label">Earned This Cycle</div></div>
+      </div>
+    </div>`;
+
+  // ── Income breakdown chart (one bar per active lease) ───────
+  let chartSection = '';
+  if (activeCars.length) {
+    const maxPay = Math.max(...activeCars.map(c => c.activeLease.paymentPerDay || 0), 1);
+    const rows = activeCars
+      .slice()
+      .sort((a, b) => (b.activeLease.paymentPerDay || 0) - (a.activeLease.paymentPerDay || 0))
+      .map(c => {
+        const pay = c.activeLease.paymentPerDay || 0;
+        const pct = Math.max(4, Math.round((pay / maxPay) * 100));
+        return `
+        <div class="lease-chart-row">
+          <span class="lease-chart-label">${formatCarDisplayName(c)}</span>
+          <div class="lease-chart-track"><div class="lease-chart-fill" style="width:${pct}%"></div></div>
+          <span class="lease-chart-value">+${formatCurrency(pay)}/d</span>
+        </div>`;
+      }).join('');
+    chartSection = `
+      <div class="dash-card dash-card-wide lease-chart-card">
+        <h3>${uiIcon('chartBar')} Lease Income Breakdown</h3>
+        ${rows}
+      </div>`;
+  }
+
+  // ── Last lease return recap ─────────────────────────────────
+  let returnSection = '';
+  const r = state.lastLeaseReturnReport;
+  if (r) {
+    returnSection = `
+      <div class="dash-card dash-card-wide lease-chart-card">
+        <h3>${uiIcon('fileText')} Last Lease Return — Day ${r.day}</h3>
+        <div class="stat-row"><span>Vehicle</span><strong>${r.carLabel}</strong></div>
+        <div class="stat-row"><span>Income Earned</span><strong class="text-green">+${formatCurrency(r.incomeEarned)}</strong></div>
+        <div class="stat-row"><span>Miles Added</span><strong>${r.milesAdded.toLocaleString()} mi</strong></div>
+        <div class="stat-row"><span>Condition</span><strong>${r.conditionBefore} → ${r.conditionAfter}</strong></div>
+        <div class="stat-row"><span>Issues Found</span><strong class="${r.issuesAdded.length ? 'text-yellow' : 'text-green'}">${r.issuesAdded.length ? r.issuesAdded.join(', ') : 'None'}</strong></div>
+      </div>`;
+  }
+
+  // ── Column 1: eligible to offer ─────────────────────────────
+  const eligibleHtml = eligibleCars.length
+    ? eligibleCars.map(car => `
+      <div class="lease-mini-card">
+        <div class="lease-mini-top">
+          <span class="lease-mini-name">${formatCarDisplayName(car)}</span>
+          ${condBadge(car.condition)}
+        </div>
+        <div class="lease-mini-sub"><span>Market Value</span><span>${formatCurrency(car.marketValue)}</span></div>
+        <div class="lease-mini-sub"><span>Est. Payment</span><span class="text-green">+${formatCurrency(computeLeasePaymentPerDay(car))}/day</span></div>
+        <button class="btn btn-sm btn-secondary" onclick="makeLeaseAvailable('${car.id}')">${uiIcon('document')} Offer Lease</button>
+      </div>`).join('')
+    : `<div class="lease-column-empty">No eligible cars right now. A car must be in your lot, not for sale, and not in service.</div>`;
+
+  // ── Column 2: awaiting a lessee ──────────────────────────────
+  const offeredHtml = offeredCars.length
+    ? offeredCars.map(car => `
+      <div class="lease-mini-card">
+        <div class="lease-mini-top">
+          <span class="lease-mini-name">${formatCarDisplayName(car)}</span>
+          <span class="badge badge-blue">LISTED</span>
+        </div>
+        <div class="lease-mini-sub"><span>Market Value</span><span>${formatCurrency(car.marketValue)}</span></div>
+        <div class="lease-mini-sub"><span>Est. Payment</span><span class="text-green">+${formatCurrency(computeLeasePaymentPerDay(car))}/day</span></div>
+        <button class="btn btn-sm btn-warning" onclick="stopOfferingLease('${car.id}')">${uiIcon('stop')} Stop Offering</button>
+      </div>`).join('')
+    : `<div class="lease-column-empty">Nothing waiting on a lessee. Offer a car for lease from the left column — a lead can arrive as soon as the next day.</div>`;
+
+  // ── Column 3: active leases (rich cards) ─────────────────────
+  const activeHtml = activeCars.length
+    ? activeCars.map(car => {
+        const lease = car.activeLease;
+        const daysLeft = Math.max(0, lease.endDay - state.day);
+        const termPct  = Math.round(clamp((state.day - lease.startDay) / Math.max(1, lease.termDays), 0, 1) * 100);
+        const milesPct = Math.min(100, Math.round(((lease.totalMilesAdded || 0) / LEASE_CONDITION_DROP_TWO_STEP_MILES) * 100));
+        const milesWarn = (lease.totalMilesAdded || 0) >= LEASE_CONDITION_DROP_ONE_STEP_MILES;
+        const issueCount = (lease.pendingIssues || []).length;
+        return `
+        <div class="lease-active-card">
+          <div class="lease-active-top">
+            <div class="lease-ring" style="--pct:${termPct}"><div class="lease-ring-inner"><b>${termPct}%</b><small>term</small></div></div>
+            <div class="lease-active-info">
+              <div class="lease-active-name">${formatCarDisplayName(car)}</div>
+              <div class="lease-active-sub">${daysLeft} day(s) left of ${lease.termDays}d term</div>
+            </div>
+          </div>
+          <div class="lease-active-stats">
+            <div class="detail-row"><span>Payment / Day</span><span class="text-green">+${formatCurrency(lease.paymentPerDay)}</span></div>
+            <div class="detail-row"><span>Income Earned</span><span class="text-green">${formatCurrency(lease.totalPaid || 0)}</span></div>
+            <div class="detail-row"><span>Miles Added</span><span>${(lease.totalMilesAdded || 0).toLocaleString()} mi</span></div>
+            <div class="detail-row"><span>Term</span><span>${lease.termDays}d</span></div>
+          </div>
+          <div>
+            <div class="lease-bar-label"><span>Mileage wear</span><span>${(lease.totalMilesAdded || 0).toLocaleString()} / ${LEASE_CONDITION_DROP_TWO_STEP_MILES.toLocaleString()} mi</span></div>
+            <div class="lease-bar-track"><div class="lease-bar-fill ${milesWarn ? 'warn' : ''}" style="width:${milesPct}%"></div></div>
+          </div>
+          ${issueCount ? `<div class="lease-issue-note">${uiIcon('warning')} ${issueCount} issue(s) will surface at return</div>` : ''}
+          <button class="btn btn-sm btn-secondary" onclick="viewLeaseDetails('${car.id}')">${uiIcon('fileText')} Full Details</button>
+        </div>`;
+      }).join('')
+    : `<div class="lease-column-empty">No active leases yet. Once a car is offered, a lessee may pick it up as soon as the next day.</div>`;
+
+  el.innerHTML = `
+    <div class="tab-info">
+      ${uiIcon('document')} Leasing turns idle inventory into daily income: offer a car, wait for a lessee, then collect
+      payments until the term ends and the car returns (with mileage, wear, and maybe a surprise issue or two).
+      Leased cars can't be sold, reconditioned, or traded in until they come back.
+    </div>
+    ${programChips}
+    ${kpiRow}
+    ${returnSection}
+    ${chartSection}
+    <div class="lease-columns">
+      <div class="lease-column">
+        <div class="lease-column-header">
+          <span class="lease-column-title">${uiIcon('tag')} Eligible to Offer</span>
+          <span class="lease-column-count">${eligibleCars.length}</span>
+        </div>
+        <div class="lease-column-list">${eligibleHtml}</div>
+      </div>
+      <div class="lease-column">
+        <div class="lease-column-header">
+          <span class="lease-column-title">${uiIcon('inbox')} Awaiting Lessee</span>
+          <span class="lease-column-count">${offeredCars.length}</span>
+        </div>
+        <div class="lease-column-list">${offeredHtml}</div>
+      </div>
+      <div class="lease-column">
+        <div class="lease-column-header">
+          <span class="lease-column-title">${uiIcon('key')} Active Leases</span>
+          <span class="lease-column-count">${activeCars.length}</span>
+        </div>
+        <div class="lease-column-list">${activeHtml}</div>
+      </div>
+    </div>`;
 }
 
 // ============================================================
@@ -5746,6 +5932,7 @@ function renderAll() {
     case 'factory':     renderFactory();         break;
     case 'usedmarket':  renderUsedMarket();      break;
     case 'carlot':      renderCarLot();          break;
+    case 'leasing':     renderLeasing();         break;
     case 'garage':      renderServiceGarage();   break;
     case 'forsale':     renderForSale();         break;
     case 'finance':     renderFinance();         break;
@@ -5772,6 +5959,7 @@ function switchTab(name) {
     case 'factory':     renderFactory();         break;
     case 'usedmarket':  renderUsedMarket();      break;
     case 'carlot':      renderCarLot();          break;
+    case 'leasing':     renderLeasing();         break;
     case 'garage':      renderServiceGarage();   break;
     case 'forsale':     renderForSale();         break;
     case 'finance':     renderFinance();         break;
@@ -7392,12 +7580,12 @@ function init() {
     inspectTradeIn, applyTitleRecoveryTradeIn,
     acceptCustomerOffer, rejectCustomerOffer, counterCustomerOffer, applyStaffSuggestion,
     markForSale, updateListPrice, setListPriceMultiplier, markAllForSale, unlistAllCars, bulkSetListing,
-    makeLeaseAvailable, stopOfferingLease, viewLeaseDetails, toggleShowLeasedCars,
+    makeLeaseAvailable, stopOfferingLease, viewLeaseDetails, toggleShowLeasedCars, switchTab,
     buyUpgrade, detailCar, carWash, basicRepair, partsUpgrade,
     drawLoan, payDownLoan,
     confirmNewGame, exportSave, hireStaff, dismissCandidate,
     toggleDarkMode, setDifficulty, toggleSfxMuted, setSfxVolume, toggleTutorials,
-    renderCarLot, renderServiceGarage, renderForSale, renderUsedMarket, renderFinance, renderAchievements,
+    renderCarLot, renderLeasing, renderServiceGarage, renderForSale, renderUsedMarket, renderFinance, renderAchievements,
     menuToggleDark, menuToggleSfx, menuToggleTutorials, menuSetDifficulty,
     returnToMenu,
     showPatchNotesModal, closePatchNotesModal,
