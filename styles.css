@@ -65,6 +65,7 @@
   --accent-finance:     #2ed59f;
   --accent-upgrades:    #4d9dff;
   --accent-achievement: #ffd35d;
+  --accent-leasing:     #38bdf8;
 
   --font-display: 'Space Grotesk', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-body:    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -492,6 +493,7 @@ h1, h2, h3, h4, h5,
 #tab-forsale       .car-card { border-top-color: var(--accent-forsale); }
 #tab-upgrades      .car-card { border-top-color: var(--accent-upgrades); }
 #tab-achievements  .car-card { border-top-color: var(--accent-achievement); }
+#tab-leasing       .car-card { border-top-color: var(--accent-leasing); }
 
 .car-actions {
   display: flex;
@@ -1815,3 +1817,146 @@ body.dark ::-webkit-scrollbar-track { background: rgba(3, 12, 26, .55); }
 
 /* The tab strip keeps its hidden scrollbar. */
 .tab-nav::-webkit-scrollbar { display: none; }
+
+/* ============================================================
+   Leasing — dedicated page
+   ============================================================ */
+.kpi-lease-a { background: linear-gradient(160deg, rgba(56,189,248,.18), rgba(14,40,70,.7)); }
+.kpi-lease-a .kpi-icon-wrap { background: rgba(56,189,248,.24); color: #bdeeff; }
+.kpi-lease-b { background: linear-gradient(160deg, rgba(46,213,159,.16), rgba(14,40,70,.7)); }
+.kpi-lease-b .kpi-icon-wrap { background: rgba(46,213,159,.22); color: #9dffe1; }
+.kpi-lease-c { background: linear-gradient(160deg, rgba(255,191,93,.16), rgba(14,40,70,.7)); }
+.kpi-lease-c .kpi-icon-wrap { background: rgba(255,191,93,.22); color: #ffe2b5; }
+.kpi-lease-d { background: linear-gradient(160deg, rgba(180,123,255,.16), rgba(14,40,70,.7)); }
+.kpi-lease-d .kpi-icon-wrap { background: rgba(180,123,255,.22); color: #e3d1ff; }
+
+/* Lease Program status strip */
+.program-chip-row { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 22px; }
+.program-chip {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 14px; border-radius: 20px;
+  font-size: .78rem; font-weight: 700;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, .04);
+  color: var(--text-muted);
+}
+.program-chip.active   { border-color: rgba(56,189,248,.5); background: rgba(56,189,248,.14); color: #bdeeff; }
+.program-chip .ui-icon { flex-shrink: 0; }
+
+/* Three-column lease pipeline */
+.lease-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  gap: 20px;
+  align-items: start;
+  margin-bottom: 26px;
+}
+.lease-column {
+  background: linear-gradient(180deg, rgba(14, 40, 70, .55), rgba(10, 28, 53, .45));
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--accent-leasing);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  min-width: 0;
+}
+.lease-column-header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; margin-bottom: 12px; padding-bottom: 9px;
+  border-bottom: 2px solid var(--border);
+  font-weight: 800; font-size: .9rem;
+}
+.lease-column-header .ui-icon { flex-shrink: 0; }
+.lease-column-title { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.lease-column-count {
+  background: rgba(255, 255, 255, .1);
+  padding: 2px 10px; border-radius: 20px;
+  font-size: .74rem; font-weight: 800;
+  flex-shrink: 0;
+}
+.lease-column-list { display: flex; flex-direction: column; gap: 12px; }
+.lease-column-empty { font-size: .78rem; color: var(--text-muted); padding: 10px 2px; line-height: 1.5; }
+
+/* Compact "mini" car entries for the not-yet-leased columns */
+.lease-mini-card {
+  background: rgba(6, 18, 34, .45);
+  border: 1px solid rgba(132, 173, 236, .16);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 8px;
+  transition: border-color var(--transition), transform var(--transition-bounce);
+}
+.lease-mini-card:hover { border-color: rgba(157, 196, 255, .4); transform: translateY(-2px); }
+.lease-mini-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; min-width: 0; }
+.lease-mini-name { font-weight: 700; font-size: .86rem; overflow-wrap: anywhere; }
+.lease-mini-sub { font-size: .74rem; color: var(--text-muted); display: flex; justify-content: space-between; gap: 8px; }
+.lease-mini-card .btn { width: 100%; }
+
+/* Rich active-lease cards */
+.lease-active-card {
+  background: linear-gradient(180deg, var(--card-grad-start), var(--card-grad-end));
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--accent-leasing);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 12px;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--transition), transform var(--transition-bounce);
+}
+.lease-active-card:hover { box-shadow: var(--shadow); transform: translateY(-3px); }
+.lease-active-top { display: flex; gap: 12px; align-items: center; min-width: 0; }
+.lease-active-name { font-weight: 700; font-size: .95rem; line-height: 1.3; overflow-wrap: anywhere; }
+.lease-active-sub { font-size: .74rem; color: var(--text-muted); margin-top: 2px; }
+.lease-active-info { flex: 1 1 auto; min-width: 0; }
+
+/* Circular term-progress ring, built with a conic-gradient */
+.lease-ring {
+  width: 58px; height: 58px; border-radius: 50%;
+  flex-shrink: 0;
+  background: conic-gradient(var(--accent-leasing) calc(var(--pct) * 1%), rgba(255,255,255,.1) 0);
+  display: flex; align-items: center; justify-content: center;
+}
+.lease-ring-inner {
+  width: 46px; height: 46px; border-radius: 50%;
+  background: var(--bg-alt);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  line-height: 1.05;
+}
+.lease-ring-inner b { font-size: .78rem; font-weight: 800; color: var(--text); }
+.lease-ring-inner small { font-size: .52rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .3px; }
+
+.lease-active-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 12px;
+  background: rgba(6, 18, 34, .38);
+  border: 1px solid rgba(132, 173, 236, .12);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+}
+
+.lease-bar-label { display: flex; justify-content: space-between; font-size: .72rem; color: var(--text-muted); margin-bottom: 3px; }
+.lease-bar-track { height: 8px; border-radius: 6px; background: rgba(255,255,255,.08); overflow: hidden; }
+.lease-bar-fill { height: 100%; border-radius: 6px; background: linear-gradient(90deg, var(--info), var(--accent-leasing)); }
+.lease-bar-fill.warn { background: linear-gradient(90deg, var(--warning), var(--danger)); }
+
+.lease-issue-note {
+  font-size: .72rem; color: var(--warning);
+  display: flex; align-items: center; gap: 5px;
+}
+
+/* Income-by-lease horizontal bar chart */
+.lease-chart-card { margin-bottom: 26px; }
+.lease-chart-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: .78rem; }
+.lease-chart-label {
+  width: 42%; max-width: 220px; flex-shrink: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--text-muted);
+}
+.lease-chart-track { flex: 1 1 auto; height: 14px; background: rgba(255,255,255,.06); border-radius: 8px; overflow: hidden; min-width: 40px; }
+.lease-chart-fill { height: 100%; border-radius: 8px; background: linear-gradient(90deg, var(--accent-leasing), var(--primary)); }
+.lease-chart-value { width: 78px; flex-shrink: 0; text-align: right; font-weight: 700; color: var(--success); }
+
+@media (max-width: 480px) {
+  .lease-active-stats { grid-template-columns: 1fr; }
+  .lease-chart-label { width: 34%; }
+}
