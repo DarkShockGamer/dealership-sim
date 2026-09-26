@@ -18,7 +18,7 @@ const PATCH_NOTES = [
     version: '1.8.6',
     date: 'September 2026',
     notes: [
-      { type: 'fix', text: "The Car Lot sort control still opened an unstyled white list, because a native <select>'s <option> menu is rendered by the OS and mostly ignores CSS in every major browser — styling the box never touches the open list. Replaced it with a fully custom dropdown (button + a hand-built menu) that's themed end to end, in both light and dark mode." },
+      { type: 'fix', text: "The Car Lot sort control still opened an unstyled white list, because a native &lt;select&gt;'s &lt;option&gt; menu is rendered by the OS and mostly ignores CSS in every major browser — styling the box never touches the open list. Replaced it with a fully custom dropdown (button + a hand-built menu) that's themed end to end, in both light and dark mode." },
     ],
   },
   {
