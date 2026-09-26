@@ -2689,7 +2689,6 @@ function processLeases() {
       // ── Insurance: decide whether this is a total-loss payout or a covered repair ──
       const company = getActiveInsurance();
       const canClaim = company && insuranceCanClaim(company);
-      let insurancePart = '';
       let totaledByInsurance = false;
       if (canClaim && Math.random() < company.totalOutChance) {
         totaledByInsurance = true;
@@ -2697,8 +2696,29 @@ function processLeases() {
         const payout = Math.max(0, Math.round(insuredValue * company.totalOutPayoutPct) - company.deductible);
         recordInsuranceClaim(payout);
         state.totalCarsInsuredTotaled = (state.totalCarsInsuredTotaled || 0) + 1;
-        insurancePart = `\n\n🛡️ ${company.name} declared the vehicle a total loss and paid out ${formatCurrency(payout)}. The wreck has been removed from your lot.`;
         addNote(`🛡️ ${company.name} totaled ${carLabel} — paid ${formatCurrency(payout)}.`, 'info');
+        if (payout > 0) {
+          queueInsuranceModal(`
+            <div class="ins-event-header ins-event-header--loss">
+              <div class="ins-event-icon">💥</div>
+              <h3>Leased Vehicle Totaled</h3>
+              <p class="ins-event-sub">Declared a total loss after a crash while on lease.</p>
+            </div>
+            <div class="ins-event-section">
+              <div class="ins-event-section-title">Vehicle</div>
+              <div class="stat-row"><span>Car</span><strong>${carLabel}</strong></div>
+              <div class="stat-row"><span>Value Before Crash</span><strong>${formatCurrency(valueBefore)}</strong></div>
+              <div class="stat-row"><span>Lessee Payout (remaining payments)</span><strong class="text-green">${formatCurrency(remainingPayout)}</strong></div>
+            </div>
+            <div class="ins-event-section ins-event-payout">
+              <div class="ins-event-section-title">${uiIcon('shield')} Insurance Payout</div>
+              <div class="stat-row"><span>Insurer</span><strong>${company.name}</strong></div>
+              <div class="stat-row"><span>Deductible</span><strong>−${formatCurrency(company.deductible)}</strong></div>
+              <div class="stat-row"><span>Total-Loss Payout</span><strong class="text-green">${formatCurrency(payout)}</strong></div>
+            </div>
+            <p class="ins-event-footnote">${uiIcon('warning')} The wreck has been removed from your lot.</p>
+          `);
+        }
       }
 
       if (!totaledByInsurance) {
@@ -2715,35 +2735,44 @@ function processLeases() {
 
         // Frame survived — insurance (if any) covers a cut of the repair bill instead of totaling out.
         if (canClaim) {
+          const preRepairCost = car.repairCost;
           const repairCovered = Math.max(0, Math.round(car.repairCost * company.repairCoveragePct) - company.deductible);
           if (repairCovered > 0) {
             recordInsuranceClaim(repairCovered);
             car.repairCost = Math.max(0, car.repairCost - repairCovered);
-            insurancePart = `\n\n🛡️ Frame wasn't damaged — ${company.name} covered ${formatCurrency(repairCovered)} of the repair. Remaining repair cost: ${formatCurrency(car.repairCost)}.`;
             addNote(`🛡️ ${company.name} covered ${formatCurrency(repairCovered)} of ${carLabel}'s repair.`, 'info');
+            queueInsuranceModal(`
+              <div class="ins-event-header">
+                <div class="ins-event-icon">🔧</div>
+                <h3>Leased Vehicle Crashed</h3>
+                <p class="ins-event-sub">Frame wasn't damaged — repairs covered by insurance.</p>
+              </div>
+              <div class="ins-event-section">
+                <div class="ins-event-section-title">Vehicle</div>
+                <div class="stat-row"><span>Car</span><strong>${carLabel}</strong></div>
+                <div class="stat-row"><span>Condition</span><strong>Poor / Salvage title</strong></div>
+                <div class="stat-row"><span>Lessee Payout (remaining payments)</span><strong class="text-green">${formatCurrency(remainingPayout)}</strong></div>
+              </div>
+              <div class="ins-event-section ins-event-payout">
+                <div class="ins-event-section-title">${uiIcon('shield')} Insurance Payout</div>
+                <div class="stat-row"><span>Insurer</span><strong>${company.name}</strong></div>
+                <div class="stat-row"><span>Total Repair Cost</span><strong>${formatCurrency(preRepairCost)}</strong></div>
+                <div class="stat-row"><span>Covered by ${company.name}</span><strong class="text-green">${formatCurrency(repairCovered)}</strong></div>
+                <div class="stat-row"><span>You Still Owe</span><strong class="text-red">${formatCurrency(car.repairCost)}</strong></div>
+              </div>
+            `);
           }
         }
 
-        const repairPct = Math.round(car.repairCost / Math.max(1, valueBefore) * 100);
         addNote(
           `💥 Lease crash! ${carLabel} was wrecked. Lessee paid out ${formatCurrency(remainingPayout)} (remaining payments). Repair cost: ~${formatCurrency(car.repairCost)}.`,
           'error'
-        );
-        showModal(
-          '💥 Lease Vehicle Crashed!',
-          `${carLabel} was involved in a crash while on lease.\n\nLessee payout (remaining payments): ${formatCurrency(remainingPayout)}\nVehicle returned in Poor / Salvage condition.\nEstimated repair cost: ${formatCurrency(car.repairCost)} (${repairPct}% of car value)\n\nRepair or sell for parts — your call.${insurancePart}`,
-          () => {}
         );
       } else {
         totaledCarIds.push(car.id);
         addNote(
           `💥 Lease crash! ${carLabel} was wrecked and totaled. Lessee paid out ${formatCurrency(remainingPayout)} (remaining payments).`,
           'error'
-        );
-        showModal(
-          '💥 Lease Vehicle Crashed — Totaled!',
-          `${carLabel} was involved in a crash while on lease and declared a total loss.\n\nLessee payout (remaining payments): ${formatCurrency(remainingPayout)}${insurancePart}`,
-          () => {}
         );
       }
       showToast(`💥 Leased ${carLabel} was crashed!${totaledByInsurance ? ' Insurance totaled it.' : ' Payout received.'}`, 'error');
@@ -3514,6 +3543,26 @@ function processTheft() {
           recordInsuranceClaim(payout);
           state.totalCarsInsuredStolen = (state.totalCarsInsuredStolen || 0) + 1;
           claimNote = ` 🛡️ ${company.name} paid out ${formatCurrency(payout)}.`;
+          const carLabel = `${car.year} ${car.make} ${car.model}${car.trim ? ` ${car.trim}` : ''}`;
+          queueInsuranceModal(`
+            <div class="ins-event-header ins-event-header--loss">
+              <div class="ins-event-icon">🚨</div>
+              <h3>Vehicle Stolen</h3>
+              <p class="ins-event-sub">Taken from the lot overnight.</p>
+            </div>
+            <div class="ins-event-section">
+              <div class="ins-event-section-title">Vehicle</div>
+              <div class="stat-row"><span>Car</span><strong>${carLabel}</strong></div>
+              <div class="stat-row"><span>Mileage</span><strong>${(car.mileage || 0).toLocaleString()} mi</strong></div>
+              <div class="stat-row"><span>Market Value</span><strong>${formatCurrency(value)}</strong></div>
+            </div>
+            <div class="ins-event-section ins-event-payout">
+              <div class="ins-event-section-title">${uiIcon('shield')} Insurance Payout</div>
+              <div class="stat-row"><span>Insurer</span><strong>${company.name}</strong></div>
+              <div class="stat-row"><span>Deductible</span><strong>−${formatCurrency(company.deductible)}</strong></div>
+              <div class="stat-row"><span>Payout Received</span><strong class="text-green">${formatCurrency(payout)}</strong></div>
+            </div>
+          `);
         }
       }
       addNote(`🚨 THEFT: Your ${car.year} ${car.make} ${car.model} was stolen from the lot overnight! (Value: ${formatCurrency(value)})${claimNote}`, 'warning');
@@ -4021,6 +4070,7 @@ function nextDay() {
   runAchievementChecks();
   saveState();
   renderAll();
+  flushInsuranceModals(); // show any theft/crash insurance payout popups queued today
   const offerAlert = newOffers.length ? ` ${newOffers.length} offer(s) on your cars!` : '';
   const tradeAlert = newTIR.length   ? ` ${newTIR.length} trade-in request(s)!` : '';
   const leaseIncome = computeLeaseIncomePerDay();
@@ -6730,6 +6780,36 @@ function closeModal() {
 }
 
 // ============================================================
+// INSURANCE EVENT MODAL — large popup for theft/crash payouts
+// ============================================================
+// Only ever queued when the player actually has active, claim-honoring
+// insurance and a payout occurred — uninsured events stay as a toast/note.
+let _insuranceModalQueue = [];
+
+function queueInsuranceModal(html) {
+  _insuranceModalQueue.push(html);
+}
+
+/** Shows the next queued insurance event modal, if any. Safe to call repeatedly —
+ *  does nothing when the queue is empty or a modal is already on screen. */
+function flushInsuranceModals() {
+  const modalEl = document.getElementById('insurance-event-modal');
+  if (!modalEl || !modalEl.classList.contains('hidden')) return; // one already showing
+  if (_insuranceModalQueue.length === 0) return;
+  const html = _insuranceModalQueue.shift();
+  document.getElementById('insurance-event-content').innerHTML = html;
+  modalEl.classList.remove('hidden');
+  playSfx('modalOpen');
+}
+
+function closeInsuranceEventModal() {
+  document.getElementById('insurance-event-modal').classList.add('hidden');
+  playSfx('modalClose');
+  flushInsuranceModals(); // show the next one queued from the same day, if any
+}
+
+
+// ============================================================
 // PATCH NOTES MODAL
 // ============================================================
 /** Render the patch notes content and show the popup modal. */
@@ -8276,6 +8356,12 @@ function init() {
   document.getElementById('modal-cancel').addEventListener('click', closeModal);
   document.getElementById('modal').addEventListener('click', e => {
     if (e.target === document.getElementById('modal')) closeModal();
+  });
+
+  // Insurance event modal — OK button and backdrop click both close it
+  document.getElementById('insurance-event-ok').addEventListener('click', closeInsuranceEventModal);
+  document.getElementById('insurance-event-modal').addEventListener('click', e => {
+    if (e.target === document.getElementById('insurance-event-modal')) closeInsuranceEventModal();
   });
 
   // Patch notes modal — close on backdrop click
