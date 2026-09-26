@@ -2289,3 +2289,59 @@ body.dark ::-webkit-scrollbar-track { background: rgba(3, 12, 26, .55); }
   .ins-card-grid { grid-template-columns: 1fr; }
   .ins-status-strip { font-size: .78rem; }
 }
+
+
+/* ============================================================
+   Insurance Event Modal (theft / crash payout popups)
+   ============================================================ */
+.insurance-event-box {
+  max-width: 480px;
+  width: 92%;
+  padding: 0 0 24px;
+  overflow: hidden;
+}
+
+.ins-event-header {
+  text-align: center;
+  padding: 28px 24px 18px;
+  background: linear-gradient(135deg, rgba(46, 213, 159, .16), rgba(46, 213, 159, .04));
+  border-bottom: 1px solid rgba(46, 213, 159, .2);
+}
+.ins-event-header.ins-event-header--loss {
+  background: linear-gradient(135deg, rgba(255, 92, 92, .18), rgba(255, 92, 92, .04));
+  border-bottom-color: rgba(255, 92, 92, .22);
+}
+.ins-event-icon { font-size: 2.4rem; line-height: 1; margin-bottom: 8px; }
+.ins-event-header h3 { font-size: 1.15rem; margin: 0 0 4px; }
+.ins-event-sub { font-size: .82rem; color: var(--text-muted); margin: 0; }
+
+.ins-event-section { padding: 16px 24px 0; }
+.ins-event-section-title {
+  font-size: .7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.ins-event-payout .ins-event-section-title { color: #6fe3b8; }
+.ins-event-payout {
+  margin-top: 4px;
+  background: rgba(46, 213, 159, .06);
+  border-top: 1px dashed rgba(46, 213, 159, .18);
+  border-bottom: 1px dashed rgba(46, 213, 159, .18);
+  padding-bottom: 10px;
+}
+.ins-event-footnote {
+  font-size: .74rem;
+  color: var(--text-muted);
+  padding: 12px 24px 0;
+  margin: 0;
+  text-align: center;
+  font-style: italic;
+}
+.insurance-event-box .modal-actions { padding: 20px 24px 0; margin: 0; justify-content: center; }
+.insurance-event-box .modal-actions .btn { min-width: 140px; }
