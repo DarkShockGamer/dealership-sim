@@ -66,7 +66,6 @@
   --accent-upgrades:    #4d9dff;
   --accent-achievement: #ffd35d;
   --accent-leasing:     #38bdf8;
-  --accent-insurance:   #6c8cff;
 
   --font-display: 'Space Grotesk', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-body:    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -2017,6 +2016,8 @@ body.dark ::-webkit-scrollbar-track { background: rgba(3, 12, 26, .55); }
   transition: border-color var(--transition), transform var(--transition-bounce);
 }
 .lease-mini-card:hover { border-color: rgba(157, 196, 255, .4); transform: translateY(-2px); }
+.lease-mini-card-blocked { border-color: rgba(255, 107, 107, .35); background: rgba(45, 12, 12, .35); }
+.lease-mini-card-blocked:hover { border-color: rgba(255, 107, 107, .5); transform: none; }
 .lease-mini-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; min-width: 0; }
 .lease-mini-name { font-weight: 700; font-size: .86rem; overflow-wrap: anywhere; }
 .lease-mini-sub { font-size: .74rem; color: var(--text-muted); display: flex; justify-content: space-between; gap: 8px; }
@@ -2090,55 +2091,4 @@ body.dark ::-webkit-scrollbar-track { background: rgba(3, 12, 26, .55); }
 @media (max-width: 480px) {
   .lease-active-stats { grid-template-columns: 1fr; }
   .lease-chart-label { width: 34%; }
-}
-
-/* ============================================================
-   Insurance Tab
-   ============================================================ */
-#tab-insurance .dash-card { border-top-color: var(--accent-insurance); }
-
-.insurance-plan-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 18px;
-}
-
-.insurance-plan-card {
-  display: flex;
-  flex-direction: column;
-}
-.insurance-plan-card > *:not(.stat-row) { grid-column: unset; }
-.insurance-plan-card {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-.insurance-plan-card.plan-active {
-  border-color: rgba(108, 140, 255, .6);
-  box-shadow: 0 0 0 1px rgba(108, 140, 255, .3), var(--shadow-sm);
-}
-
-.insurance-status-card.insured { border-top-color: var(--accent-finance); }
-.insurance-status-card.uninsured { border-top-color: var(--text-muted); }
-
-.plan-list {
-  list-style: none;
-  margin: 10px 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  font-size: .78rem;
-}
-.plan-list li {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  line-height: 1.35;
-}
-.plan-list .ui-icon { margin-top: 2px; flex-shrink: 0; }
-.plan-pro { color: #9be8c4; }
-.plan-con { color: #ffc9a8; }
-
-@media (max-width: 480px) {
-  .insurance-plan-grid { grid-template-columns: 1fr; }
 }
