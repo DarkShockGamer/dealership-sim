@@ -11,9 +11,17 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.7.3';
+const GAME_VERSION = '1.8.0';
 
 const PATCH_NOTES = [
+  {
+    version: '1.8.0',
+    date: 'September 2026',
+    notes: [
+      { type: 'feature', text: 'New Insurance tab: sign a monthly policy with one of three insurers — ValueGuard (cheap but high deductible and a $50k coverage cap), Continental Auto Assurance (balanced, no cap), or Sterling Fleet Protect (near-full coverage, zero waiting period, but pricey with an early-cancellation fee). Insured cars stolen off the lot now pay out a market-value claim instead of a total loss, and lease vehicles that crash are either totaled out for a full payout or have their repair bill covered, depending on whether the frame was damaged.' },
+      { type: 'feature', text: 'Insurance is fully optional — go without and save the premium, or sign up and cancel anytime (Sterling charges an early-exit fee inside its first 20 days). Premiums bill automatically every 30 days based on your total insured fleet value; miss a payment with insufficient cash and the policy lapses.' },
+    ],
+  },
   {
     version: '1.7.3',
     date: 'September 2026',
@@ -363,7 +371,7 @@ const PATCH_NOTES = [
 // DEFAULT STATE
 // ============================================================
 const DEFAULT_STATE = {
-  saveVersion: 14,
+  saveVersion: 16,
   difficulty: 'normal',
   cash: 25000,
   day: 1,
@@ -470,6 +478,17 @@ const DEFAULT_STATE = {
   hardBankruptcyOccurred: false,
   konamiActivated: false,
   logoClickCount: 0,
+  // v1.8.0 — insurance
+  insurance: {
+    companyId: null,
+    startDay: null,
+    nextBillDay: null,
+    totalPremiumsPaid: 0,
+    totalClaimsPaid: 0,
+    claimsCount: 0,
+  },
+  totalCarsInsuredStolen: 0,
+  totalCarsInsuredTotaled: 0,
 };
 
 let state = JSON.parse(JSON.stringify(DEFAULT_STATE));
@@ -1884,6 +1903,22 @@ function loadState(slot) {
           day: loaded.day ?? 1,
         });
       }
+      if (loaded.saveVersion < 16) {
+        loaded.saveVersion = 16;
+        // v1.8.0: insurance system
+        loaded.insurance = loaded.insurance || {
+          companyId: null, startDay: null, nextBillDay: null,
+          totalPremiumsPaid: 0, totalClaimsPaid: 0, claimsCount: 0,
+        };
+        loaded.totalCarsInsuredStolen  = loaded.totalCarsInsuredStolen  ?? 0;
+        loaded.totalCarsInsuredTotaled = loaded.totalCarsInsuredTotaled ?? 0;
+        loaded.notifications = loaded.notifications || [];
+        loaded.notifications.unshift({
+          message: '🛡️ Save upgraded to v16 — new Insurance tab! Pick from three insurers to cover theft and lease crashes, or go without.',
+          type: 'info',
+          day: loaded.day ?? 1,
+        });
+      }
       // Always-apply defaults for new fields added in v14 (in case migration block is skipped)
       loaded.daysGoodStanding       = loaded.daysGoodStanding       ?? 0;
       loaded.hardBankruptcyOccurred = loaded.hardBankruptcyOccurred ?? false;
@@ -1893,6 +1928,12 @@ function loadState(slot) {
       if (loaded.serviceBayUnlockedDay === undefined) {
         loaded.serviceBayUnlockedDay = loaded.upgrades.serviceBay ? -9999 : null;
       }
+      loaded.insurance = loaded.insurance || {
+        companyId: null, startDay: null, nextBillDay: null,
+        totalPremiumsPaid: 0, totalClaimsPaid: 0, claimsCount: 0,
+      };
+      loaded.totalCarsInsuredStolen  = loaded.totalCarsInsuredStolen  ?? 0;
+      loaded.totalCarsInsuredTotaled = loaded.totalCarsInsuredTotaled ?? 0;
       // Migrate car objects
       for (const car of loaded.garage || []) migrateCar(car);
       for (const d of loaded.deliveries || []) migrateCar(d.car);
@@ -2611,6 +2652,7 @@ function computeRepairCost(car) {
 }
 
 function processLeases() {
+  const totaledCarIds = [];
   for (const car of state.garage) {
     if (car.leaseStatus !== 'active' || !car.activeLease) continue;
     const lease = car.activeLease;
@@ -2639,31 +2681,72 @@ function processLeases() {
       state.cash += remainingPayout;
       lease.totalPaid = (lease.totalPaid || 0) + remainingPayout;
 
-      // Return car in heavily damaged Poor / Salvage condition (condition code 'D' = Poor)
-      const valueBefore    = car.marketValue;
-      car.condition        = 'D';
-      car.titleStatus      = 'salvage';
-      // Repair cost is 90–130% of current market value — near or above the car's worth
-      car.repairCost       = Math.round(car.marketValue * randomFloat(LEASE_CRASH_REPAIR_COST_MIN, LEASE_CRASH_REPAIR_COST_MAX));
-      // Add structural crash damage entry to the car's hidden issues list
-      const structuralCost = Math.round(car.repairCost * LEASE_CRASH_STRUCTURAL_RATIO);
-      const crashIssue     = { name: 'Crash damage (structural)', cost: structuralCost };
-      if (!car.hiddenIssues.some(i => i.name === crashIssue.name)) car.hiddenIssues.push(crashIssue);
-      car.inspected = true;
-      const carLabel        = `${car.year} ${car.make} ${car.model}${car.trim ? ` ${car.trim}` : ''}`;
-      const repairPct       = Math.round(car.repairCost / Math.max(1, valueBefore) * 100);
-      addNote(
-        `💥 Lease crash! ${carLabel} was wrecked. Lessee paid out ${formatCurrency(remainingPayout)} (remaining payments). Repair cost: ~${formatCurrency(car.repairCost)}.`,
-        'error'
-      );
-      showModal(
-        '💥 Lease Vehicle Crashed!',
-        `${carLabel} was involved in a crash while on lease.\n\nLessee payout (remaining payments): ${formatCurrency(remainingPayout)}\nVehicle returned in Poor / Salvage condition.\nEstimated repair cost: ${formatCurrency(car.repairCost)} (${repairPct}% of car value)\n\nRepair or sell for parts — your call.`,
-        () => {}
-      );
-      showToast(`💥 Leased ${carLabel} was crashed! Payout received.`, 'error');
+      const carLabel     = `${car.year} ${car.make} ${car.model}${car.trim ? ` ${car.trim}` : ''}`;
+      const valueBefore  = car.marketValue;
       car.leaseStatus = 'none';
       car.activeLease = null;
+
+      // ── Insurance: decide whether this is a total-loss payout or a covered repair ──
+      const company = getActiveInsurance();
+      const canClaim = company && insuranceCanClaim(company);
+      let insurancePart = '';
+      let totaledByInsurance = false;
+      if (canClaim && Math.random() < company.totalOutChance) {
+        totaledByInsurance = true;
+        const insuredValue = Math.min(valueBefore, company.valueCap);
+        const payout = Math.max(0, Math.round(insuredValue * company.totalOutPayoutPct) - company.deductible);
+        recordInsuranceClaim(payout);
+        state.totalCarsInsuredTotaled = (state.totalCarsInsuredTotaled || 0) + 1;
+        insurancePart = `\n\n🛡️ ${company.name} declared the vehicle a total loss and paid out ${formatCurrency(payout)}. The wreck has been removed from your lot.`;
+        addNote(`🛡️ ${company.name} totaled ${carLabel} — paid ${formatCurrency(payout)}.`, 'info');
+      }
+
+      if (!totaledByInsurance) {
+        // Return car in heavily damaged Poor / Salvage condition (condition code 'D' = Poor)
+        car.condition   = 'D';
+        car.titleStatus = 'salvage';
+        // Repair cost is 90–130% of current market value — near or above the car's worth
+        car.repairCost  = Math.round(car.marketValue * randomFloat(LEASE_CRASH_REPAIR_COST_MIN, LEASE_CRASH_REPAIR_COST_MAX));
+        // Add structural crash damage entry to the car's hidden issues list
+        const structuralCost = Math.round(car.repairCost * LEASE_CRASH_STRUCTURAL_RATIO);
+        const crashIssue     = { name: 'Crash damage (structural)', cost: structuralCost };
+        if (!car.hiddenIssues.some(i => i.name === crashIssue.name)) car.hiddenIssues.push(crashIssue);
+        car.inspected = true;
+
+        // Frame survived — insurance (if any) covers a cut of the repair bill instead of totaling out.
+        if (canClaim) {
+          const repairCovered = Math.max(0, Math.round(car.repairCost * company.repairCoveragePct) - company.deductible);
+          if (repairCovered > 0) {
+            recordInsuranceClaim(repairCovered);
+            car.repairCost = Math.max(0, car.repairCost - repairCovered);
+            insurancePart = `\n\n🛡️ Frame wasn't damaged — ${company.name} covered ${formatCurrency(repairCovered)} of the repair. Remaining repair cost: ${formatCurrency(car.repairCost)}.`;
+            addNote(`🛡️ ${company.name} covered ${formatCurrency(repairCovered)} of ${carLabel}'s repair.`, 'info');
+          }
+        }
+
+        const repairPct = Math.round(car.repairCost / Math.max(1, valueBefore) * 100);
+        addNote(
+          `💥 Lease crash! ${carLabel} was wrecked. Lessee paid out ${formatCurrency(remainingPayout)} (remaining payments). Repair cost: ~${formatCurrency(car.repairCost)}.`,
+          'error'
+        );
+        showModal(
+          '💥 Lease Vehicle Crashed!',
+          `${carLabel} was involved in a crash while on lease.\n\nLessee payout (remaining payments): ${formatCurrency(remainingPayout)}\nVehicle returned in Poor / Salvage condition.\nEstimated repair cost: ${formatCurrency(car.repairCost)} (${repairPct}% of car value)\n\nRepair or sell for parts — your call.${insurancePart}`,
+          () => {}
+        );
+      } else {
+        totaledCarIds.push(car.id);
+        addNote(
+          `💥 Lease crash! ${carLabel} was wrecked and totaled. Lessee paid out ${formatCurrency(remainingPayout)} (remaining payments).`,
+          'error'
+        );
+        showModal(
+          '💥 Lease Vehicle Crashed — Totaled!',
+          `${carLabel} was involved in a crash while on lease and declared a total loss.\n\nLessee payout (remaining payments): ${formatCurrency(remainingPayout)}${insurancePart}`,
+          () => {}
+        );
+      }
+      showToast(`💥 Leased ${carLabel} was crashed!${totaledByInsurance ? ' Insurance totaled it.' : ' Payout received.'}`, 'error');
       continue;
     }
 
@@ -2719,6 +2802,10 @@ function processLeases() {
       car.leaseStatus = 'none';
       car.activeLease = null;
     }
+  }
+
+  if (totaledCarIds.length) {
+    state.garage = state.garage.filter(c => !totaledCarIds.includes(c.id));
   }
 
   let startedToday = 0;
@@ -3186,6 +3273,199 @@ function processService() {
 }
 
 // ============================================================
+// INSURANCE — v1.8.0
+// ============================================================
+// Three insurers, each with a distinct trade-off between premium cost,
+// deductible, payout generosity, and fine print. Coverage applies to
+// cars stolen off the lot and cars crashed while on lease. Entirely
+// optional — the player can run uninsured and pocket the premium instead.
+
+const INSURANCE_COMPANIES = [
+  {
+    id: 'valueguard',
+    name: 'ValueGuard Insurance',
+    icon: 'shield',
+    tagline: 'Bare-bones coverage for a lean operation watching every dollar.',
+    monthlyRate: 0.018,          // 1.8% of insured fleet value per month
+    minMonthlyPremium: 100,
+    deductible: 2000,
+    theftPayoutPct: 0.70,
+    totalOutChance: 0.35,        // odds a lease crash is declared a total loss vs. a covered repair
+    totalOutPayoutPct: 0.70,
+    repairCoveragePct: 0.55,
+    valueCap: 50000,             // cars worth more than this are covered only up to the cap
+    waitingPeriodDays: 5,        // claims aren't honored until the policy is this many days old
+    earlyCancelFeeDays: 0,
+    earlyCancelFee: 0,
+    pros: [
+      'Cheapest premium of the three insurers by a wide margin',
+      'No penalty for cancelling — walk away anytime',
+    ],
+    cons: [
+      '$2,000 deductible on every claim',
+      "Won't cover a car's value above $50,000",
+      '5-day waiting period before new claims are honored',
+      'Lowest payout percentages of the three',
+    ],
+  },
+  {
+    id: 'continental',
+    name: 'Continental Auto Assurance',
+    icon: 'building',
+    tagline: 'A steady, no-surprises insurer built for a growing lot.',
+    monthlyRate: 0.032,
+    minMonthlyPremium: 150,
+    deductible: 1000,
+    theftPayoutPct: 0.90,
+    totalOutChance: 0.55,
+    totalOutPayoutPct: 0.90,
+    repairCoveragePct: 0.80,
+    valueCap: Infinity,
+    waitingPeriodDays: 2,
+    earlyCancelFeeDays: 0,
+    earlyCancelFee: 0,
+    pros: [
+      'No coverage cap — every car on the lot is insured, whatever it\'s worth',
+      'Solid 90% payouts and only a 2-day waiting period',
+    ],
+    cons: [
+      'Meaningfully pricier than ValueGuard',
+      'Still a real $1,000 deductible per claim',
+    ],
+  },
+  {
+    id: 'sterling',
+    name: 'Sterling Fleet Protect',
+    icon: 'star',
+    tagline: 'White-glove protection for dealers who can\'t afford downtime.',
+    monthlyRate: 0.050,
+    minMonthlyPremium: 250,
+    deductible: 250,
+    theftPayoutPct: 1.00,
+    totalOutChance: 0.75,
+    totalOutPayoutPct: 1.00,
+    repairCoveragePct: 1.00,
+    valueCap: Infinity,
+    waitingPeriodDays: 0,
+    earlyCancelFeeDays: 20,
+    earlyCancelFee: 2500,
+    pros: [
+      'Full market-value payouts, a $250 deductible, and zero waiting period',
+      'Repairs covered 100% whenever the frame survives a crash',
+    ],
+    cons: [
+      'By far the most expensive premium',
+      '$2,500 penalty if you cancel within your first 20 days',
+    ],
+  },
+];
+
+function getInsuranceCompany(id) {
+  return INSURANCE_COMPANIES.find(c => c.id === id) || null;
+}
+
+/** Active insurer object, or null if the player is running uninsured. */
+function getActiveInsurance() {
+  if (!state.insurance || !state.insurance.companyId) return null;
+  return getInsuranceCompany(state.insurance.companyId);
+}
+
+/** Total market value of every owned car (lot + leased + in service) — what premiums are priced on. */
+function getInsurableFleetValue() {
+  return state.garage.reduce((sum, car) => sum + (car.marketValue || 0), 0);
+}
+
+function computeMonthlyPremium(company) {
+  if (!company) return 0;
+  return Math.max(company.minMonthlyPremium, Math.round(getInsurableFleetValue() * company.monthlyRate));
+}
+
+/** True once the active policy has cleared its waiting period and can pay claims. */
+function insuranceCanClaim(company) {
+  if (!company || !state.insurance?.startDay) return false;
+  return (state.day - state.insurance.startDay) >= company.waitingPeriodDays;
+}
+
+function recordInsuranceClaim(payout) {
+  if (payout <= 0) return;
+  state.cash += payout;
+  state.insurance.totalClaimsPaid = (state.insurance.totalClaimsPaid || 0) + payout;
+  state.insurance.claimsCount = (state.insurance.claimsCount || 0) + 1;
+}
+
+function selectInsurance(companyId) {
+  const company = getInsuranceCompany(companyId);
+  if (!company) return;
+  if (state.insurance?.companyId === companyId) { showToast('That policy is already active.', 'info'); return; }
+  if (state.insurance?.companyId) {
+    const ok = cancelInsurance(true);
+    if (!ok) return; // couldn't afford the switch (early-cancellation fee on the old policy)
+  }
+  state.insurance = {
+    companyId: company.id,
+    startDay: state.day,
+    nextBillDay: state.day + 30,
+    totalPremiumsPaid: state.insurance?.totalPremiumsPaid || 0,
+    totalClaimsPaid: state.insurance?.totalClaimsPaid || 0,
+    claimsCount: state.insurance?.claimsCount || 0,
+  };
+  addNote(`🛡️ Signed with ${company.name} — ${formatCurrency(computeMonthlyPremium(company))}/month.`, 'info');
+  showToast(`Insured with ${company.name}.`, 'success');
+  saveState();
+  renderAll();
+}
+
+/** Cancels the active policy. When switching to a new insurer mid-call, pass switching=true
+ *  to suppress the standalone toast/save (selectInsurance handles those) while still charging
+ *  any early-cancellation fee. Returns false only if an unavoidable fee can't be covered. */
+function cancelInsurance(switching = false) {
+  const company = getActiveInsurance();
+  if (!company) {
+    if (!switching) showToast('No active policy to cancel.', 'error');
+    return true;
+  }
+  const daysActive = state.day - (state.insurance.startDay ?? state.day);
+  const fee = (company.earlyCancelFeeDays > 0 && daysActive < company.earlyCancelFeeDays) ? company.earlyCancelFee : 0;
+  if (fee > 0 && state.cash < fee) {
+    showToast(`Cancelling now means a ${formatCurrency(fee)} early-cancellation fee — not enough cash on hand.`, 'error');
+    return false;
+  }
+  if (fee > 0) {
+    state.cash -= fee;
+    addNote(`🛡️ Cancelled ${company.name} early — ${formatCurrency(fee)} cancellation fee charged.`, 'warning');
+    showToast(`Cancelled — ${formatCurrency(fee)} early-cancellation fee.`, 'warning');
+  } else {
+    addNote(`🛡️ Cancelled insurance policy with ${company.name}.`, 'info');
+    if (!switching) showToast('Insurance policy cancelled.', 'info');
+  }
+  state.insurance.companyId = null;
+  state.insurance.startDay = null;
+  state.insurance.nextBillDay = null;
+  if (!switching) { saveState(); renderAll(); }
+  return true;
+}
+
+/** Bills the active policy every 30 days. A missed payment (not enough cash) lapses the policy. */
+function processInsuranceBilling() {
+  const company = getActiveInsurance();
+  if (!company || !state.insurance.nextBillDay) return;
+  if (state.day < state.insurance.nextBillDay) return;
+  const premium = computeMonthlyPremium(company);
+  if (state.cash < premium) {
+    addNote(`🛡️ ${company.name} cancelled your policy — couldn't collect the ${formatCurrency(premium)} monthly premium.`, 'error');
+    showToast('Insurance lapsed — missed premium payment!', 'error');
+    state.insurance.companyId = null;
+    state.insurance.startDay = null;
+    state.insurance.nextBillDay = null;
+    return;
+  }
+  state.cash -= premium;
+  state.insurance.totalPremiumsPaid = (state.insurance.totalPremiumsPaid || 0) + premium;
+  state.insurance.nextBillDay += 30;
+  addNote(`🛡️ Insurance premium paid: ${formatCurrency(premium)} to ${company.name}.`, 'info');
+}
+
+// ============================================================
 // CAR THEFT — v1.3.0
 // ============================================================
 
@@ -3205,6 +3485,9 @@ function processTheft() {
   const chancePerCar = getTheftChancePerCar() * diffMult;
   if (chancePerCar <= 0) return;
 
+  const company = getActiveInsurance();
+  const canClaim = company && insuranceCanClaim(company);
+
   const remaining = [];
   for (const car of state.garage) {
     if (car.leaseStatus === 'active') {
@@ -3216,8 +3499,18 @@ function processTheft() {
       // Car stolen
       const value = car.marketValue || car.purchasePrice || 5000;
       state.totalCarsStolen = (state.totalCarsStolen || 0) + 1;
-      addNote(`🚨 THEFT: Your ${car.year} ${car.make} ${car.model} was stolen from the lot overnight! (Value: ${formatCurrency(value)})`, 'warning');
-      showToast(`🚨 Your ${car.year} ${car.make} ${car.model} was stolen!`, 'error');
+      let claimNote = '';
+      if (canClaim) {
+        const insuredValue = Math.min(value, company.valueCap);
+        const payout = Math.max(0, Math.round(insuredValue * company.theftPayoutPct) - company.deductible);
+        if (payout > 0) {
+          recordInsuranceClaim(payout);
+          state.totalCarsInsuredStolen = (state.totalCarsInsuredStolen || 0) + 1;
+          claimNote = ` 🛡️ ${company.name} paid out ${formatCurrency(payout)}.`;
+        }
+      }
+      addNote(`🚨 THEFT: Your ${car.year} ${car.make} ${car.model} was stolen from the lot overnight! (Value: ${formatCurrency(value)})${claimNote}`, 'warning');
+      showToast(`🚨 Your ${car.year} ${car.make} ${car.model} was stolen!${claimNote ? ' Insurance paid out.' : ''}`, 'error');
     } else {
       remaining.push(car);
     }
@@ -3699,6 +3992,7 @@ function nextDay() {
   processIncomingServiceCars();
   syncLoanTermsToDifficulty();
   processOverhead();          // daily lot/garage/staff costs
+  processInsuranceBilling();  // monthly insurance premium (bills every 30 days)
   processLoanAndDelinquency();// daily debt service and delinquency ladder
   processMarketVolatility();  // segment index drift + random events
   processMarketDepreciation();// value changes on inventory
@@ -4502,6 +4796,13 @@ function renderStats() {
   const activeLeases = state.garage.filter(c => c.leaseStatus === 'active' && c.activeLease).length;
   const leaseChip = document.getElementById('stat-lease');
   if (leaseChip) leaseChip.innerHTML = `${uiIcon('document')} Leases ${activeLeases} · ${formatCurrency(computeLeaseIncomePerDay())}/day`;
+  const insuranceChip = document.getElementById('stat-insurance');
+  if (insuranceChip) {
+    const company = getActiveInsurance();
+    insuranceChip.innerHTML = company
+      ? `${uiIcon('lock')} ${company.name.split(' ')[0]} · ${formatCurrency(computeMonthlyPremium(company))}/mo`
+      : `${uiIcon('lock')} Uninsured`;
+  }
 }
 
 // ============================================================
@@ -4591,6 +4892,7 @@ function renderDashboard() {
         <div class="stat-row"><span>Credit Line Balance</span><strong class="${state.loanBalance > 0 ? 'text-red' : 'text-green'}">${formatCurrency(state.loanBalance)}</strong></div>
         <div class="stat-row"><span>Loan APR</span><strong>${(state.loanApr * 100).toFixed(1)}%</strong></div>
         <div class="stat-row"><span>Late Payments</span><strong class="${state.delinquencyLevel > 0 ? 'text-red' : 'text-green'}">Level ${state.delinquencyLevel || 0}</strong></div>
+        <div class="stat-row"><span>Insurance</span><strong class="${getActiveInsurance() ? 'text-green' : 'text-muted'}">${getActiveInsurance() ? `${getActiveInsurance().name} (${formatCurrency(computeMonthlyPremium(getActiveInsurance()))}/mo)` : 'None'}</strong></div>
         <div class="stat-row"><span>Total Cars Sold</span><strong>${state.salesHistory.length}</strong></div>
       </div>
 
@@ -5958,6 +6260,73 @@ function renderFinance() {
 }
 
 // ============================================================
+// RENDER — Insurance
+// ============================================================
+function renderInsurance() {
+  const el = document.getElementById('tab-insurance');
+  if (!el) return;
+
+  const fleetValue    = getInsurableFleetValue();
+  const activeCompany = getActiveInsurance();
+  const daysActive    = activeCompany ? (state.day - (state.insurance.startDay ?? state.day)) : 0;
+  const canClaim      = activeCompany ? insuranceCanClaim(activeCompany) : false;
+
+  const statusCard = `
+    <div class="dash-card dash-card-wide insurance-status-card ${activeCompany ? 'insured' : 'uninsured'}">
+      <h3>${uiIcon('shield')} Current Policy</h3>
+      ${activeCompany ? `
+        <div class="stat-row"><span>Insurer</span><strong>${activeCompany.name}</strong></div>
+        <div class="stat-row"><span>Insured Fleet Value</span><strong>${formatCurrency(fleetValue)}</strong></div>
+        <div class="stat-row"><span>Monthly Premium</span><strong class="text-red">−${formatCurrency(computeMonthlyPremium(activeCompany))}/mo</strong></div>
+        <div class="stat-row"><span>Next Bill</span><strong>Day ${state.insurance.nextBillDay}</strong></div>
+        <div class="stat-row"><span>Policy Status</span><strong class="${canClaim ? 'text-green' : 'text-yellow'}">${canClaim ? 'Active — claims honored' : `Waiting period — ${Math.max(0, activeCompany.waitingPeriodDays - daysActive)} day(s) left`}</strong></div>
+        <div class="stat-row"><span>Deductible</span><strong>${formatCurrency(activeCompany.deductible)} per claim</strong></div>
+        <div class="stat-row"><span>Lifetime Premiums Paid</span><strong class="text-red">${formatCurrency(state.insurance.totalPremiumsPaid || 0)}</strong></div>
+        <div class="stat-row"><span>Lifetime Claims Paid Out</span><strong class="text-green">${formatCurrency(state.insurance.totalClaimsPaid || 0)} (${state.insurance.claimsCount || 0} claim${(state.insurance.claimsCount || 0) === 1 ? '' : 's'})</strong></div>
+        <div class="bulk-row" style="margin-top:12px">
+          <button class="btn btn-sm btn-danger" onclick="cancelInsurance()">${uiIcon('ban')} Cancel Policy</button>
+        </div>
+        ${activeCompany.earlyCancelFeeDays > 0 && daysActive < activeCompany.earlyCancelFeeDays
+          ? `<p class="text-muted" style="font-size:.78rem;margin-top:8px">${uiIcon('warning')} Cancelling now triggers a ${formatCurrency(activeCompany.earlyCancelFee)} early-cancellation fee (${activeCompany.earlyCancelFeeDays - daysActive} day(s) left until it's waived).</p>`
+          : ''}
+      ` : `
+        <p class="text-muted" style="font-size:.85rem">You're running uninsured. Stolen lot cars and leased cars that crash are a total loss out of your own pocket. Pick a policy below to change that — or keep saving the premium and take your chances.</p>
+        <div class="stat-row"><span>Insured Fleet Value (if signed today)</span><strong>${formatCurrency(fleetValue)}</strong></div>
+      `}
+    </div>`;
+
+  const planCards = INSURANCE_COMPANIES.map(c => {
+    const isActive = activeCompany?.id === c.id;
+    const monthly  = computeMonthlyPremium(c);
+    const prosHtml = c.pros.map(p => `<li class="plan-pro">${uiIcon('check')} ${p}</li>`).join('');
+    const consHtml = c.cons.map(p => `<li class="plan-con">${uiIcon('warning')} ${p}</li>`).join('');
+    return `
+      <div class="dash-card insurance-plan-card ${isActive ? 'plan-active' : ''}">
+        <h3>${uiIcon(c.icon)} ${c.name}</h3>
+        <p class="text-muted" style="font-size:.8rem;margin-bottom:8px">${c.tagline}</p>
+        <div class="stat-row"><span>Est. Monthly Premium</span><strong class="text-red">${formatCurrency(monthly)}/mo</strong></div>
+        <div class="stat-row"><span>Deductible</span><strong>${formatCurrency(c.deductible)}</strong></div>
+        <div class="stat-row"><span>Theft Payout</span><strong>${Math.round(c.theftPayoutPct * 100)}% of value</strong></div>
+        <div class="stat-row"><span>Crash — Total Loss Odds</span><strong>${Math.round(c.totalOutChance * 100)}% (pays ${Math.round(c.totalOutPayoutPct * 100)}%)</strong></div>
+        <div class="stat-row"><span>Crash — Repair Coverage</span><strong>${Math.round(c.repairCoveragePct * 100)}%</strong></div>
+        <div class="stat-row"><span>Coverage Cap</span><strong>${c.valueCap === Infinity ? 'None' : formatCurrency(c.valueCap)}</strong></div>
+        <div class="stat-row"><span>Waiting Period</span><strong>${c.waitingPeriodDays ? `${c.waitingPeriodDays} day(s)` : 'None'}</strong></div>
+        <ul class="plan-list">${prosHtml}${consHtml}</ul>
+        <button class="btn ${isActive ? 'btn-secondary' : 'btn-primary'}" style="margin-top:10px;width:100%" onclick="selectInsurance('${c.id}')" ${isActive ? 'disabled' : ''}>
+          ${isActive ? `${uiIcon('check')} Currently Insured` : `${uiIcon('handshake')} Sign With ${c.name.split(' ')[0]}`}
+        </button>
+      </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="tab-info">
+      ${uiIcon('shield')} Insurance covers cars stolen off your lot and leased cars that crash. Premiums bill every 30 days based on your total insured fleet value — miss a payment and the policy lapses. Fully optional.
+    </div>
+    ${statusCard}
+    <div class="card-grid insurance-plan-grid">${planCards}</div>`;
+}
+
+// ============================================================
 // RECEIPTS — Purchase Agreements
 // ============================================================
 
@@ -6238,6 +6607,7 @@ function renderAll() {
     case 'garage':      renderServiceGarage();   break;
     case 'forsale':     renderForSale();         break;
     case 'finance':     renderFinance();         break;
+    case 'insurance':   renderInsurance();       break;
     case 'upgrades':    renderUpgrades();        break;
     case 'staff':       renderStaff();           break;
     case 'receipts':    renderReceipts();       break;
@@ -6266,6 +6636,7 @@ function switchTab(name) {
     case 'garage':      renderServiceGarage();   break;
     case 'forsale':     renderForSale();         break;
     case 'finance':     renderFinance();         break;
+    case 'insurance':   renderInsurance();       break;
     case 'upgrades':    renderUpgrades();        break;
     case 'staff':       renderStaff();           break;
     case 'receipts':    renderReceipts();       break;
@@ -7892,9 +8263,11 @@ function init() {
     makeLeaseAvailable, stopOfferingLease, viewLeaseDetails, toggleShowLeasedCars, switchTab,
     buyUpgrade, detailCar, carWash, basicRepair, partsUpgrade,
     drawLoan, payDownLoan,
+    selectInsurance, cancelInsurance,
     confirmNewGame, exportSave, hireStaff, dismissCandidate,
     toggleDarkMode, setDifficulty, toggleSfxMuted, setSfxVolume, toggleTutorials,
     renderCarLot, renderLeasing, renderServiceGarage, renderForSale, renderUsedMarket, renderFinance, renderAchievements,
+    renderInsurance,
     renderReceipts, viewReceipt, closeReceiptModal,
     menuToggleDark, menuToggleSfx, menuToggleTutorials, menuSetDifficulty,
     returnToMenu,
