@@ -11,9 +11,16 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.8.4';
+const GAME_VERSION = '1.8.5';
 
 const PATCH_NOTES = [
+  {
+    version: '1.8.5',
+    date: 'September 2026',
+    notes: [
+      { type: 'fix', text: 'The Car Lot sort dropdown was rendering as an unstyled, plain-white browser default. It now matches the game\'s theme (dark background, custom arrow, light/dark mode support) instead of looking out of place.' },
+    ],
+  },
   {
     version: '1.8.4',
     date: 'September 2026',
@@ -5539,7 +5546,7 @@ function renderCarLot() {
     <div class="bulk-row">
       <label style="display:flex; align-items:center; gap:6px;">
         Sort by:
-        <select onchange="setCarLotSort(this.value)">
+        <select class="lot-sort-select" onchange="setCarLotSort(this.value)">
           ${Object.entries(CAR_LOT_SORT_LABELS).map(([key, label]) =>
             `<option value="${key}" ${((settings.carLotSortBy || 'default') === key) ? 'selected' : ''}>${label}</option>`
           ).join('')}
