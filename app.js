@@ -11,9 +11,16 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.8.6';
+const GAME_VERSION = '1.9.0';
 
 const PATCH_NOTES = [
+  {
+    version: '1.9.0',
+    date: 'September 2026',
+    notes: [
+      { type: 'feature', text: 'Added a Credits button to the main menu — a stylized, cinematic roll crediting the people who made the game: Game Directed By, Game Produced By, and Game Designed By Lucas Palmquist, and QA Tested By Raaed Baig.' },
+    ],
+  },
   {
     version: '1.8.6',
     date: 'September 2026',
@@ -7507,8 +7514,14 @@ function initHomeScreen() {
     playSfx('navigate');
   });
 
+  document.getElementById('menu-btn-credits').addEventListener('click', () => {
+    showMenuView('menu-view-credits');
+    playSfx('navigate');
+  });
+
   document.getElementById('menu-load-back').addEventListener('click', () => { showMenuView('menu-view-main'); playSfx('navigate'); });
   document.getElementById('menu-settings-back').addEventListener('click', () => { showMenuView('menu-view-main'); playSfx('navigate'); });
+  document.getElementById('menu-credits-back').addEventListener('click', () => { showMenuView('menu-view-main'); playSfx('navigate'); });
 
   // ── Delete confirmation dialog ───────────────────────────
   let pendingDeleteSlot = null;
