@@ -145,6 +145,17 @@
     </div>
   </div>
 
+  <!-- Purchase Agreement Modal -->
+  <div id="receipt-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="receipt-modal-title">
+    <div class="modal-box receipt-modal-box">
+      <div class="patch-notes-header">
+        <h3 id="receipt-modal-title">🧾 Purchase Agreement</h3>
+        <button class="btn btn-primary patch-notes-dismiss" onclick="closeReceiptModal()">Close</button>
+      </div>
+      <div id="receipt-content" class="receipt-modal-content"></div>
+    </div>
+  </div>
+
   <!-- Difficulty Picker Modal — shown when creating a new save slot -->
   <div id="difficulty-picker-modal" class="diff-picker-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="diff-picker-title">
     <div class="diff-picker-box">
@@ -208,6 +219,7 @@
       <button class="tab-btn"        id="tab-btn-finance" data-tab="finance"    role="tab" aria-selected="false" aria-controls="tab-finance"><img class="ui-icon" src="assets/icons/bank.svg" alt=""> Finance</button>
       <button class="tab-btn"        id="tab-btn-staff" data-tab="staff"       role="tab" aria-selected="false" aria-controls="tab-staff"><img class="ui-icon" src="assets/icons/person.svg" alt=""> Staff</button>
       <button class="tab-btn"        id="tab-btn-upgrades" data-tab="upgrades"   role="tab" aria-selected="false" aria-controls="tab-upgrades"><img class="ui-icon" src="assets/icons/arrow-up.svg" alt=""> Upgrades</button>
+      <button class="tab-btn"        id="tab-btn-receipts" data-tab="receipts"   role="tab" aria-selected="false" aria-controls="tab-receipts"><img class="ui-icon" src="assets/icons/receipt.svg" alt=""> Receipts</button>
     </nav>
 
     <!-- ── Tab Panels ─────────────────────────────────────── -->
@@ -221,6 +233,7 @@
       <div id="tab-forsale"    class="tab-panel"         role="tabpanel" aria-labelledby="tab-btn-forsale"></div>
       <div id="tab-finance"    class="tab-panel"         role="tabpanel" aria-labelledby="tab-btn-finance"></div>
       <div id="tab-upgrades"   class="tab-panel"         role="tabpanel" aria-labelledby="tab-btn-upgrades"></div>
+      <div id="tab-receipts"   class="tab-panel"         role="tabpanel" aria-labelledby="tab-btn-receipts"></div>
       <div id="tab-staff"      class="tab-panel"         role="tabpanel" aria-labelledby="tab-btn-staff"></div>
       <div id="tab-achievements"   class="tab-panel"         role="tabpanel" aria-labelledby="tab-btn-achievements"></div>
       <div id="tab-settings"   class="tab-panel"         role="tabpanel" aria-labelledby="tab-btn-settings"></div>
