@@ -3283,9 +3283,14 @@ function processService() {
 const INSURANCE_COMPANIES = [
   {
     id: 'valueguard',
-    name: 'ValueGuard Insurance',
-    icon: 'shield',
-    tagline: 'Bare-bones coverage for a lean operation watching every dollar.',
+    name: 'ThriftLane',
+    logoA: 'THRIFT',
+    logoB: 'LANE',
+    icon: 'lock',
+    tagline: '"Simple coverage, small price."',
+    brandStart: '#0f4c3a',
+    brandEnd:   '#0d8c6b',
+    brandAccent: '#2ed58f',
     monthlyRate: 0.018,          // 1.8% of insured fleet value per month
     minMonthlyPremium: 100,
     deductible: 2000,
@@ -3297,22 +3302,23 @@ const INSURANCE_COMPANIES = [
     waitingPeriodDays: 5,        // claims aren't honored until the policy is this many days old
     earlyCancelFeeDays: 0,
     earlyCancelFee: 0,
-    pros: [
-      'Cheapest premium of the three insurers by a wide margin',
-      'No penalty for cancelling — walk away anytime',
+    perks: [
+      { icon: 'cash', title: 'Lowest premium in town', desc: 'The cheapest monthly rate of any insurer.', badge: 'SIGNATURE PERK' },
+      { icon: 'ban',  title: 'Cancel anytime, no fee', desc: 'Walk away whenever you want — zero penalty.' },
+      { icon: 'shield', title: '70% theft & crash payout', desc: 'Solid coverage on stolen and totaled vehicles.' },
     ],
-    cons: [
-      '$2,000 deductible on every claim',
-      "Won't cover a car's value above $50,000",
-      '5-day waiting period before new claims are honored',
-      'Lowest payout percentages of the three',
-    ],
+    finePrint: '$2,000 deductible · no coverage above $50,000 · 5-day waiting period',
   },
   {
     id: 'continental',
-    name: 'Continental Auto Assurance',
+    name: 'SteadyDrive',
+    logoA: 'STEADY',
+    logoB: 'DRIVE',
     icon: 'building',
-    tagline: 'A steady, no-surprises insurer built for a growing lot.',
+    tagline: '"Reliable coverage, mile after mile."',
+    brandStart: '#0f2c5c',
+    brandEnd:   '#1f5fd6',
+    brandAccent: '#5b9bff',
     monthlyRate: 0.032,
     minMonthlyPremium: 150,
     deductible: 1000,
@@ -3324,20 +3330,23 @@ const INSURANCE_COMPANIES = [
     waitingPeriodDays: 2,
     earlyCancelFeeDays: 0,
     earlyCancelFee: 0,
-    pros: [
-      'No coverage cap — every car on the lot is insured, whatever it\'s worth',
-      'Solid 90% payouts and only a 2-day waiting period',
+    perks: [
+      { icon: 'layers', title: 'No coverage cap', desc: "Every car on your lot is insured, whatever it's worth.", badge: 'SIGNATURE PERK' },
+      { icon: 'trendingUp', title: '90% payout rate', desc: 'Strong payouts on theft and total-loss claims.' },
+      { icon: 'gauge', title: '2-day waiting period', desc: 'Coverage kicks in almost as soon as you sign.' },
     ],
-    cons: [
-      'Meaningfully pricier than ValueGuard',
-      'Still a real $1,000 deductible per claim',
-    ],
+    finePrint: '$1,000 deductible per claim · pricier than ThriftLane',
   },
   {
     id: 'sterling',
-    name: 'Sterling Fleet Protect',
+    name: 'GoldShield',
+    logoA: 'GOLD',
+    logoB: 'SHIELD',
     icon: 'star',
-    tagline: 'White-glove protection for dealers who can\'t afford downtime.',
+    tagline: '"Top-tier protection, zero compromise."',
+    brandStart: '#5c3a08',
+    brandEnd:   '#d69a1f',
+    brandAccent: '#ffc548',
     monthlyRate: 0.050,
     minMonthlyPremium: 250,
     deductible: 250,
@@ -3349,14 +3358,12 @@ const INSURANCE_COMPANIES = [
     waitingPeriodDays: 0,
     earlyCancelFeeDays: 20,
     earlyCancelFee: 2500,
-    pros: [
-      'Full market-value payouts, a $250 deductible, and zero waiting period',
-      'Repairs covered 100% whenever the frame survives a crash',
+    perks: [
+      { icon: 'trophy', title: '100% payouts', desc: 'Full market value on every covered claim.', badge: 'SIGNATURE PERK' },
+      { icon: 'gauge', title: 'Zero waiting period', desc: 'Coverage starts the moment you sign.' },
+      { icon: 'creditCard', title: '$250 deductible', desc: 'The lowest deductible of any insurer.' },
     ],
-    cons: [
-      'By far the most expensive premium',
-      '$2,500 penalty if you cancel within your first 20 days',
-    ],
+    finePrint: '$2,500 fee if cancelled within your first 20 days · priciest premium',
   },
 ];
 
@@ -6266,55 +6273,91 @@ function renderInsurance() {
   const el = document.getElementById('tab-insurance');
   if (!el) return;
 
-  const fleetValue    = getInsurableFleetValue();
   const activeCompany = getActiveInsurance();
   const daysActive    = activeCompany ? (state.day - (state.insurance.startDay ?? state.day)) : 0;
   const canClaim      = activeCompany ? insuranceCanClaim(activeCompany) : false;
+  const isUninsured   = !activeCompany;
 
-  const statusCard = `
-    <div class="dash-card dash-card-wide insurance-status-card ${activeCompany ? 'insured' : 'uninsured'}">
-      <h3>${uiIcon('shield')} Current Policy</h3>
-      ${activeCompany ? `
-        <div class="stat-row"><span>Insurer</span><strong>${activeCompany.name}</strong></div>
-        <div class="stat-row"><span>Insured Fleet Value</span><strong>${formatCurrency(fleetValue)}</strong></div>
-        <div class="stat-row"><span>Monthly Premium</span><strong class="text-red">−${formatCurrency(computeMonthlyPremium(activeCompany))}/mo</strong></div>
-        <div class="stat-row"><span>Next Bill</span><strong>Day ${state.insurance.nextBillDay}</strong></div>
-        <div class="stat-row"><span>Policy Status</span><strong class="${canClaim ? 'text-green' : 'text-yellow'}">${canClaim ? 'Active — claims honored' : `Waiting period — ${Math.max(0, activeCompany.waitingPeriodDays - daysActive)} day(s) left`}</strong></div>
-        <div class="stat-row"><span>Deductible</span><strong>${formatCurrency(activeCompany.deductible)} per claim</strong></div>
-        <div class="stat-row"><span>Lifetime Premiums Paid</span><strong class="text-red">${formatCurrency(state.insurance.totalPremiumsPaid || 0)}</strong></div>
-        <div class="stat-row"><span>Lifetime Claims Paid Out</span><strong class="text-green">${formatCurrency(state.insurance.totalClaimsPaid || 0)} (${state.insurance.claimsCount || 0} claim${(state.insurance.claimsCount || 0) === 1 ? '' : 's'})</strong></div>
-        <div class="bulk-row" style="margin-top:12px">
-          <button class="btn btn-sm btn-danger" onclick="cancelInsurance()">${uiIcon('ban')} Cancel Policy</button>
-        </div>
-        ${activeCompany.earlyCancelFeeDays > 0 && daysActive < activeCompany.earlyCancelFeeDays
-          ? `<p class="text-muted" style="font-size:.78rem;margin-top:8px">${uiIcon('warning')} Cancelling now triggers a ${formatCurrency(activeCompany.earlyCancelFee)} early-cancellation fee (${activeCompany.earlyCancelFeeDays - daysActive} day(s) left until it's waived).</p>`
-          : ''}
-      ` : `
-        <p class="text-muted" style="font-size:.85rem">You're running uninsured. Stolen lot cars and leased cars that crash are a total loss out of your own pocket. Pick a policy below to change that — or keep saving the premium and take your chances.</p>
-        <div class="stat-row"><span>Insured Fleet Value (if signed today)</span><strong>${formatCurrency(fleetValue)}</strong></div>
-      `}
+  // ── Slim status strip ──────────────────────────────────────────────
+  const statusStrip = activeCompany ? `
+    <div class="ins-status-strip">
+      ${uiIcon('shield')} Insured with <strong>${activeCompany.name}</strong>
+      · <strong class="text-red">${formatCurrency(computeMonthlyPremium(activeCompany))}/mo</strong>
+      · next bill Day ${state.insurance.nextBillDay}
+      ${canClaim ? '' : `· <span class="text-yellow">waiting period — ${Math.max(0, activeCompany.waitingPeriodDays - daysActive)}d left</span>`}
+      <button class="ins-status-cancel" onclick="cancelInsurance()">Cancel</button>
+    </div>
+    ${(state.insurance.claimsCount || 0) > 0 ? `
+      <div class="ins-status-lifetime">Lifetime: ${formatCurrency(state.insurance.totalPremiumsPaid || 0)} paid in premiums · ${formatCurrency(state.insurance.totalClaimsPaid || 0)} recovered across ${state.insurance.claimsCount} claim${state.insurance.claimsCount === 1 ? '' : 's'}.</div>
+    ` : ''}
+  ` : `
+    <div class="ins-status-strip">
+      ${uiIcon('warning')} Running uninsured — stolen lot cars and leased cars that crash come straight out of your own pocket.
+    </div>
+  `;
+
+  // ── "No Insurance" card ────────────────────────────────────────────
+  const noneCard = `
+    <div class="ins-card ins-card--none ${isUninsured ? 'ins-card--active' : ''}" style="--brand-accent:#ff5c5c">
+      <div class="ins-card-header">
+        <div class="ins-logo">${uiIcon('warning')} No Insurance</div>
+      </div>
+      <div class="ins-consequences">
+        <div class="ins-conseq-title">Consequences</div>
+        <div class="ins-conseq-row">Full repair cost out of pocket</div>
+        <div class="ins-conseq-row">No theft coverage on the lot</div>
+        <div class="ins-conseq-row">Not recommended</div>
+      </div>
+      <div class="ins-none-banner">
+        <div class="ins-none-banner-title">You will pay full costs</div>
+        <div class="ins-none-banner-sub">No coverage or benefits included</div>
+      </div>
+      <div class="ins-card-footer">
+        <button class="btn btn-secondary" onclick="cancelInsurance()" ${isUninsured ? 'disabled' : ''}>
+          ${isUninsured ? `${uiIcon('check')} Currently Uninsured` : `${uiIcon('ban')} Go Uninsured`}
+        </button>
+      </div>
     </div>`;
 
+  // ── Brand policy cards ──────────────────────────────────────────────
   const planCards = INSURANCE_COMPANIES.map(c => {
     const isActive = activeCompany?.id === c.id;
     const monthly  = computeMonthlyPremium(c);
-    const prosHtml = c.pros.map(p => `<li class="plan-pro">${uiIcon('check')} ${p}</li>`).join('');
-    const consHtml = c.cons.map(p => `<li class="plan-con">${uiIcon('warning')} ${p}</li>`).join('');
+    const perksHtml = c.perks.map(p => `
+      <div class="ins-perk ${p.badge ? 'ins-perk--signature' : ''}">
+        <span class="ins-perk-icon">${uiIcon(p.icon)}</span>
+        <div class="ins-perk-text">
+          <div class="ins-perk-title">${p.title}</div>
+          <div class="ins-perk-desc">${p.desc}</div>
+        </div>
+        ${p.badge ? `<span class="ins-badge">${p.badge}</span>` : ''}
+      </div>`).join('');
+
     return `
-      <div class="dash-card insurance-plan-card ${isActive ? 'plan-active' : ''}">
-        <h3>${uiIcon(c.icon)} ${c.name}</h3>
-        <p class="text-muted" style="font-size:.8rem;margin-bottom:8px">${c.tagline}</p>
-        <div class="stat-row"><span>Est. Monthly Premium</span><strong class="text-red">${formatCurrency(monthly)}/mo</strong></div>
-        <div class="stat-row"><span>Deductible</span><strong>${formatCurrency(c.deductible)}</strong></div>
-        <div class="stat-row"><span>Theft Payout</span><strong>${Math.round(c.theftPayoutPct * 100)}% of value</strong></div>
-        <div class="stat-row"><span>Crash — Total Loss Odds</span><strong>${Math.round(c.totalOutChance * 100)}% (pays ${Math.round(c.totalOutPayoutPct * 100)}%)</strong></div>
-        <div class="stat-row"><span>Crash — Repair Coverage</span><strong>${Math.round(c.repairCoveragePct * 100)}%</strong></div>
-        <div class="stat-row"><span>Coverage Cap</span><strong>${c.valueCap === Infinity ? 'None' : formatCurrency(c.valueCap)}</strong></div>
-        <div class="stat-row"><span>Waiting Period</span><strong>${c.waitingPeriodDays ? `${c.waitingPeriodDays} day(s)` : 'None'}</strong></div>
-        <ul class="plan-list">${prosHtml}${consHtml}</ul>
-        <button class="btn ${isActive ? 'btn-secondary' : 'btn-primary'}" style="margin-top:10px;width:100%" onclick="selectInsurance('${c.id}')" ${isActive ? 'disabled' : ''}>
-          ${isActive ? `${uiIcon('check')} Currently Insured` : `${uiIcon('handshake')} Sign With ${c.name.split(' ')[0]}`}
-        </button>
+      <div class="ins-card ${isActive ? 'ins-card--active' : ''}" style="--brand-start:${c.brandStart};--brand-end:${c.brandEnd};--brand-accent:${c.brandAccent}">
+        <div class="ins-card-header">
+          <div class="ins-logo">${uiIcon(c.icon)} <span class="ins-logo-word"><span class="ins-logo-a">${c.logoA}</span><span class="ins-logo-b">${c.logoB}</span></span></div>
+          <div class="ins-tagline">${c.tagline}</div>
+        </div>
+        <div class="ins-perks">${perksHtml}</div>
+        <div class="ins-stats">
+          <div class="ins-stat-box">
+            <div class="ins-stat-label">Deductible</div>
+            <div class="ins-stat-value">${formatCurrency(c.deductible)}</div>
+            <div class="ins-stat-note">You pay this per claim</div>
+          </div>
+          <div class="ins-stat-box">
+            <div class="ins-stat-label">Monthly Premium</div>
+            <div class="ins-stat-value green">${formatCurrency(monthly)}</div>
+            <div class="ins-stat-note">Billed automatically every 30 days</div>
+          </div>
+        </div>
+        <div class="ins-fine-print">${uiIcon('warning')} ${c.finePrint}</div>
+        <div class="ins-card-footer">
+          <button class="btn ${isActive ? 'btn-secondary' : 'btn-primary'}" onclick="selectInsurance('${c.id}')" ${isActive ? 'disabled' : ''}>
+            ${isActive ? `${uiIcon('check')} Currently Insured` : `${uiIcon('handshake')} Sign With ${c.name}`}
+          </button>
+        </div>
       </div>`;
   }).join('');
 
@@ -6322,8 +6365,8 @@ function renderInsurance() {
     <div class="tab-info">
       ${uiIcon('shield')} Insurance covers cars stolen off your lot and leased cars that crash. Premiums bill every 30 days based on your total insured fleet value — miss a payment and the policy lapses. Fully optional.
     </div>
-    ${statusCard}
-    <div class="card-grid insurance-plan-grid">${planCards}</div>`;
+    ${statusStrip}
+    <div class="ins-card-grid">${noneCard}${planCards}</div>`;
 }
 
 // ============================================================
