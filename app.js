@@ -5662,12 +5662,11 @@ function renderServiceGarage() {
 
   // Player-owned cars that need service or have damage — always visible regardless of serviceBay upgrade
   const playerServiceCars = (state.garage || []).filter(car => {
-    if (car.leaseStatus === 'active' && car.activeLease) return true; // leased cars always appear
     const issues = car.hiddenIssues || [];
     const repairNeeded = issues.length > 0
       || (car.condition !== 'A' && car.condition !== 'B')
       || (car.crashDamageSeverity && car.crashDamageSeverity !== 'none'); // catch old saves
-    return repairNeeded;
+    return repairNeeded; // leased cars only show up here if they actually have issues
   });
 
   const hasBay = !!state.upgrades.serviceBay;
