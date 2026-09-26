@@ -11,9 +11,17 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.6.6';
+const GAME_VERSION = '1.7.0';
 
 const PATCH_NOTES = [
+  {
+    version: '1.7.0',
+    date: 'September 2026',
+    notes: [
+      { type: 'feature', text: 'New "Receipts" tab: every completed sale now generates a real-looking signed Purchase Agreement (Buyer\'s Order) — dealer letterhead, vehicle description, VIN, and an itemized price breakdown. Click any past sale to pull up the full document.' },
+      { type: 'feature', text: 'Real dealer fees added to every sale: a $499 Documentation Fee, $85 Title Fee, and $60 Registration Fee are now collected from the buyer on top of the negotiated price — and, like at a real dealership, they go straight to your bottom line as extra profit.' },
+    ],
+  },
   {
     version: '1.6.6',
     date: 'September 2026',
@@ -506,6 +514,31 @@ const TITLE_VALUE_MULT = { clean: 1.00, rebuilt: 0.85, salvage: 0.67, lemon: 0.5
 const TITLE_BUYER_MULT = { clean: 1.00, rebuilt: 0.90, salvage: 0.72, lemon: 0.58 };
 const LIQUIDATION_MULT = { clean: 0.78, rebuilt: 0.68, salvage: 0.55, lemon: 0.45 };
 const TRANSACTION_FEE  = 0.02;
+
+// Real-life dealer fees added on top of the negotiated price at the point of sale —
+// the same "Doc Fee / Title Fee / Registration Fee" line items on a real Buyer's Order.
+// All three are collected from the buyer and kept as dealership profit.
+const DEALER_DOC_FEE   = 499;  // Dealer documentation/processing fee — pure profit in real life too
+const DEALER_TITLE_FEE = 85;   // Title transfer fee
+const DEALER_REG_FEE   = 60;   // Registration / plate transfer fee
+/** Flat dealer-fee bundle charged on every completed sale. Returns the line items plus total. */
+function computeDealerFees() {
+  const total = DEALER_DOC_FEE + DEALER_TITLE_FEE + DEALER_REG_FEE;
+  return { doc: DEALER_DOC_FEE, title: DEALER_TITLE_FEE, reg: DEALER_REG_FEE, total };
+}
+/** Deterministic, purely cosmetic 17-char VIN for the purchase agreement — the game doesn't track real VINs. */
+function displayVin(car) {
+  const chars = 'ABCDEFGHJKLMNPRSTUVWXYZ0123456789'; // VINs exclude I, O, Q
+  const seed = String(car.id || generateId());
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  let vin = '';
+  for (let i = 0; i < 17; i++) {
+    hash = (hash * 1103515245 + 12345) >>> 0;
+    vin += chars[hash % chars.length];
+  }
+  return vin;
+}
 
 const PERF_ELIGIBLE = ['Sports', 'SUV', 'Truck']; // categories eligible for parts upgrade
 
@@ -3409,9 +3442,10 @@ function processForSale() {
       continue;
     }
     soldIds.add(car.id);
-    const fee    = Math.round(car.listPrice * TRANSACTION_FEE);
-    const profit = car.listPrice - fee - car.purchasePrice;
-    state.cash  += car.listPrice - fee;
+    const fee        = Math.round(car.listPrice * TRANSACTION_FEE);
+    const dealerFees = computeDealerFees();
+    const profit      = car.listPrice - fee - car.purchasePrice + dealerFees.total;
+    state.cash       += car.listPrice - fee + dealerFees.total;
     state.reputation = profit > 0
       ? Math.min(state.reputation + 0.02, 2.0)
       : Math.max(state.reputation - 0.01, 0.1);
@@ -3421,6 +3455,7 @@ function processForSale() {
     if (legalRisk) checkPoliceEvent(car, false);
     state.salesHistory.unshift({
       ...car, soldDay: state.day, salePrice: car.listPrice, fee, profit,
+      dealerFees, buyerName: randomFrom(CUSTOMER_NAMES), agreementNo: generateId().toUpperCase(),
     });
     runAchievementChecks();
     addNote(
@@ -3488,9 +3523,10 @@ function resolveCustomerOfferCounters() {
 /** Shared helper: execute a sale from an offer. */
 function executeSale(offer, car, salePrice) {
   if (car.leaseStatus === 'active' && car.activeLease) return;
-  const fee    = Math.round(salePrice * TRANSACTION_FEE);
-  const profit = salePrice - fee - car.purchasePrice;
-  state.cash  += salePrice - fee;
+  const fee        = Math.round(salePrice * TRANSACTION_FEE);
+  const dealerFees = computeDealerFees();
+  const profit      = salePrice - fee - car.purchasePrice + dealerFees.total;
+  state.cash       += salePrice - fee + dealerFees.total;
   state.reputation = profit > 0
     ? Math.min(state.reputation + 0.015, 2.0)
     : Math.max(state.reputation - 0.01, 0.1);
@@ -3498,7 +3534,10 @@ function executeSale(offer, car, salePrice) {
   // Police check on sale (customer negotiations / accepted offers) — no impound, car already sold
   const legalRisk = (car.legalStatus || 'clean') !== 'clean' || (car.vinStatus || 'normal') === 'scratched';
   if (legalRisk) checkPoliceEvent(car, false);
-  state.salesHistory.unshift({ ...car, soldDay: state.day, salePrice, fee, profit });
+  state.salesHistory.unshift({
+    ...car, soldDay: state.day, salePrice, fee, profit,
+    dealerFees, buyerName: randomFrom(CUSTOMER_NAMES), agreementNo: generateId().toUpperCase(),
+  });
   runAchievementChecks();
   state.garage          = state.garage.filter(c => c.id !== car.id);
   state.tradeInRequests = state.tradeInRequests.filter(r => r.targetCarId !== car.id);
@@ -3962,13 +4001,15 @@ function executeTradeIn(req, cashDelta) {
   state.cash += cashDelta;
 
   // Record the sale
-  const salePrice = req.customerCarValue + cashDelta;
-  const fee       = Math.round(Math.abs(salePrice) * TRANSACTION_FEE);
-  state.cash -= fee;
-  const profit    = salePrice - fee - targetCar.purchasePrice;
+  const salePrice   = req.customerCarValue + cashDelta;
+  const fee         = Math.round(Math.abs(salePrice) * TRANSACTION_FEE);
+  const dealerFees  = computeDealerFees();
+  state.cash       += dealerFees.total - fee;
+  const profit      = salePrice - fee - targetCar.purchasePrice + dealerFees.total;
   recordSaleStats(targetCar, profit);
   state.salesHistory.unshift({
     ...targetCar, soldDay: state.day, salePrice, fee, profit,
+    dealerFees, buyerName: randomFrom(CUSTOMER_NAMES), agreementNo: generateId().toUpperCase(),
     note: `Trade-in — received ${req.customerCar.year} ${req.customerCar.make} ${req.customerCar.model}`,
   });
   runAchievementChecks();
@@ -5848,6 +5889,156 @@ function renderFinance() {
     </div>`;
 }
 
+// ============================================================
+// RECEIPTS — Purchase Agreements
+// ============================================================
+
+/** Dealer letterhead used on every generated purchase agreement. */
+const DEALERSHIP_INFO = {
+  name: 'DealerSim Motors, LLC',
+  address: '1 Lot Row, Autoville, ST 00000',
+  phone: '(555) 019-2026',
+  license: 'DLR-402617',
+};
+
+function renderReceipts() {
+  const el = document.getElementById('tab-receipts');
+  if (!el) return;
+  const sales = state.salesHistory || [];
+  const totalRevenue = sales.reduce((s, h) => s + (h.salePrice || 0), 0);
+  const totalProfit  = sales.reduce((s, h) => s + (h.profit || 0), 0);
+  const totalFees    = sales.reduce((s, h) => s + (h.dealerFees?.total || 0), 0);
+
+  const rows = sales.length ? sales.map(h => {
+    const hasAgreement = !!h.agreementNo;
+    return `
+    <div class="receipt-row${hasAgreement ? '' : ' receipt-row-legacy'}" ${hasAgreement ? `onclick="viewReceipt('${h.agreementNo}')" role="button" tabindex="0"` : ''}>
+      <div class="receipt-row-car">
+        <span class="receipt-row-title">${h.year} ${h.make} ${h.model}${h.trim ? ` ${h.trim}` : ''}</span>
+        <span class="receipt-row-sub">Buyer: ${h.buyerName || 'Customer'} · Day ${h.soldDay}${h.note ? ` · ${h.note}` : ''}</span>
+      </div>
+      <div class="receipt-row-nums">
+        <span class="receipt-row-price">${formatCurrency(h.salePrice)}</span>
+        <span class="receipt-row-fees text-green">${h.dealerFees ? `+${formatCurrency(h.dealerFees.total)} fees` : '—'}</span>
+        <span class="${h.profit >= 0 ? 'text-green' : 'text-red'}">${h.profit >= 0 ? '+' : ''}${formatCurrency(h.profit)} profit</span>
+      </div>
+      ${hasAgreement
+        ? `<button class="btn btn-sm btn-secondary receipt-row-view">${uiIcon('fileText')} View Agreement</button>`
+        : `<span class="text-muted receipt-row-view" style="font-size:.78rem">Sold before agreements were tracked</span>`}
+    </div>`;
+  }).join('')
+    : `<div class="lease-column-empty">No completed sales yet. Every car you sell will generate a signed purchase agreement here.</div>`;
+
+  el.innerHTML = `
+    <div class="kpi-row">
+      <div class="kpi-tile kpi-day">
+        <div class="kpi-icon-wrap">${uiIconLg('receipt')}</div>
+        <div><div class="kpi-value">${sales.length}</div><div class="kpi-label">Total Sales</div></div>
+      </div>
+      <div class="kpi-tile kpi-cash">
+        <div class="kpi-icon-wrap">${uiIconLg('cash')}</div>
+        <div><div class="kpi-value">${formatCurrency(totalRevenue)}</div><div class="kpi-label">Total Revenue</div></div>
+      </div>
+      <div class="kpi-tile kpi-profit">
+        <div class="kpi-icon-wrap">${uiIconLg('trendingUp')}</div>
+        <div><div class="kpi-value ${totalProfit >= 0 ? 'text-green' : 'text-red'}">${formatCurrency(totalProfit)}</div><div class="kpi-label">Total Profit</div></div>
+      </div>
+      <div class="kpi-tile kpi-rep">
+        <div class="kpi-icon-wrap">${uiIconLg('fileText')}</div>
+        <div><div class="kpi-value text-green">${formatCurrency(totalFees)}</div><div class="kpi-label">Dealer Fees Collected</div></div>
+      </div>
+    </div>
+    <div class="dashboard-grid">
+      <div class="dash-card dash-card-wide">
+        <h3>${uiIcon('receipt')} Purchase Agreements</h3>
+        <p class="text-muted" style="font-size:.82rem;margin-bottom:10px">Every completed sale — factory, used market, or trade-in — generates a signed Buyer's Order. Click any sale to view the full agreement, itemized fees included.</p>
+        <div class="receipt-list">${rows}</div>
+      </div>
+    </div>`;
+}
+
+/** Open the full purchase-agreement document for one completed sale. */
+function viewReceipt(agreementNo) {
+  const sale = (state.salesHistory || []).find(h => h.agreementNo === agreementNo);
+  if (!sale) return;
+  const fees = sale.dealerFees || { doc: DEALER_DOC_FEE, title: DEALER_TITLE_FEE, reg: DEALER_REG_FEE, total: DEALER_DOC_FEE + DEALER_TITLE_FEE + DEALER_REG_FEE };
+  const vehicleTotal = (sale.salePrice || 0) + fees.total;
+  const carLabel = `${sale.year} ${sale.make} ${sale.model}${sale.trim ? ` ${sale.trim}` : ''}`;
+  const saleDate = `Day ${sale.soldDay}`;
+
+  document.getElementById('receipt-content').innerHTML = `
+    <div class="agreement-doc">
+      <div class="agreement-head">
+        <div class="agreement-dealer">
+          <div class="agreement-dealer-name">${DEALERSHIP_INFO.name}</div>
+          <div class="agreement-dealer-sub">${DEALERSHIP_INFO.address}</div>
+          <div class="agreement-dealer-sub">${DEALERSHIP_INFO.phone} · Dealer Lic. #${DEALERSHIP_INFO.license}</div>
+        </div>
+        <div class="agreement-title-block">
+          <div class="agreement-title">VEHICLE PURCHASE AGREEMENT</div>
+          <div class="agreement-no">Agreement #${sale.agreementNo || '—'}</div>
+          <div class="agreement-no">Date: ${saleDate}</div>
+        </div>
+      </div>
+
+      <div class="agreement-section">
+        <div class="agreement-section-label">Buyer</div>
+        <div class="agreement-section-body">${sale.buyerName || 'Customer'}</div>
+      </div>
+
+      <div class="agreement-section">
+        <div class="agreement-section-label">Vehicle Description</div>
+        <table class="agreement-table">
+          <tr><td>Year / Make / Model</td><td>${carLabel}</td></tr>
+          <tr><td>Mileage</td><td>${(sale.mileage || 0).toLocaleString()} mi</td></tr>
+          <tr><td>Condition</td><td>${CONDITION_NAMES[sale.condition] || sale.condition || '—'}</td></tr>
+          <tr><td>Title Status</td><td>${(sale.titleStatus || 'clean').replace(/^./, c => c.toUpperCase())}</td></tr>
+          <tr><td>VIN</td><td class="agreement-vin">${displayVin(sale)}</td></tr>
+        </table>
+      </div>
+
+      <div class="agreement-section">
+        <div class="agreement-section-label">Price &amp; Fees</div>
+        <table class="agreement-table agreement-table-money">
+          <tr><td>Vehicle Sale Price</td><td>${formatCurrency(sale.salePrice)}</td></tr>
+          <tr><td>Dealer Documentation Fee</td><td>${formatCurrency(fees.doc)}</td></tr>
+          <tr><td>Title Fee</td><td>${formatCurrency(fees.title)}</td></tr>
+          <tr><td>Registration / Plate Transfer Fee</td><td>${formatCurrency(fees.reg)}</td></tr>
+          <tr class="agreement-total-row"><td>Total Due at Signing</td><td>${formatCurrency(vehicleTotal)}</td></tr>
+        </table>
+      </div>
+
+      <div class="agreement-section">
+        <div class="agreement-section-label">Dealer Summary <span class="text-muted" style="font-weight:400">(not shown to buyer)</span></div>
+        <table class="agreement-table agreement-table-money">
+          <tr><td>Acquisition Cost</td><td>${formatCurrency(sale.purchasePrice || 0)}</td></tr>
+          <tr><td>Transaction Processing Fee</td><td>−${formatCurrency(sale.fee || 0)}</td></tr>
+          <tr><td>Dealer Fees Collected</td><td>+${formatCurrency(fees.total)}</td></tr>
+          <tr class="agreement-total-row"><td>Net Profit</td><td class="${sale.profit >= 0 ? 'text-green' : 'text-red'}">${sale.profit >= 0 ? '+' : ''}${formatCurrency(sale.profit)}</td></tr>
+        </table>
+      </div>
+
+      <div class="agreement-signatures">
+        <div class="agreement-sig">
+          <div class="agreement-sig-line"></div>
+          <div class="agreement-sig-label">Buyer Signature</div>
+        </div>
+        <div class="agreement-sig">
+          <div class="agreement-sig-line"></div>
+          <div class="agreement-sig-label">Dealer Representative</div>
+        </div>
+      </div>
+      <p class="agreement-fineprint">This purchase agreement is a simulated in-game document generated by DealerSim and has no legal effect.</p>
+    </div>`;
+  document.getElementById('receipt-modal').classList.remove('hidden');
+  playSfx('modalOpen');
+}
+
+function closeReceiptModal() {
+  document.getElementById('receipt-modal').classList.add('hidden');
+  playSfx('modalClose');
+}
+
 function renderAchievements() {
   const unlocked = state.achievementsUnlocked || {};
   const unlockedCount = ACHIEVEMENTS.filter(a => unlocked[a.id]).length;
@@ -5981,6 +6172,7 @@ function renderAll() {
     case 'finance':     renderFinance();         break;
     case 'upgrades':    renderUpgrades();        break;
     case 'staff':       renderStaff();           break;
+    case 'receipts':    renderReceipts();       break;
     case 'achievements':renderAchievements();    break;
     case 'settings':    renderSettings();        break;
   }
@@ -6008,6 +6200,7 @@ function switchTab(name) {
     case 'finance':     renderFinance();         break;
     case 'upgrades':    renderUpgrades();        break;
     case 'staff':       renderStaff();           break;
+    case 'receipts':    renderReceipts();       break;
     case 'achievements':renderAchievements();    break;
     case 'settings':    renderSettings();        break;
   }
@@ -7609,6 +7802,11 @@ function init() {
     if (e.target === document.getElementById('patch-notes-modal')) closePatchNotesModal();
   });
 
+  // Purchase agreement modal — close on backdrop click
+  document.getElementById('receipt-modal').addEventListener('click', e => {
+    if (e.target === document.getElementById('receipt-modal')) closeReceiptModal();
+  });
+
   document.getElementById('import-file').addEventListener('change', e => {
     if (e.target.files[0]) { importSave(e.target.files[0]); e.target.value = ''; }
   });
@@ -7629,6 +7827,7 @@ function init() {
     confirmNewGame, exportSave, hireStaff, dismissCandidate,
     toggleDarkMode, setDifficulty, toggleSfxMuted, setSfxVolume, toggleTutorials,
     renderCarLot, renderLeasing, renderServiceGarage, renderForSale, renderUsedMarket, renderFinance, renderAchievements,
+    renderReceipts, viewReceipt, closeReceiptModal,
     menuToggleDark, menuToggleSfx, menuToggleTutorials, menuSetDifficulty,
     returnToMenu,
     showPatchNotesModal, closePatchNotesModal,
