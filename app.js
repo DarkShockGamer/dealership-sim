@@ -4892,7 +4892,7 @@ function renderDashboard() {
         <div class="stat-row"><span>Credit Line Balance</span><strong class="${state.loanBalance > 0 ? 'text-red' : 'text-green'}">${formatCurrency(state.loanBalance)}</strong></div>
         <div class="stat-row"><span>Loan APR</span><strong>${(state.loanApr * 100).toFixed(1)}%</strong></div>
         <div class="stat-row"><span>Late Payments</span><strong class="${state.delinquencyLevel > 0 ? 'text-red' : 'text-green'}">Level ${state.delinquencyLevel || 0}</strong></div>
-        <div class="stat-row stat-row-stacked"><span>Insurance</span><strong class="${getActiveInsurance() ? 'text-green' : 'text-muted'}">${getActiveInsurance() ? getActiveInsurance().name : 'None'}</strong></div>
+        <div class="stat-row" style="flex-direction:column;align-items:flex-start;gap:2px"><span>Insurance</span><strong class="${getActiveInsurance() ? 'text-green' : 'text-muted'}" style="white-space:normal">${getActiveInsurance() ? getActiveInsurance().name : 'None'}</strong></div>
         <div class="stat-row"><span>Total Cars Sold</span><strong>${state.salesHistory.length}</strong></div>
       </div>
 
