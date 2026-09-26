@@ -597,6 +597,35 @@ h1, h2, h3, h4, h5,
   box-shadow: 0 0 0 3px rgba(77, 157, 255, .18);
 }
 
+.lot-sort-select {
+  padding: 6px 28px 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: .85rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--text);
+  background-color: rgba(8, 25, 47, .92);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%239db4d6'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  transition: border-color var(--transition), box-shadow var(--transition), background-color var(--transition);
+}
+.lot-sort-select:hover { border-color: rgba(157, 196, 255, .4); }
+.lot-sort-select:focus {
+  outline: none;
+  border-color: var(--primary);
+  background-color: rgba(10, 32, 60, .96);
+  box-shadow: 0 0 0 3px rgba(77, 157, 255, .18);
+}
+.lot-sort-select option {
+  color: #0a1830;
+  background: #eaf1fb;
+}
+
 /* Discount buttons */
 .price-buttons {
   display: flex;
@@ -1463,6 +1492,13 @@ body.dark .price-input {
   color: #f0f6ff;
 }
 body.dark .price-input:focus { background: rgba(8, 20, 40, .98); }
+
+body.dark .lot-sort-select {
+  background-color: rgba(5, 14, 31, .95);
+  border-color: rgba(126, 174, 245, .28);
+  color: #f0f6ff;
+}
+body.dark .lot-sort-select:focus { background-color: rgba(8, 20, 40, .98); }
 
 body.dark .modal-box {
   background: linear-gradient(180deg, rgba(9, 26, 50, .96), rgba(5, 17, 32, .95));
