@@ -11,9 +11,17 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.7.1';
+const GAME_VERSION = '1.7.2';
 
 const PATCH_NOTES = [
+  {
+    version: '1.7.2',
+    date: 'September 2026',
+    notes: [
+      { type: 'balance', text: 'Unrepaired crash damage now hits actual value hard, not just sale speed: the value penalty jumped from 4/14/28% to 18/42/68% for minor/moderate/severe damage, so a wrecked car is genuinely worth way less — whether or not the damage has been discovered yet.' },
+      { type: 'fix', text: "Repairing crash damage now brands a clean-titled car \"Rebuilt\" and applies the standard rebuilt-title discount in place of the old unrepaired-crash penalty — repaired is worth noticeably more than unrepaired, but a rebuilt title never sells for full clean-title money." },
+    ],
+  },
   {
     version: '1.7.1',
     date: 'September 2026',
@@ -560,7 +568,13 @@ const LEGAL_STATUSES = ['clean', 'noTitle', 'stolen'];
 const VIN_STATUSES   = ['normal', 'scratched'];
 const CRASH_DAMAGE_SEVERITIES = ['none', 'minor', 'moderate', 'severe'];
 const CRASH_DAMAGE_REPAIR_MULT  = { none: 0, minor: 0.12, moderate: 0.40, severe: 0.85 };
-const CRASH_DAMAGE_VALUE_PENALTY = { none: 0, minor: 0.04, moderate: 0.14, severe: 0.28 };
+// Unrepaired crash damage is a major hit to actual value, not a cosmetic footnote — a
+// wrecked car sitting with the damage still on it is worth way less than a clean example,
+// regardless of whether the buyer has discovered it yet or not. Once it's actually
+// repaired (see finishCarService), this steep penalty is replaced by the much smaller
+// "rebuilt title" discount — repaired is worth meaningfully more than unrepaired, but
+// still never fully recovers to clean-title value.
+const CRASH_DAMAGE_VALUE_PENALTY = { none: 0, minor: 0.18, moderate: 0.42, severe: 0.68 };
 // Police fine ranges per legal status (min, max)
 const POLICE_FINE = {
   stolen:  { min: 3000, max: 10000, impound: true  },
@@ -3095,10 +3109,24 @@ function finishCarService(car) {
   if (!svc) return;
   if (svc.type === 'repair') {
     const oldCond = car.condition;
+    const oldTitle = car.titleStatus;
+    const hadCrash = (car.crashDamageSeverity || 'none') !== 'none';
+    const crashSeverity = car.crashDamageSeverity || 'none';
     // Repair always restores to excellent condition and clears all issues
     car.condition    = 'A';
-    // Mark crash repair if this car had crash damage
-    if ((car.crashDamageSeverity || 'none') !== 'none') car.hasCrashRepair = true;
+    if (hadCrash) {
+      // Undo the steep unrepaired-crash value penalty that's baked into marketValue,
+      // then — unless the car already carries a worse brand (salvage/lemon) — brand it
+      // "rebuilt" and apply that smaller, permanent discount instead. Repaired is worth
+      // a lot more than unrepaired, but a rebuilt title never sells for what a clean one does.
+      const crashPenaltyMult = 1 - CRASH_DAMAGE_VALUE_PENALTY[crashSeverity];
+      if (crashPenaltyMult > 0) car.marketValue = Math.round(car.marketValue / crashPenaltyMult);
+      if (car.titleStatus === 'clean') {
+        car.marketValue = Math.round(car.marketValue * TITLE_VALUE_MULT.rebuilt);
+        car.titleStatus = 'rebuilt';
+      }
+      car.hasCrashRepair = true;
+    }
     car.crashDamageSeverity = 'none';
     car.hiddenIssues = [];
     car.repairCost   = 0;
@@ -3114,7 +3142,8 @@ function finishCarService(car) {
     const boostFactor = rawBoost * (1 - mileagePenalty);
     if (boostFactor > 0) car.marketValue = Math.round(car.marketValue * (1 + boostFactor));
     car.reconditionLog.push({ type: 'Basic Repair', day: state.day });
-    addNote(`🔩 ${car.year} ${car.make} ${car.model} repair complete: ${oldCond} → ${car.condition}. Repair #${repairCount}${boostFactor > 0 ? ` (+${Math.round(boostFactor * 100)}% value)` : ' (no value gain at this mileage)'}.`, 'success');
+    const titleNote = car.titleStatus !== oldTitle ? ` Title branded ${TITLE_LABELS[car.titleStatus]}.` : '';
+    addNote(`🔩 ${car.year} ${car.make} ${car.model} repair complete: ${oldCond} → ${car.condition}. Repair #${repairCount}${boostFactor > 0 ? ` (+${Math.round(boostFactor * 100)}% value)` : ' (no value gain at this mileage)'}.${titleNote}`, 'success');
   } else if (svc.type === 'parts') {
     car.marketValue = Math.round(car.marketValue * 1.15);
     car.reconditionLog.push({ type: 'Parts Upgrade', day: state.day });
