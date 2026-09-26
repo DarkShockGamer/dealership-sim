@@ -1053,6 +1053,120 @@ img.ui-icon { filter: brightness(0) invert(1); }
 .pn-type-fix     .pn-label  { background: rgba(46, 213, 159, .18); color: #9dffe1; }
 
 /* ============================================================
+   Receipts tab — sale list
+   ============================================================ */
+.receipt-list { display: flex; flex-direction: column; gap: 8px; }
+
+.receipt-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(255,255,255,.02);
+  cursor: pointer;
+  transition: background .15s ease, transform .1s ease;
+}
+.receipt-row:hover { background: rgba(77,139,255,.08); transform: translateY(-1px); }
+.receipt-row.receipt-row-legacy { cursor: default; opacity: .7; }
+.receipt-row.receipt-row-legacy:hover { background: rgba(255,255,255,.02); transform: none; }
+
+.receipt-row-car { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.receipt-row-title { font-weight: 700; font-size: .92rem; }
+.receipt-row-sub { font-size: .76rem; color: var(--text-muted); }
+
+.receipt-row-nums { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: .82rem; white-space: nowrap; }
+.receipt-row-price { font-weight: 700; }
+.receipt-row-fees { font-size: .74rem; }
+
+.receipt-row-view { white-space: nowrap; flex-shrink: 0; }
+
+/* ============================================================
+   Purchase Agreement document (Receipts tab modal)
+   ============================================================ */
+.receipt-modal-box {
+  max-width: 620px;
+  max-height: 86vh;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.receipt-modal-content {
+  margin: 0;
+  padding: 20px 28px 26px;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.agreement-doc {
+  background: #f6f1e6;
+  color: #1c1a15;
+  border: 1px solid #c9bfa2;
+  border-radius: 6px;
+  padding: 26px 28px;
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+.agreement-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  border-bottom: 2px solid #1c1a15;
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+}
+.agreement-dealer-name { font-size: 1.15rem; font-weight: 700; letter-spacing: .3px; }
+.agreement-dealer-sub  { font-size: .78rem; color: #5a5340; line-height: 1.4; }
+.agreement-title-block { text-align: right; }
+.agreement-title { font-size: .92rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+.agreement-no { font-size: .78rem; color: #5a5340; }
+
+.agreement-section { margin-bottom: 16px; }
+.agreement-section-label {
+  font-size: .74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .8px;
+  color: #6b6248;
+  border-bottom: 1px solid #c9bfa2;
+  padding-bottom: 4px;
+  margin-bottom: 8px;
+}
+.agreement-section-body { font-size: .92rem; }
+
+.agreement-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+.agreement-table td { padding: 4px 0; }
+.agreement-table td:first-child { color: #4d4737; }
+.agreement-table td:last-child  { text-align: right; font-variant-numeric: tabular-nums; }
+.agreement-table-money td:last-child { font-weight: 600; }
+.agreement-total-row td { border-top: 1px solid #1c1a15; padding-top: 7px; font-weight: 700; font-size: .96rem; }
+.agreement-vin { letter-spacing: 1.5px; font-family: 'Courier New', monospace; font-size: .82rem; }
+
+.agreement-signatures {
+  display: flex;
+  gap: 40px;
+  margin-top: 26px;
+}
+.agreement-sig { flex: 1; }
+.agreement-sig-line { border-bottom: 1px solid #1c1a15; height: 34px; }
+.agreement-sig-label { font-size: .74rem; color: #5a5340; margin-top: 4px; }
+
+.agreement-fineprint {
+  margin-top: 18px;
+  font-size: .68rem;
+  color: #8a8266;
+  font-family: Arial, sans-serif;
+  text-align: center;
+}
+
+body.dark .agreement-doc { background: #efe9db; }
+
+/* ============================================================
    Responsive
    ============================================================ */
 @media (max-width: 640px) {
@@ -1066,6 +1180,12 @@ img.ui-icon { filter: brightness(0) invert(1); }
   .btn-next-day { padding: 8px 14px; font-size: .85rem; }
   .stats-bar { gap: 6px; }
   .stat-chip { padding: 3px 8px; font-size: .75rem; }
+  .receipt-row { grid-template-columns: 1fr; justify-items: start; }
+  .receipt-row-nums { align-items: flex-start; }
+  .agreement-doc { padding: 18px 16px; }
+  .agreement-head { flex-direction: column; }
+  .agreement-title-block { text-align: left; }
+  .agreement-signatures { flex-direction: column; gap: 18px; }
 }
 
 /* ============================================================
