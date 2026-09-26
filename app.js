@@ -11,9 +11,16 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.8.5';
+const GAME_VERSION = '1.8.6';
 
 const PATCH_NOTES = [
+  {
+    version: '1.8.6',
+    date: 'September 2026',
+    notes: [
+      { type: 'fix', text: "The Car Lot sort control still opened an unstyled white list, because a native <select>'s <option> menu is rendered by the OS and mostly ignores CSS in every major browser — styling the box never touches the open list. Replaced it with a fully custom dropdown (button + a hand-built menu) that's themed end to end, in both light and dark mode." },
+    ],
+  },
   {
     version: '1.8.5',
     date: 'September 2026',
@@ -4861,6 +4868,25 @@ function setCarLotSort(value) {
   renderCarLot();
 }
 
+/** Custom dropdown open/close — plain <option> lists are OS-rendered and can't be themed,
+ *  so the Car Lot sort control is a button + a hand-built menu of divs instead. */
+function toggleLotSortMenu(e) {
+  e.stopPropagation();
+  const wrap = document.getElementById('lot-sort-select');
+  if (!wrap) return;
+  const isOpen = wrap.classList.contains('open');
+  closeLotSortMenu();
+  if (!isOpen) wrap.classList.add('open');
+}
+function closeLotSortMenu() {
+  const wrap = document.getElementById('lot-sort-select');
+  if (wrap) wrap.classList.remove('open');
+}
+function chooseLotSort(value) {
+  closeLotSortMenu();
+  setCarLotSort(value);
+}
+
 /** True if a car is sitting in inventory (not leased, not already being fixed) with an
  *  unresolved problem — unrepaired hidden issues, or Fair/Poor condition wear. These are
  *  always pinned to the top of the Car Lot regardless of sort order, so nothing needing
@@ -5546,11 +5572,18 @@ function renderCarLot() {
     <div class="bulk-row">
       <label style="display:flex; align-items:center; gap:6px;">
         Sort by:
-        <select class="lot-sort-select" onchange="setCarLotSort(this.value)">
-          ${Object.entries(CAR_LOT_SORT_LABELS).map(([key, label]) =>
-            `<option value="${key}" ${((settings.carLotSortBy || 'default') === key) ? 'selected' : ''}>${label}</option>`
-          ).join('')}
-        </select>
+        <div class="custom-select" id="lot-sort-select">
+          <button type="button" class="custom-select-btn" onclick="toggleLotSortMenu(event)">
+            <span>${CAR_LOT_SORT_LABELS[settings.carLotSortBy || 'default']}</span>
+            <span class="custom-select-arrow">▾</span>
+          </button>
+          <div class="custom-select-menu">
+            ${Object.entries(CAR_LOT_SORT_LABELS).map(([key, label]) =>
+              `<div class="custom-select-option ${((settings.carLotSortBy || 'default') === key) ? 'selected' : ''}"
+                 onclick="chooseLotSort('${key}')">${label}</div>`
+            ).join('')}
+          </div>
+        </div>
       </label>
       <button class="btn btn-sm btn-secondary" onclick="toggleShowLeasedCars()">${showLeased ? 'Hide Leased Cars' : 'Show Leased Cars'}</button>
       <button class="btn btn-sm btn-secondary" onclick="switchTab('leasing')">${uiIcon('document')} Open Leasing Page</button>
@@ -8524,6 +8557,9 @@ function init() {
     if (e.target.files[0]) { importSave(e.target.files[0]); e.target.value = ''; }
   });
 
+  // Close the Car Lot sort dropdown on any click outside it
+  document.addEventListener('click', () => closeLotSortMenu());
+
   // Expose functions for inline onclick handlers in dynamically rendered HTML
   Object.assign(window, {
     buyFromFactory,
@@ -8534,7 +8570,7 @@ function init() {
     inspectTradeIn, applyTitleRecoveryTradeIn,
     acceptCustomerOffer, rejectCustomerOffer, counterCustomerOffer, applyStaffSuggestion,
     markForSale, updateListPrice, setListPriceMultiplier, markAllForSale, unlistAllCars, bulkSetListing,
-    makeLeaseAvailable, stopOfferingLease, viewLeaseDetails, toggleShowLeasedCars, setCarLotSort, switchTab,
+    makeLeaseAvailable, stopOfferingLease, viewLeaseDetails, toggleShowLeasedCars, setCarLotSort, toggleLotSortMenu, chooseLotSort, switchTab,
     buyUpgrade, detailCar, carWash, basicRepair, partsUpgrade,
     drawLoan, payDownLoan,
     selectInsurance, cancelInsurance,
