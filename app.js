@@ -11,9 +11,17 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.7.2';
+const GAME_VERSION = '1.7.3';
 
 const PATCH_NOTES = [
+  {
+    version: '1.7.3',
+    date: 'September 2026',
+    notes: [
+      { type: 'feature', text: 'Neglect now has real consequences on leases: a car sent out on lease still carrying unrepaired mechanical issues breaks down faster (higher daily chance of new issues) and crashes more often the more issues it\'s carrying — skipping repairs before leasing is now a real gamble, not a free pass.' },
+      { type: 'fix', text: "Cars with unrepaired crash damage can no longer be offered for lease at all — repair the damage first. The Leasing tab now shows blocked cars with their damage severity instead of an Offer Lease button." },
+    ],
+  },
   {
     version: '1.7.2',
     date: 'September 2026',
@@ -653,6 +661,12 @@ const LEASE_CRASH_STRUCTURAL_RATIO = 0.60;  // Portion of repair cost attributed
 const LEASE_ISSUE_BONUS_HARD_DIFFICULTY = 0.0015;
 const LEASE_ISSUE_BONUS_LEMON = 0.003;
 const LEASE_ISSUE_BONUS_SALVAGE = 0.0015;
+// Neglect penalty: cars sent out on lease still carrying unresolved mechanical issues
+// (because the owner skipped repairing them) break down faster and crash more often.
+// Each unrepaired issue on the car compounds both risks daily while the lease runs.
+const LEASE_NEGLECT_CRASH_BONUS_PER_ISSUE  = 0.00015; // extra crash chance/day per unrepaired issue
+const LEASE_NEGLECT_ISSUE_BONUS_PER_ISSUE  = 0.004;   // extra chance/day of a NEW issue appearing, per unrepaired issue already on the car
+const LEASE_NEGLECT_CONDITION_CRASH_BONUS  = { A: 0, B: 0, C: 0.00015, D: 0.0004 }; // already-worn cars crash more too
 // Repair cost scaling thresholds by mileage (see computeRepairCost)
 const REPAIR_COST_BASE_MIN = 500;        // Minimum base parts/labour cost even with no issues
 const REPAIR_WARN_COST_RATIO = 0.6;      // Warn player when repair cost exceeds 60% of market value
@@ -2612,7 +2626,12 @@ function processLeases() {
     ));
 
     // ── Rare crash event ─────────────────────────────────────────────────────
-    const crashBonus = state.difficulty === 'hard' ? 0.0002 : 0;
+    // Sending a car out with unresolved mechanical issues still on it (skipped repairs)
+    // or in already-rough condition raises the odds of it actually crashing.
+    const neglectIssueCount = (car.hiddenIssues || []).length;
+    const neglectCrashBonus = neglectIssueCount * LEASE_NEGLECT_CRASH_BONUS_PER_ISSUE
+                             + (LEASE_NEGLECT_CONDITION_CRASH_BONUS[car.condition] || 0);
+    const crashBonus = (state.difficulty === 'hard' ? 0.0002 : 0) + neglectCrashBonus;
     if (Math.random() < LEASE_CRASH_PROBABILITY + crashBonus) {
       // Lessee pays out all remaining lease payments immediately
       const remainingDays   = Math.max(0, lease.endDay - state.day);
@@ -2651,7 +2670,9 @@ function processLeases() {
     const termProgress = clamp((state.day - lease.startDay) / Math.max(1, lease.termDays), 0, LEASE_TERM_PROGRESS_CAP);
     const hardBonus = state.difficulty === 'hard' ? LEASE_ISSUE_BONUS_HARD_DIFFICULTY : 0;
     const titleBonus = car.titleStatus === 'lemon' ? LEASE_ISSUE_BONUS_LEMON : car.titleStatus === 'salvage' ? LEASE_ISSUE_BONUS_SALVAGE : 0;
-    const issueChance = clamp(0.001 + (termProgress * 0.007) + titleBonus + hardBonus, 0, 0.04);
+    // Existing unresolved issues compound — a neglected car breaks down faster the longer it's ignored.
+    const neglectBonus = neglectIssueCount * LEASE_NEGLECT_ISSUE_BONUS_PER_ISSUE;
+    const issueChance = clamp(0.001 + (termProgress * 0.007) + titleBonus + hardBonus + neglectBonus, 0, 0.08);
     if (Math.random() < issueChance) {
       const issue = { ...randomFrom(HIDDEN_ISSUES) };
       lease.pendingIssues = lease.pendingIssues || [];
@@ -4363,6 +4384,7 @@ function makeLeaseAvailable(carId) {
   if (car.inServiceUntilDay) { showToast('Car in service cannot be offered for lease.', 'error'); return; }
   if (car.leaseStatus === 'active' && car.activeLease) { showToast('Car is already on an active lease.', 'error'); return; }
   if (car.isForSale) { showToast('Unlist the car before offering lease.', 'error'); return; }
+  if ((car.crashDamageSeverity || 'none') !== 'none') { showToast('Repair the crash damage before offering this car for lease.', 'error'); return; }
   car.leaseStatus = 'available';
   saveState();
   renderCarLot();
@@ -5050,7 +5072,9 @@ function renderLeasing() {
   if (!el) return;
 
   const eligibleCars = state.garage.filter(c =>
-    c.leaseStatus === 'none' && !c.inServiceUntilDay && !c.isForSale);
+    c.leaseStatus === 'none' && !c.inServiceUntilDay && !c.isForSale && (c.crashDamageSeverity || 'none') === 'none');
+  const crashBlockedCars = state.garage.filter(c =>
+    c.leaseStatus === 'none' && !c.inServiceUntilDay && !c.isForSale && (c.crashDamageSeverity || 'none') !== 'none');
   const offeredCars = state.garage.filter(c => c.leaseStatus === 'available');
   const activeCars  = state.garage.filter(c => c.leaseStatus === 'active' && c.activeLease);
 
@@ -5135,7 +5159,7 @@ function renderLeasing() {
   }
 
   // ── Column 1: eligible to offer ─────────────────────────────
-  const eligibleHtml = eligibleCars.length
+  const eligibleHtml = (eligibleCars.length || crashBlockedCars.length)
     ? eligibleCars.map(car => `
       <div class="lease-mini-card">
         <div class="lease-mini-top">
@@ -5145,6 +5169,14 @@ function renderLeasing() {
         <div class="lease-mini-sub"><span>Market Value</span><span>${formatCurrency(car.marketValue)}</span></div>
         <div class="lease-mini-sub"><span>Est. Payment</span><span class="text-green">+${formatCurrency(computeLeasePaymentPerDay(car))}/day</span></div>
         <button class="btn btn-sm btn-secondary" onclick="makeLeaseAvailable('${car.id}')">${uiIcon('document')} Offer Lease</button>
+      </div>`).join('') + crashBlockedCars.map(car => `
+      <div class="lease-mini-card lease-mini-card-blocked">
+        <div class="lease-mini-top">
+          <span class="lease-mini-name">${formatCarDisplayName(car)}</span>
+          ${condBadge(car.condition)}
+        </div>
+        <div class="lease-mini-sub"><span>Crash Damage</span><span class="text-red">${car.crashDamageSeverity.charAt(0).toUpperCase() + car.crashDamageSeverity.slice(1)}</span></div>
+        <div class="lease-mini-sub text-muted" style="font-size:.76rem">Repair the crash damage before this car can go on lease.</div>
       </div>`).join('')
     : `<div class="lease-column-empty">No eligible cars right now. A car must be in your lot, not for sale, and not in service.</div>`;
 
