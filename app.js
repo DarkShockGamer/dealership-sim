@@ -11,9 +11,16 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.8.3';
+const GAME_VERSION = '1.8.4';
 
 const PATCH_NOTES = [
+  {
+    version: '1.8.4',
+    date: 'September 2026',
+    notes: [
+      { type: 'feature', text: 'Car Lot now has a Sort by dropdown — Market Value, Mileage, Type, Year, Condition, or Days on Lot, ascending or descending. Whatever sort you pick, any car that needs maintenance (unrepaired issues, or Fair/Poor condition) is always pinned to the top of the list and flagged with a NEEDS MAINTENANCE badge, so a problem car never gets buried further down.' },
+    ],
+  },
   {
     version: '1.8.3',
     date: 'September 2026',
@@ -4841,6 +4848,62 @@ function toggleShowLeasedCars() {
   renderCarLot();
 }
 
+function setCarLotSort(value) {
+  settings.carLotSortBy = value;
+  saveSettings();
+  renderCarLot();
+}
+
+/** True if a car is sitting in inventory (not leased, not already being fixed) with an
+ *  unresolved problem — unrepaired hidden issues, or Fair/Poor condition wear. These are
+ *  always pinned to the top of the Car Lot regardless of sort order, so nothing needing
+ *  attention gets buried. */
+function carNeedsMaintenance(car) {
+  const isLeased = car.leaseStatus === 'active' && !!car.activeLease;
+  if (isLeased || car.inServiceUntilDay) return false;
+  return (car.hiddenIssues || []).length > 0 || car.condition === 'C' || car.condition === 'D';
+}
+
+const CAR_LOT_SORTERS = {
+  default:       null, // inventory order
+  value_desc:    (a, b) => (b.marketValue || 0) - (a.marketValue || 0),
+  value_asc:     (a, b) => (a.marketValue || 0) - (b.marketValue || 0),
+  mileage_asc:   (a, b) => (a.mileage || 0) - (b.mileage || 0),
+  mileage_desc:  (a, b) => (b.mileage || 0) - (a.mileage || 0),
+  type:          (a, b) => a.category.localeCompare(b.category) || (b.marketValue || 0) - (a.marketValue || 0),
+  year_desc:     (a, b) => (b.year || 0) - (a.year || 0),
+  year_asc:      (a, b) => (a.year || 0) - (b.year || 0),
+  condition:     (a, b) => CONDITIONS.indexOf(a.condition) - CONDITIONS.indexOf(b.condition),
+  daysOnLot_desc:(a, b) => (b.daysInLot || 0) - (a.daysInLot || 0),
+};
+
+const CAR_LOT_SORT_LABELS = {
+  default:        'Default order',
+  value_desc:     'Market Value (high → low)',
+  value_asc:      'Market Value (low → high)',
+  mileage_asc:    'Mileage (low → high)',
+  mileage_desc:   'Mileage (high → low)',
+  type:           'Type (category)',
+  year_desc:      'Year (newest first)',
+  year_asc:       'Year (oldest first)',
+  condition:      'Condition (best first)',
+  daysOnLot_desc: 'Days on Lot (longest first)',
+};
+
+/** Sorts cars for the Car Lot view. Whatever the chosen sort, cars that need maintenance
+ *  (unrepaired issues or worn condition, not already in service or out on lease) always
+ *  float to the top so they never get lost further down the list. */
+function sortCarsForLot(cars, sortKey) {
+  const withFlags = cars.map(car => ({ car, needsMaintenance: carNeedsMaintenance(car) }));
+  const comparator = CAR_LOT_SORTERS[sortKey];
+  withFlags.sort((a, b) => {
+    if (a.needsMaintenance !== b.needsMaintenance) return a.needsMaintenance ? -1 : 1;
+    if (comparator) return comparator(a.car, b.car);
+    return 0;
+  });
+  return withFlags.map(x => x.car);
+}
+
 // ============================================================
 // SAVE MANAGEMENT
 // ============================================================
@@ -5321,12 +5384,14 @@ function renderCarLot() {
     return;
   }
 
-  const visibleCars = showLeased
-    ? state.garage
-    : state.garage.filter(car => !(car.leaseStatus === 'active' && car.activeLease));
+  const visibleCars = sortCarsForLot(
+    showLeased ? state.garage : state.garage.filter(car => !(car.leaseStatus === 'active' && car.activeLease)),
+    settings.carLotSortBy || 'default'
+  );
   const cards = visibleCars.map(car => {
     const inService = !!car.inServiceUntilDay;
     const isLeased = car.leaseStatus === 'active' && !!car.activeLease;
+    const needsMaint = carNeedsMaintenance(car);
     const leaseDaysLeft = isLeased ? Math.max(0, car.activeLease.endDay - state.day) : 0;
     const issuesHtml = car.inspected
       ? (car.hiddenIssues.length === 0
@@ -5411,6 +5476,7 @@ function renderCarLot() {
               <span class="car-name">${formatCarDisplayName(car)}</span>
             </div>
             <div class="badge-stack">
+              ${needsMaint ? `<span class="badge badge-orange" title="Pinned to top: needs maintenance">${uiIcon('wrench')} NEEDS MAINTENANCE</span>` : ''}
               ${condBadge(car.condition)}
               ${titleBadge(car.titleStatus)}
               ${isCertifiedCar(car) ? '<span class="badge badge-green" title="Certified Pre-Owned: +18% sale chance">✔ CERTIFIED</span>' : ''}
@@ -5471,6 +5537,14 @@ function renderCarLot() {
       ${state.upgrades.crmSuite ? `<br>${uiIcon('layers')} High-volume tools active: bulk list/unlist available.` : ''}
     </div>
     <div class="bulk-row">
+      <label style="display:flex; align-items:center; gap:6px;">
+        Sort by:
+        <select onchange="setCarLotSort(this.value)">
+          ${Object.entries(CAR_LOT_SORT_LABELS).map(([key, label]) =>
+            `<option value="${key}" ${((settings.carLotSortBy || 'default') === key) ? 'selected' : ''}>${label}</option>`
+          ).join('')}
+        </select>
+      </label>
       <button class="btn btn-sm btn-secondary" onclick="toggleShowLeasedCars()">${showLeased ? 'Hide Leased Cars' : 'Show Leased Cars'}</button>
       <button class="btn btn-sm btn-secondary" onclick="switchTab('leasing')">${uiIcon('document')} Open Leasing Page</button>
     </div>
@@ -6967,6 +7041,7 @@ let settings = {
   sfxVolume: 0.22,
   showLeasedCars: true,
   tutorialsEnabled: true,
+  carLotSortBy: 'default',
 };
 
 // ============================================================
@@ -7137,6 +7212,7 @@ function loadSettings() {
   } catch (_) {}
   if (settings.showLeasedCars === undefined) settings.showLeasedCars = true;
   if (settings.tutorialsEnabled === undefined) settings.tutorialsEnabled = true;
+  if (settings.carLotSortBy === undefined) settings.carLotSortBy = 'default';
   applyDarkMode();
 }
 
@@ -8451,7 +8527,7 @@ function init() {
     inspectTradeIn, applyTitleRecoveryTradeIn,
     acceptCustomerOffer, rejectCustomerOffer, counterCustomerOffer, applyStaffSuggestion,
     markForSale, updateListPrice, setListPriceMultiplier, markAllForSale, unlistAllCars, bulkSetListing,
-    makeLeaseAvailable, stopOfferingLease, viewLeaseDetails, toggleShowLeasedCars, switchTab,
+    makeLeaseAvailable, stopOfferingLease, viewLeaseDetails, toggleShowLeasedCars, setCarLotSort, switchTab,
     buyUpgrade, detailCar, carWash, basicRepair, partsUpgrade,
     drawLoan, payDownLoan,
     selectInsurance, cancelInsurance,
