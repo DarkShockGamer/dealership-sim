@@ -11,9 +11,16 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.7.0';
+const GAME_VERSION = '1.7.1';
 
 const PATCH_NOTES = [
+  {
+    version: '1.7.1',
+    date: 'September 2026',
+    notes: [
+      { type: 'fix', text: 'Shortened the service bay\'s "Service complete — collect payment!" status label to just "Service complete" — it was running too long in the detail panel.' },
+    ],
+  },
   {
     version: '1.7.0',
     date: 'September 2026',
@@ -5248,7 +5255,7 @@ function renderServiceGarage() {
         </div>`;
     } else { // ready
       statusBadge = `<span class="badge badge-green">Ready</span>`;
-      statusRow   = `<div class="detail-row"><span>Status</span><span class="text-green">Service complete — collect payment!</span></div>`;
+      statusRow   = `<div class="detail-row"><span>Status</span><span class="text-green">Service complete</span></div>`;
       actionHtml  = `
         <div class="car-actions">
           <button class="btn btn-success" onclick="completeServiceJob('${sc.id}')">
