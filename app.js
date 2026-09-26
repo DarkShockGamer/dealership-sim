@@ -11,9 +11,24 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.8.0';
+const GAME_VERSION = '1.8.2';
 
 const PATCH_NOTES = [
+  {
+    version: '1.8.2',
+    date: 'September 2026',
+    notes: [
+      { type: 'balance', text: 'Lease crash base rate raised again (~0.06%/day, ~19%/year of continuous leasing) — wrecked lease vehicles should now clearly outpace lot theft, on top of the 1.8.1 rebalance.' },
+    ],
+  },
+  {
+    version: '1.8.1',
+    date: 'September 2026',
+    notes: [
+      { type: 'balance', text: 'Car theft rebalanced to match real-world rates — even a fully unsecured, late-game lot now tops out around a 6%/year theft risk per car instead of the old runaway near-certainty, and Security upgrades still cut that further (down to under 1%/year at Fortress Protocol).' },
+      { type: 'balance', text: 'Leased vehicles now crash somewhat more often than before, reflecting that a car actually out on the road every day carries more real-world collision risk than a parked car getting stolen — theft should no longer feel more common than lease wrecks.' },
+    ],
+  },
   {
     version: '1.8.0',
     date: 'September 2026',
@@ -673,7 +688,11 @@ const LEASE_MILES_VARIANCE_MIN = -8;
 const LEASE_MILES_VARIANCE_MAX = 14;
 const LEASE_DEPRECIATION_DIVISOR = 84000;   // Mileage-based depreciation (5× more aggressive than before)
 const LEASE_DAILY_TIME_DEPRECIATION_RATE = 0.001; // 0.1%/day time-based depreciation applied during lease
-const LEASE_CRASH_PROBABILITY = 0.0002;     // ~0.05%/day: rare crash (~3–9% chance over a full lease term)
+// Collision claim frequency in the real world runs ~5-6% of vehicles per year (far higher than
+// theft), so a leased car — out on the road, being actually driven every day — should crash more
+// often than a lot car gets stolen. 0.0006/day compounds to ~19%/year of continuous leasing,
+// i.e. roughly a 10-30% chance over one 60-180 day lease term, before any neglect penalties.
+const LEASE_CRASH_PROBABILITY = 0.0006;     // ~0.06%/day base, before neglect bonuses below
 const LEASE_CRASH_REPAIR_COST_MIN = 0.90;   // Minimum repair cost multiplier after crash (90% of market value)
 const LEASE_CRASH_REPAIR_COST_MAX = 1.30;   // Maximum repair cost multiplier after crash (130% of market value)
 const LEASE_CRASH_STRUCTURAL_RATIO = 0.60;  // Portion of repair cost attributed to structural crash damage
@@ -1028,6 +1047,14 @@ const UPGRADE_CATEGORY_ORDER = [
 const OVERHEAD_REDUCTION_PER_LEVEL = 0.10;          // Cost Efficiency Program: −10% lot overhead per level
 const SERVICE_JOB_VALUE_MULT = [1, 1.35, 1.9, 2.8]; // bigger service departments land bigger jobs
 const THEFT_REDUCTION_BY_LEVEL = [0, 0.25, 0.50, 0.75, 0.90];
+// Real-world vehicle theft is rare — NICB/FBI data puts the U.S. annual theft rate at roughly
+// 0.3% of registered vehicles. A dealership lot is a juicier target than a random parked car
+// (lots of keys, lots of inventory in one place), so this is set noticeably higher than the
+// national average, but nowhere near a coin-flip. 0.00017/day compounds to ~6% annual risk for
+// an unsecured car sitting on the lot at full late-game ramp-up — Fortress Protocol (−90%) then
+// brings that down to well under 1%/year, and stacks with LEASE_CRASH_PROBABILITY below so a
+// leased car crashing stays meaningfully more likely than a lot car getting stolen.
+const THEFT_MAX_CHANCE_PER_DAY = 0.00017;
 const WORKSHOP_REPAIR_DISCOUNT = 0.15;
 const CERTIFIED_SALE_BONUS = 1.18;
 const WASH_COST = 125;             // requires the Wash Station upgrade
@@ -3508,7 +3535,7 @@ function processInsuranceBilling() {
 /** Returns the theft chance per car per day based on game progression. */
 function getTheftChancePerCar() {
   const dayProgress = Math.max(0, state.day - 50);
-  const baseChance  = clamp(dayProgress / 300, 0, 1) * 0.012;
+  const baseChance  = clamp(dayProgress / 300, 0, 1) * THEFT_MAX_CHANCE_PER_DAY;
   const secLevel    = state.upgrades.securityLevel || 0;
   const reduction   = THEFT_REDUCTION_BY_LEVEL[Math.min(secLevel, THEFT_REDUCTION_BY_LEVEL.length - 1)] || 0;
   return baseChance * (1 - reduction);
