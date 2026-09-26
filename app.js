@@ -11,9 +11,17 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.8.2';
+const GAME_VERSION = '1.8.3';
 
 const PATCH_NOTES = [
+  {
+    version: '1.8.3',
+    date: 'September 2026',
+    notes: [
+      { type: 'feature', text: 'Doubled the hidden-issue pool for used cars and lease neglect (12 → 24 problems), adding Head Gasket Leak, Turbocharger Failure, Infotainment/Electronics Fault, Fuel Pump Failure, Alternator Failure, Differential/Axle Wear, Oxygen Sensor Failure, Water Pump Failure, Windshield Crack, Wheel Bearing Noise, Battery Near End of Life, and Worn Tires. The odds of a car having any issues at all, by condition grade, are unchanged — this only adds variety to which problems show up.' },
+      { type: 'balance', text: "Big-ticket repairs (engine, transmission, turbo, head gasket, catalytic converter, electronics) now cost a percentage of the vehicle's value instead of one flat number for every car — a Poor-condition luxury car's transmission slip now runs real luxury-shop money instead of the same bill as an economy compact's. Routine wear items (brakes, oil leak, a battery) stay flat, priced by the job rather than the car." },
+    ],
+  },
   {
     version: '1.8.2',
     date: 'September 2026',
@@ -641,20 +649,47 @@ const MARKET_EVENTS = [
   { msg: '💸 Interest rates rising — budget buyers rule the day.',  effects: { Economy: 0.10, Luxury: -0.09, Sports: -0.06 } },
 ];
 
+// Hidden mechanical issues found on used cars, and ones that can develop on a leased car
+// while it's out with the lessee. Big-ticket repairs (engines, transmissions, luxury
+// electronics) genuinely cost more on a pricier vehicle in real life — European/luxury parts
+// and labor rates run well above an economy car's — so those entries scale as a percentage of
+// the vehicle's value (clamped to a realistic min/max). Routine wear items (brake pads, a
+// battery, wiper-adjacent stuff) are priced by the job, not the car, so those stay flat.
 const HIDDEN_ISSUES = [
-  { name: 'Engine knock',              cost: 800  },
-  { name: 'Transmission slip',         cost: 1200 },
+  // ── Scales with vehicle value ──────────────────────────────────────────────
+  { name: 'Engine knock',                    pct: 0.10,  min: 700,  max: 5500 },
+  { name: 'Transmission slip',               pct: 0.15,  min: 1000, max: 7500 },
+  { name: 'Head gasket leak',                pct: 0.11,  min: 900,  max: 4800 },
+  { name: 'Turbocharger failure',            pct: 0.12,  min: 900,  max: 6000 },
+  { name: 'Catalytic converter issue',       pct: 0.09,  min: 800,  max: 4500 },
+  { name: 'Electrical issues',               pct: 0.07,  min: 300,  max: 3200 },
+  { name: 'Infotainment / electronics fault',pct: 0.05,  min: 250,  max: 2200 },
+  { name: 'Suspension damage',               pct: 0.05,  min: 400,  max: 2400 },
+  { name: 'Timing belt/chain due',           pct: 0.06,  min: 450,  max: 2000 },
+  { name: 'AC compressor failure',           pct: 0.045, min: 400,  max: 1800 },
+  { name: 'Fuel pump failure',               pct: 0.04,  min: 350,  max: 1200 },
+  { name: 'Alternator failure',              pct: 0.03,  min: 300,  max: 900  },
+  { name: 'Power steering leak',             pct: 0.03,  min: 300,  max: 900  },
+  { name: 'Differential / axle wear',        pct: 0.05,  min: 350,  max: 1600 },
+  { name: 'Oxygen sensor failure',           pct: 0.025, min: 200,  max: 700  },
+  { name: 'Water pump failure',              pct: 0.035, min: 300,  max: 1100 },
+  // ── Flat cost — priced by the job, not the car ─────────────────────────────
   { name: 'Brake wear',                cost: 400  },
-  { name: 'Suspension damage',         cost: 600  },
-  { name: 'AC compressor failure',     cost: 500  },
   { name: 'Oil leak',                  cost: 350  },
-  { name: 'Rust spots',                cost: 200  },
-  { name: 'Electrical issues',         cost: 450  },
   { name: 'Coolant leak',              cost: 300  },
-  { name: 'Timing belt due',           cost: 700  },
-  { name: 'Power steering leak',       cost: 380  },
-  { name: 'Catalytic converter issue', cost: 950  },
+  { name: 'Rust spots',                cost: 200  },
+  { name: 'Windshield crack',          cost: 350  },
+  { name: 'Wheel bearing noise',       cost: 450  },
+  { name: 'Battery near end of life',  cost: 180  },
+  { name: 'Worn tires (full set)',     cost: 500  },
 ];
+
+/** Actual repair cost for a hidden-issue pool entry — scaled by the vehicle's value for
+ *  big-ticket real-world repairs, or a flat job cost for routine wear items. */
+function computeIssueCost(issueDef, baseValue) {
+  if (issueDef.pct == null) return issueDef.cost;
+  return clamp(Math.round((baseValue || 0) * issueDef.pct), issueDef.min, issueDef.max);
+}
 
 const STAFF_NAMES = ['Alex', 'Sam', 'Jordan', 'Taylor', 'Riley', 'Casey', 'Morgan', 'Parker', 'Jamie', 'Avery'];
 const STAFF_BASE_WAGE = 220;
@@ -2021,7 +2056,7 @@ function pickCondition(weights) {
 /** Generate a random subset of hidden issues based on condition tier.
  *  Good (B) and Excellent (A) cars rarely have any mechanical issues.
  *  Probability and severity increase for Fair (C) and Poor (D). */
-function genHiddenIssues(condition) {
+function genHiddenIssues(condition, baseValue) {
   const r = Math.random();
   let count;
   if (condition === 'A') {
@@ -2046,7 +2081,7 @@ function genHiddenIssues(condition) {
   const issues = [];
   for (let i = 0; i < count && pool.length; i++) {
     const idx = Math.floor(Math.random() * pool.length);
-    issues.push({ ...pool[idx] });
+    issues.push({ name: pool[idx].name, cost: computeIssueCost(pool[idx], baseValue) });
     pool.splice(idx, 1);
   }
   return issues;
@@ -2170,7 +2205,7 @@ function buildCar(entry, condition, source, inspected = false) {
   const year    = source === 'factory' ? 2026 : randomInt(entry.yearRange[0], entry.yearRange[1]);
   const mileage = source === 'factory' ? randomInt(5, 50) : randomInt(entry.baseMileage[0], entry.baseMileage[1]);
   const titleStatus = pickTitleStatus(source, condition, mileage);
-  const issues  = inspected || source === 'factory' ? [] : genHiddenIssues(condition);
+  const issues  = inspected || source === 'factory' ? [] : genHiddenIssues(condition, entry.marketValue * CONDITION_VALUE[condition]);
   // Legal status & VIN — only relevant for used cars
   const legalStatus = source === 'factory' ? 'clean' : genLegalStatus(condition, mileage);
   const vinStatus   = source === 'factory' ? 'normal' : genVinStatus(legalStatus);
@@ -2813,7 +2848,8 @@ function processLeases() {
     const neglectBonus = neglectIssueCount * LEASE_NEGLECT_ISSUE_BONUS_PER_ISSUE;
     const issueChance = clamp(0.001 + (termProgress * 0.007) + titleBonus + hardBonus + neglectBonus, 0, 0.08);
     if (Math.random() < issueChance) {
-      const issue = { ...randomFrom(HIDDEN_ISSUES) };
+      const issueDef = randomFrom(HIDDEN_ISSUES);
+      const issue = { name: issueDef.name, cost: computeIssueCost(issueDef, car.marketValue) };
       lease.pendingIssues = lease.pendingIssues || [];
       if (!lease.pendingIssues.some(i => i.name === issue.name)) lease.pendingIssues.push(issue);
     }
