@@ -94,7 +94,14 @@
       // session, not just here.
       var musicReady = false;
       function armMusic() {
-        if (typeof window.startMusic === 'function') {
+        // Prefer applyMusicForContext() — it picks the calm menu track or the
+        // livelier in-game track based on what's actually on screen. Only fall
+        // back to the raw startMusic() (always the menu track) in the unlikely
+        // case app.js hasn't finished exposing the newer helper yet.
+        if (typeof window.applyMusicForContext === 'function') {
+          musicReady = true;
+          try { window.applyMusicForContext(); } catch (_) {}
+        } else if (typeof window.startMusic === 'function') {
           musicReady = true;
           try { window.startMusic(); } catch (_) {}
         } else if (!musicReady) {
