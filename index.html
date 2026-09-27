@@ -99,12 +99,28 @@
           </div>
           <div class="menu-setting-row" style="margin-top:10px">
             <div>
+              <div class="menu-setting-label">SFX Volume</div>
+              <div class="menu-setting-desc" id="menu-sfx-volume-pct">22%</div>
+            </div>
+            <input type="range" min="0" max="1" step="0.01" id="menu-sfx-volume-range"
+              oninput="setSfxVolume(this.value)" onchange="playSfx('click')" style="width:140px">
+          </div>
+          <div class="menu-setting-row" style="margin-top:10px">
+            <div>
               <div class="menu-setting-label">Background Music</div>
-              <div class="menu-setting-desc">Ambient showroom lounge music. Volume slider is in-game under Settings.</div>
+              <div class="menu-setting-desc">Ambient showroom lounge music.</div>
             </div>
             <button class="toggle-btn" id="menu-toggle-music" onclick="menuToggleMusic()" aria-label="Toggle background music">
               <span class="toggle-thumb"></span>
             </button>
+          </div>
+          <div class="menu-setting-row" style="margin-top:10px">
+            <div>
+              <div class="menu-setting-label">Music Volume</div>
+              <div class="menu-setting-desc" id="menu-music-volume-pct">16%</div>
+            </div>
+            <input type="range" min="0" max="1" step="0.01" id="menu-music-volume-range"
+              oninput="setMusicVolume(this.value)" style="width:140px">
           </div>
         </div>
         <div class="menu-settings-card">
@@ -164,7 +180,7 @@
       </div>
     </div>
 
-    <span class="menu-version" aria-hidden="true">v1.10</span>
+    <span class="menu-version" aria-hidden="true">v1.4.2</span>
   </div>
 
   <!-- Delete-slot confirmation dialog -->
