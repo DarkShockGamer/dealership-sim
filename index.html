@@ -28,8 +28,60 @@
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="menu.css" />
   <link rel="stylesheet" href="cheat.css" />
+  <link rel="stylesheet" href="boot.css" />
 </head>
 <body>
+
+  <!-- ══════════════════════════════════════════════════════
+       BOOT / INTRO SCREEN
+       Plays once on load, then fades into the main menu.
+       ══════════════════════════════════════════════════════ -->
+  <div id="boot-screen" role="presentation">
+    <div class="boot-bg" aria-hidden="true"></div>
+    <div class="boot-streaks" aria-hidden="true">
+      <span class="boot-streak s1"></span>
+      <span class="boot-streak s2"></span>
+      <span class="boot-streak s3"></span>
+      <span class="boot-streak s4"></span>
+      <span class="boot-streak s5"></span>
+    </div>
+    <div class="boot-flash" aria-hidden="true"></div>
+    <div class="boot-wordmark" role="img" aria-label="DealerSim — Car Dealership Simulator">
+      <div class="boot-logo" aria-hidden="true">
+        <span class="bl">D</span><span class="bl">E</span><span class="bl">A</span><span class="bl">L</span><span class="bl">E</span><span class="bl">R</span><span class="bl">S</span><span class="bl">I</span><span class="bl">M</span>
+      </div>
+      <div class="boot-underline" aria-hidden="true"></div>
+      <div class="boot-tagline" aria-hidden="true">Car Dealership Simulator</div>
+    </div>
+    <div class="boot-skip-hint" aria-hidden="true">tap or press any key to skip</div>
+  </div>
+  <script>
+    (function () {
+      var boot = document.getElementById('boot-screen');
+      if (!boot) return;
+      var reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+      var done = false;
+
+      function finish(fast) {
+        if (done) return;
+        done = true;
+        boot.classList.add('boot-exit');
+        if (fast) boot.classList.add('boot-fast');
+        setTimeout(function () {
+          boot.classList.add('boot-hidden');
+          boot.setAttribute('aria-hidden', 'true');
+        }, fast ? 260 : 700);
+      }
+
+      // Let the intro play out on its own...
+      setTimeout(function () { finish(false); }, reduced ? 150 : 3000);
+
+      // ...or skip straight to the menu on the first tap/click/keypress.
+      ['pointerdown', 'keydown'].forEach(function (evt) {
+        boot.addEventListener(evt, function () { finish(true); }, { once: true });
+      });
+    })();
+  </script>
 
   <!-- ══════════════════════════════════════════════════════
        HOME SCREEN / MAIN MENU
