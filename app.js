@@ -7414,15 +7414,58 @@ const MUSIC_PAD_ATTACK = 1.4;
 const MUSIC_PAD_RELEASE = 1.1;
 const MUSIC_MIN_GAIN = 0.0001;
 
-// A gentle four-chord lounge progression (Cmaj7 – Am7 – Dm7 – G7), voiced
-// close together with a soft sub-bass root. Each chord also lists a couple
-// of "sparkle" notes — pulled from its own upper voicing — that are
-// occasionally plucked softly on top so the loop doesn't feel static.
+// Converts a note name like 'C4', 'F#3', 'Bb5' to its frequency in Hz (equal
+// temperament, A4 = 440Hz). Lets the progression below be written and edited
+// as real note names instead of hand-computed frequencies.
+const MUSIC_NOTE_INDEX = { C:0, 'C#':1, Db:1, D:2, 'D#':3, Eb:3, E:4, F:5, 'F#':6, Gb:6,
+  G:7, 'G#':8, Ab:8, A:9, 'A#':10, Bb:10, B:11 };
+function noteFreq(name) {
+  const m = /^([A-G][#b]?)(-?\d+)$/.exec(name);
+  if (!m) return 440;
+  const midi = MUSIC_NOTE_INDEX[m[1]] + (parseInt(m[2], 10) + 1) * 12;
+  return 440 * Math.pow(2, (midi - 69) / 12);
+}
+const defChord = (bassNote, chordNotes, sparkleNotes) => ({
+  bass: noteFreq(bassNote),
+  chord: chordNotes.map(noteFreq),
+  sparkle: sparkleNotes.map(noteFreq),
+});
+
+// A 24-bar lounge progression that tours from C major, briefly modulates up
+// to F for contrast, then winds back home through a couple of jazzy passing
+// chords before the turnaround. At MUSIC_BPM this is roughly 78 seconds
+// start-to-finish, so the loop point is far apart and rarely noticed even
+// after several minutes — no two consecutive bars share the same voicing,
+// and the "sparkle" ornament notes on top are re-randomized every time the
+// loop plays, so even the repeat doesn't sound identical to last time.
 const MUSIC_PROGRESSION = [
-  { bass: 130.81, chord: [261.63, 329.63, 392.00, 493.88], sparkle: [523.25, 659.25] }, // Cmaj7
-  { bass: 110.00, chord: [220.00, 261.63, 329.63, 392.00], sparkle: [440.00, 523.25] }, // Am7
-  { bass: 146.83, chord: [293.66, 349.23, 440.00, 523.25], sparkle: [349.23, 440.00] }, // Dm7
-  { bass: 98.00,  chord: [196.00, 246.94, 293.66, 349.23], sparkle: [392.00, 293.66] }, // G7
+  // ── Section A — home key of C ──────────────────────────────
+  defChord('C3', ['C4','E4','G4','B4'],  ['C5','E5']),   // Cmaj7
+  defChord('A2', ['A3','C4','E4','G4'],  ['A4','C5']),   // Am7
+  defChord('D3', ['D4','F4','A4','C5'],  ['D5','F4']),   // Dm7
+  defChord('G2', ['G3','B3','D4','F4'],  ['G4','B3']),   // G7
+  defChord('C3', ['E4','G4','B4','D5'],  ['G5','E5']),   // Cmaj9 (higher voicing)
+  defChord('A2', ['C4','E4','G4','B4'],  ['C5','B4']),   // Am9
+  defChord('D3', ['F4','A4','C5','E5'],  ['A5','F5']),   // Dm9
+  defChord('G2', ['B3','D4','F4','E5'],  ['D5','B4']),   // G13
+  // ── Section B — modulates up to F major for contrast ───────
+  defChord('F3', ['F4','A4','C5','E5'],  ['F5','A5']),   // Fmaj7
+  defChord('G3', ['G4','Bb4','D5','F5'], ['G5','D5']),   // Gm7
+  defChord('C3', ['C4','E4','G4','Bb4'], ['E5','C5']),   // C7
+  defChord('F3', ['A4','C5','E5','G5'],  ['C5','A4']),   // Fmaj7 (higher voicing)
+  defChord('D3', ['D4','F4','A4','C5'],  ['F5','D5']),   // Dm7
+  defChord('E3', ['E4','G4','Bb4','D5'], ['G5','Bb4']),  // Em7b5
+  defChord('A2', ['A3','C#4','E4','G4'], ['C#5','E5']),  // A7 (secondary dominant)
+  defChord('D3', ['D4','F4','A4','C5'],  ['A4','F4']),   // Dm7
+  // ── Section A' — winds back home with a couple of passing chords ──
+  defChord('C3', ['C4','E4','G4','B4'],  ['E5','G5']),   // Cmaj7
+  defChord('C#3',['C#4','E4','G4','A#4'],['E5','G5']),   // C#dim7 (chromatic passing chord)
+  defChord('D3', ['D4','F4','A4','C5'],  ['C5','F5']),   // Dm7
+  defChord('G2', ['G3','B3','D4','F4'],  ['B4','D5']),   // G7
+  defChord('E3', ['E4','G4','B4','D5'],  ['G5','B4']),   // Em7
+  defChord('A2', ['A3','C#4','E4','G4'], ['C#5','A4']),  // A7
+  defChord('D3', ['D4','F4','A4','C5'],  ['F5','A5']),   // Dm7
+  defChord('G2', ['G3','B3','D4','F4'],  ['D5','F5']),   // G7 (turnaround back to bar 1)
 ];
 
 let musicGainNode   = null;
