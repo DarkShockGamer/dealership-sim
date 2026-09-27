@@ -8838,6 +8838,7 @@ function init() {
     confirmNewGame, exportSave, hireStaff, dismissCandidate,
     toggleDarkMode, setDifficulty, toggleSfxMuted, setSfxVolume, toggleTutorials,
     toggleMusicMuted, setMusicVolume, menuToggleMusic, playSfx,
+    startMusic, // exposed so the boot-intro screen (index.html) can arm the soundtrack on its own first gesture
     renderCarLot, renderLeasing, renderServiceGarage, renderForSale, renderUsedMarket, renderFinance, renderAchievements,
     renderInsurance,
     renderReceipts, viewReceipt, closeReceiptModal,
