@@ -13,11 +13,9 @@
   justify-content: center;
   background: #04070d;
   overflow: hidden;
-  cursor: pointer;
 }
 #boot-screen.boot-hidden { display: none; }
 #boot-screen.boot-exit   { pointer-events: none; animation: bootFadeOut 0.7s ease forwards; }
-#boot-screen.boot-exit.boot-fast { animation-duration: 0.26s; }
 
 @keyframes bootFadeOut {
   from { opacity: 1; transform: scale(1);     filter: blur(0); }
@@ -160,29 +158,11 @@
 }
 @keyframes bootGlow { 0% { opacity: 0; } 40% { opacity: 1; } 100% { opacity: .6; } }
 
-/* ── Skip hint ────────────────────────────────────────────── */
-.boot-skip-hint {
-  position: absolute;
-  bottom: 30px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 2;
-  font-size: .72rem;
-  font-weight: 600;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: rgba(161, 199, 255, .4);
-  opacity: 0;
-  animation: bootSkipIn .5s ease .35s forwards, bootSkipPulse 2.2s ease-in-out .35s infinite;
-}
-@keyframes bootSkipIn { to { opacity: 1; } }
-@keyframes bootSkipPulse { 0%, 100% { opacity: .35; } 50% { opacity: .8; } }
-
 /* ── Reduced motion: skip straight to a settled logo, no motion ── */
 @media (prefers-reduced-motion: reduce) {
   #boot-screen.boot-exit { animation-duration: .25s !important; }
   .boot-bg, .boot-streak, .boot-flash, .boot-logo .bl,
-  .boot-underline, .boot-tagline, .boot-skip-hint, .boot-wordmark::after {
+  .boot-underline, .boot-tagline, .boot-wordmark::after {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;
