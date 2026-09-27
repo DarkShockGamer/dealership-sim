@@ -6822,10 +6822,10 @@ function renderSettings() {
         <div class="setting-row" style="margin-top:10px">
           <div>
             <div class="setting-label">Volume</div>
-            <div class="setting-desc">${Math.round((settings.sfxVolume ?? 0.22) * 100)}%</div>
+            <div class="setting-desc" id="sfx-volume-pct">${Math.round((settings.sfxVolume ?? 0.22) * 100)}%</div>
           </div>
           <input type="range" min="0" max="1" step="0.01" value="${settings.sfxVolume ?? 0.22}"
-            onchange="setSfxVolume(this.value)" style="width:180px" ${sfxMuted ? 'disabled' : ''}>
+            oninput="setSfxVolume(this.value)" onchange="playSfx('click')" style="width:180px" ${sfxMuted ? 'disabled' : ''}>
         </div>
       </div>
 
@@ -6843,10 +6843,10 @@ function renderSettings() {
         <div class="setting-row" style="margin-top:10px">
           <div>
             <div class="setting-label">Volume</div>
-            <div class="setting-desc">${Math.round((settings.musicVolume ?? 0.16) * 100)}%</div>
+            <div class="setting-desc" id="music-volume-pct">${Math.round((settings.musicVolume ?? 0.16) * 100)}%</div>
           </div>
           <input type="range" min="0" max="1" step="0.01" value="${settings.musicVolume ?? 0.16}"
-            onchange="setMusicVolume(this.value)" style="width:180px" ${musicMuted ? 'disabled' : ''}>
+            oninput="setMusicVolume(this.value)" style="width:180px" ${musicMuted ? 'disabled' : ''}>
         </div>
       </div>
 
@@ -7323,14 +7323,20 @@ function toggleSfxMuted() {
   settings.sfxMuted = !settings.sfxMuted;
   saveSettings();
   renderSettings();
+  syncMenuSettings();
   if (!settings.sfxMuted) playSfx('toggle'); // audible confirmation that sound is back on
 }
 
+/** Updates the SFX volume and refreshes every visible "NN%" label for it (settings tab + main menu). */
 function setSfxVolume(raw) {
   const vol = clamp(parseFloat(raw), 0, 1);
   settings.sfxVolume = isNaN(vol) ? 0.22 : vol;
   saveSettings();
-  playSfx('click'); // audible preview of the new volume level
+  const pct = Math.round(settings.sfxVolume * 100) + '%';
+  ['sfx-volume-pct', 'menu-sfx-volume-pct'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = pct;
+  });
 }
 
 function toggleTutorials() {
@@ -7571,7 +7577,7 @@ function toggleMusicMuted() {
   if (settings.musicMuted) stopMusic(); else startMusic();
 }
 
-/** Adjust background music volume (0–1) from the in-game Settings tab. */
+/** Adjust background music volume (0–1) and refresh every visible "NN%" label for it (settings tab + main menu). */
 function setMusicVolume(raw) {
   const vol = clamp(parseFloat(raw), 0, 1);
   settings.musicVolume = isNaN(vol) ? 0.16 : vol;
@@ -7579,6 +7585,11 @@ function setMusicVolume(raw) {
   if (musicGainNode && audioCtx) {
     musicGainNode.gain.setTargetAtTime(vol * MUSIC_VOLUME_SCALE, audioCtx.currentTime, 0.1);
   }
+  const pct = Math.round(settings.musicVolume * 100) + '%';
+  ['music-volume-pct', 'menu-music-volume-pct'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = pct;
+  });
 }
 
 /** Toggle background music from the home-screen settings panel. */
@@ -7911,10 +7922,18 @@ function syncMenuSettings() {
     btn.classList.toggle('active', !!active);
     btn.querySelector('.toggle-thumb').style.transform = active ? 'translateX(22px)' : '';
   };
+  const setRange = (id, pctId, value, disabled) => {
+    const input = document.getElementById(id);
+    if (input) { input.value = value; input.disabled = !!disabled; }
+    const pct = document.getElementById(pctId);
+    if (pct) pct.textContent = Math.round(value * 100) + '%';
+  };
   setToggle('menu-toggle-dark',      settings.darkMode);
   setToggle('menu-toggle-sfx',       !settings.sfxMuted);
   setToggle('menu-toggle-music',     !settings.musicMuted);
   setToggle('menu-toggle-tutorials', settings.tutorialsEnabled);
+  setRange('menu-sfx-volume-range',   'menu-sfx-volume-pct',   settings.sfxVolume ?? 0.22, settings.sfxMuted);
+  setRange('menu-music-volume-range', 'menu-music-volume-pct', settings.musicVolume ?? 0.16, settings.musicMuted);
 }
 
 /** Toggle dark mode from the home-screen settings panel. */
@@ -8818,7 +8837,7 @@ function init() {
     selectInsurance, cancelInsurance,
     confirmNewGame, exportSave, hireStaff, dismissCandidate,
     toggleDarkMode, setDifficulty, toggleSfxMuted, setSfxVolume, toggleTutorials,
-    toggleMusicMuted, setMusicVolume, menuToggleMusic,
+    toggleMusicMuted, setMusicVolume, menuToggleMusic, playSfx,
     renderCarLot, renderLeasing, renderServiceGarage, renderForSale, renderUsedMarket, renderFinance, renderAchievements,
     renderInsurance,
     renderReceipts, viewReceipt, closeReceiptModal,
