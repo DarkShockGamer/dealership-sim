@@ -4139,6 +4139,7 @@ function runAchievementChecks() {
 function nextDay() {
   if (state.gameOver) { showToast('Game over — start a new game to continue.', 'error'); return; }
   triggerDayTransition(state.day + 1);
+  _holdDayPopups = true; // theft/lease/etc. popups below queue up instead of firing mid-animation
   state.day++;
   processDeliveries();
   processService();
@@ -4170,12 +4171,19 @@ function nextDay() {
   runAchievementChecks();
   saveState();
   renderAll();
-  flushInsuranceModals(); // show any theft/crash insurance payout popups queued today
   const offerAlert = newOffers.length ? ` ${newOffers.length} offer(s) on your cars!` : '';
   const tradeAlert = newTIR.length   ? ` ${newTIR.length} trade-in request(s)!` : '';
   const leaseIncome = computeLeaseIncomePerDay();
   const leaseAlert = leaseIncome > 0 ? ` Active lease income/day: ${formatCurrency(leaseIncome)}.` : '';
   showToast(`Day ${state.day} — new used cars available!${offerAlert}${tradeAlert}${leaseAlert}`, 'info', 'day');
+  _holdDayPopups = false;
+  // Let the "Day N" card finish before releasing anything that piled up
+  // (theft alerts, lease crash/return reports, insurance payouts, the
+  // toast just above) — otherwise a popup opening mid-animation covers it.
+  setTimeout(() => {
+    flushHeldToasts();
+    flushHeldModals();
+  }, DAY_TRANSITION_MS);
 }
 
 // ============================================================
@@ -7022,6 +7030,12 @@ function flashCarCard(carId) {
   });
 }
 
+// How long the "Day N" card stays on screen before it's fully gone — day
+// popups (theft, lease crash/return, etc.) are held until this elapses so
+// they never open on top of it. Keep in sync with the CSS animation
+// durations for #day-sweep-overlay / #day-sweep-label in styles.css.
+const DAY_TRANSITION_MS = 1000;
+
 /** "Day N" title card — fades and scales in over a soft dim, holds a
  *  beat, then fades out. Played once per nextDay() call, alongside a
  *  short chime. Just the text beat, no moving light-sweep. */
@@ -7034,7 +7048,7 @@ function triggerDayTransition(dayNum) {
   void overlay.offsetWidth;
   overlay.classList.add('active');
   playSfx('day');
-  setTimeout(() => overlay.classList.remove('active'), 1000);
+  setTimeout(() => overlay.classList.remove('active'), DAY_TRANSITION_MS);
 }
 
 // Tracks what renderStats() last painted, so it can tell what actually
@@ -7057,7 +7071,17 @@ function _flashStatIfChanged(id, newVal, prevVal, formatDelta, invert = false) {
 // ============================================================
 // TOAST
 // ============================================================
+// While the day-transition card is on screen, toast/modal popups are held
+// back and released right after it finishes (see nextDay()) instead of
+// firing immediately — a popup opening mid-animation used to visually
+// cover/interrupt the "Day N" card. Anything shown outside of a day
+// advance (normal gameplay actions) is completely unaffected.
+let _holdDayPopups = false;
+let _heldToasts = [];
+let _heldModalQueue = [];
+
 function showToast(message, type = 'info', sfx = null) {
+  if (_holdDayPopups) { _heldToasts.push({ message, type, sfx }); return; }
   const container = document.getElementById('toast-container');
   const el = document.createElement('div');
   el.className = `toast toast-${type}`;
@@ -7077,10 +7101,21 @@ function showToast(message, type = 'info', sfx = null) {
   else playSfx('click');
 }
 
+/** Releases every toast that piled up during a day advance, lightly
+ *  staggered so their chimes don't all land in the same instant. */
+function flushHeldToasts() {
+  const toasts = _heldToasts;
+  _heldToasts = [];
+  toasts.forEach((t, i) => {
+    setTimeout(() => showToast(t.message, t.type, t.sfx), i * 150);
+  });
+}
+
 // ============================================================
 // MODAL
 // ============================================================
 function showModal(title, message, onConfirm) {
+  if (_holdDayPopups) { _heldModalQueue.push({ title, message, onConfirm }); return; }
   document.getElementById('modal-title').textContent   = title;
   document.getElementById('modal-message').textContent = message;
   document.getElementById('modal-confirm').onclick = () => { closeModal(); onConfirm(); };
@@ -7090,6 +7125,15 @@ function showModal(title, message, onConfirm) {
 function closeModal() {
   document.getElementById('modal').classList.add('hidden');
   playSfx('modalClose');
+}
+
+/** Shows any modals (e.g. a Lease Return Report) that piled up during a day
+ *  advance, one at a time — then hands off to the insurance-event queue so
+ *  everything from that day surfaces in order once the day card is done. */
+function flushHeldModals() {
+  if (_heldModalQueue.length === 0) { flushInsuranceModals(); return; }
+  const { title, message, onConfirm } = _heldModalQueue.shift();
+  showModal(title, message, () => { onConfirm(); flushHeldModals(); });
 }
 
 // ============================================================
