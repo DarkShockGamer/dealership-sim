@@ -391,7 +391,16 @@
 
   <!-- ── Day Transition Overlay ─────────────────────────── -->
   <div id="day-sweep-overlay" aria-hidden="true">
-    <span id="day-sweep-label"></span>
+    <div id="day-flip-card">
+      <div class="day-flip-face day-flip-old">
+        <span class="day-flip-tab">Day</span>
+        <span id="day-flip-old-num" class="day-flip-num"></span>
+      </div>
+      <div class="day-flip-face day-flip-new">
+        <span class="day-flip-tab">Day</span>
+        <span id="day-flip-new-num" class="day-flip-num"></span>
+      </div>
+    </div>
   </div>
 
   <!-- ── Toast Container ────────────────────────────────── -->
