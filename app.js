@@ -11,9 +11,16 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.9.0';
+const GAME_VERSION = '1.10.0';
 
 const PATCH_NOTES = [
+  {
+    version: '1.10.0',
+    date: 'September 2026',
+    notes: [
+      { type: 'feature', text: 'Added background music — a soft, original ambient lounge loop that plays while you run the lot, synthesized entirely in-browser (no audio files, fully royalty-free). New Music controls live in Settings (and the main menu) with their own mute toggle and volume slider, separate from SFX.' },
+    ],
+  },
   {
     version: '1.9.0',
     date: 'September 2026',
@@ -872,6 +879,7 @@ const _P = {
   inbox:        '<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/>',
   palette:      '<circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>',
   speaker:      '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>',
+  music:        '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
   clipboard:    '<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>',
   dumbbell:     '<path d="M6.5 6.5h11"/><path d="M6.5 17.5h11"/><rect x="3" y="9" width="2" height="6" rx="1"/><rect x="19" y="9" width="2" height="6" rx="1"/><rect x="5" y="7" width="2" height="10" rx="1"/><rect x="17" y="7" width="2" height="10" rx="1"/>',
   building:     '<rect x="4" y="2" width="16" height="20" rx="1"/><path d="M9 22V12h6v10"/><path d="M8 7h2"/><path d="M14 7h2"/><path d="M8 11h2"/><path d="M14 11h2"/>',
@@ -6779,6 +6787,7 @@ function renderAchievements() {
 function renderSettings() {
   const isDark = settings.darkMode;
   const sfxMuted = !!settings.sfxMuted;
+  const musicMuted = !!settings.musicMuted;
   const overhead = getLotOverhead();
   const diff = state.difficulty || 'normal';
   const diffLabel = diff === 'hard' ? `Hard 💪` : diff === 'easy' ? 'Easy 😎' : 'Normal';
@@ -6817,6 +6826,27 @@ function renderSettings() {
           </div>
           <input type="range" min="0" max="1" step="0.01" value="${settings.sfxVolume ?? 0.22}"
             onchange="setSfxVolume(this.value)" style="width:180px" ${sfxMuted ? 'disabled' : ''}>
+        </div>
+      </div>
+
+      <div class="dash-card settings-card">
+        <h3>${uiIcon('music')} Music</h3>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Background Music</div>
+            <div class="setting-desc">A soft, original ambient lounge loop for the showroom floor.</div>
+          </div>
+          <button class="toggle-btn ${!musicMuted ? 'active' : ''}" onclick="toggleMusicMuted()" aria-label="Toggle background music">
+            <span class="toggle-thumb"></span>
+          </button>
+        </div>
+        <div class="setting-row" style="margin-top:10px">
+          <div>
+            <div class="setting-label">Volume</div>
+            <div class="setting-desc">${Math.round((settings.musicVolume ?? 0.16) * 100)}%</div>
+          </div>
+          <input type="range" min="0" max="1" step="0.01" value="${settings.musicVolume ?? 0.16}"
+            onchange="setMusicVolume(this.value)" style="width:180px" ${musicMuted ? 'disabled' : ''}>
         </div>
       </div>
 
@@ -7086,6 +7116,8 @@ let settings = {
   difficulty: 'normal',
   sfxMuted: false,
   sfxVolume: 0.22,
+  musicMuted: false,
+  musicVolume: 0.16,
   showLeasedCars: true,
   tutorialsEnabled: true,
   carLotSortBy: 'default',
@@ -7329,7 +7361,7 @@ function ensureAudioCtx() {
 function bindAudioUnlock() {
   if (_audioUnlockBound) return;
   _audioUnlockBound = true;
-  const unlock = () => ensureAudioCtx();
+  const unlock = () => { ensureAudioCtx(); startMusic(); };
   ['pointerdown', 'keydown', 'touchstart'].forEach(evt =>
     document.addEventListener(evt, unlock, { once: true, passive: true }));
 }
@@ -7361,6 +7393,158 @@ function playSfx(kind = 'click') {
       osc.stop(end + 0.02);
     });
   } catch (_) {}
+}
+
+// ============================================================
+// BACKGROUND MUSIC — procedurally generated, royalty-free ambient loop
+// ============================================================
+// Everything below is synthesized live with the Web Audio API — no audio
+// files, no samples, nothing copyrighted, just oscillators and gain
+// envelopes. It's a soft, slow-moving lounge-style chord loop meant to sit
+// quietly under the gameplay, like the background music you'd hear drifting
+// through a dealership showroom. It shares the same AudioContext as the SFX
+// engine above but runs through its own gain node so Music and SFX volume
+// can be muted/adjusted independently.
+const MUSIC_VOLUME_SCALE = 0.5;   // headroom so 100% on the slider stays gentle
+const MUSIC_BPM = 74;
+const MUSIC_BEAT_SECONDS = 60 / MUSIC_BPM;
+const MUSIC_BAR_BEATS = 4;
+const MUSIC_BAR_SECONDS = MUSIC_BEAT_SECONDS * MUSIC_BAR_BEATS;
+const MUSIC_PAD_ATTACK = 1.4;
+const MUSIC_PAD_RELEASE = 1.1;
+const MUSIC_MIN_GAIN = 0.0001;
+
+// A gentle four-chord lounge progression (Cmaj7 – Am7 – Dm7 – G7), voiced
+// close together with a soft sub-bass root. Each chord also lists a couple
+// of "sparkle" notes — pulled from its own upper voicing — that are
+// occasionally plucked softly on top so the loop doesn't feel static.
+const MUSIC_PROGRESSION = [
+  { bass: 130.81, chord: [261.63, 329.63, 392.00, 493.88], sparkle: [523.25, 659.25] }, // Cmaj7
+  { bass: 110.00, chord: [220.00, 261.63, 329.63, 392.00], sparkle: [440.00, 523.25] }, // Am7
+  { bass: 146.83, chord: [293.66, 349.23, 440.00, 523.25], sparkle: [349.23, 440.00] }, // Dm7
+  { bass: 98.00,  chord: [196.00, 246.94, 293.66, 349.23], sparkle: [392.00, 293.66] }, // G7
+];
+
+let musicGainNode   = null;
+let musicChordIndex = 0;
+let musicActiveGen  = 0;   // generation counter — invalidates any pending timers after a stop()
+let musicTimerId    = null;
+
+/** Lazily creates the music bus (its own gain node feeding the shared AudioContext). */
+function ensureMusicGain(ctx) {
+  if (!musicGainNode) {
+    musicGainNode = ctx.createGain();
+    musicGainNode.gain.value = clamp(settings.musicVolume ?? 0.16, 0, 1) * MUSIC_VOLUME_SCALE;
+    musicGainNode.connect(ctx.destination);
+  }
+  return musicGainNode;
+}
+
+/** Schedules one long pad chord (+ a couple of optional soft sparkle notes) at `startAt`. */
+function playMusicChord(ctx, bus, chordDef, startAt, duration) {
+  const attack = MUSIC_PAD_ATTACK, release = MUSIC_PAD_RELEASE;
+  const sustainEnd = startAt + duration - release;
+
+  const voices = [chordDef.bass * 0.5, ...chordDef.chord]; // soft sub-bass + close chord voicing
+  voices.forEach((freq, i) => {
+    const osc  = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = i === 0 ? 'sine' : 'triangle';
+    osc.frequency.setValueAtTime(freq, startAt);
+    const peak = (i === 0 ? 0.9 : 0.32) / voices.length * 2.2;
+    gain.gain.setValueAtTime(MUSIC_MIN_GAIN, startAt);
+    gain.gain.linearRampToValueAtTime(peak, startAt + attack);
+    gain.gain.setValueAtTime(peak, Math.max(startAt + attack, sustainEnd));
+    gain.gain.linearRampToValueAtTime(MUSIC_MIN_GAIN, startAt + duration);
+    osc.connect(gain);
+    gain.connect(bus);
+    osc.start(startAt);
+    osc.stop(startAt + duration + 0.05);
+  });
+
+  (chordDef.sparkle || []).forEach((freq, i) => {
+    if (Math.random() < 0.35) return; // leave some bars quiet so it breathes
+    const offset = (0.4 + i * 0.9 + Math.random() * 0.6) * MUSIC_BEAT_SECONDS;
+    const t = startAt + offset;
+    const osc  = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, t);
+    gain.gain.setValueAtTime(MUSIC_MIN_GAIN, t);
+    gain.gain.linearRampToValueAtTime(0.18, t + 0.08);
+    gain.gain.exponentialRampToValueAtTime(MUSIC_MIN_GAIN, t + 1.6);
+    osc.connect(gain);
+    gain.connect(bus);
+    osc.start(t);
+    osc.stop(t + 1.7);
+  });
+}
+
+/** Main music loop — schedules one chord ahead of time on the audio clock, then re-arms itself. */
+function scheduleMusicLoop(gen) {
+  if (gen !== musicActiveGen) return; // a stop() happened since this chain was armed — abandon it
+  const ctx = ensureAudioCtx();
+  if (!ctx) return;
+  const bus = ensureMusicGain(ctx);
+  const chordDef = MUSIC_PROGRESSION[musicChordIndex % MUSIC_PROGRESSION.length];
+  const startAt = ctx.currentTime + 0.05;
+  playMusicChord(ctx, bus, chordDef, startAt, MUSIC_BAR_SECONDS);
+  musicChordIndex++;
+  musicTimerId = setTimeout(() => scheduleMusicLoop(gen), MUSIC_BAR_SECONDS * 1000);
+}
+
+/** Starts the background music loop if it isn't already running and isn't muted. */
+function startMusic() {
+  if (settings.musicMuted) return;
+  if (musicTimerId !== null) return; // already running
+  const ctx = ensureAudioCtx();
+  if (!ctx) return;
+  musicActiveGen++;
+  scheduleMusicLoop(musicActiveGen);
+}
+
+/** Stops the background music loop and lets the current chord fade out quickly. */
+function stopMusic() {
+  musicActiveGen++; // invalidate any pending scheduled chain
+  if (musicTimerId !== null) { clearTimeout(musicTimerId); musicTimerId = null; }
+  if (musicGainNode) {
+    try {
+      if (audioCtx) {
+        musicGainNode.gain.cancelScheduledValues(audioCtx.currentTime);
+        musicGainNode.gain.setTargetAtTime(MUSIC_MIN_GAIN, audioCtx.currentTime, 0.15);
+      }
+    } catch (_) {}
+    // Drop the node — a later startMusic() rebuilds a fresh one at the current volume.
+    setTimeout(() => { try { musicGainNode && musicGainNode.disconnect(); } catch (_) {} musicGainNode = null; }, 400);
+  }
+}
+
+/** Toggle background music from the in-game Settings tab. */
+function toggleMusicMuted() {
+  settings.musicMuted = !settings.musicMuted;
+  saveSettings();
+  renderSettings();
+  syncMenuSettings();
+  if (settings.musicMuted) stopMusic(); else startMusic();
+}
+
+/** Adjust background music volume (0–1) from the in-game Settings tab. */
+function setMusicVolume(raw) {
+  const vol = clamp(parseFloat(raw), 0, 1);
+  settings.musicVolume = isNaN(vol) ? 0.16 : vol;
+  saveSettings();
+  if (musicGainNode && audioCtx) {
+    musicGainNode.gain.setTargetAtTime(vol * MUSIC_VOLUME_SCALE, audioCtx.currentTime, 0.1);
+  }
+}
+
+/** Toggle background music from the home-screen settings panel. */
+function menuToggleMusic() {
+  settings.musicMuted = !settings.musicMuted;
+  saveSettings();
+  syncMenuSettings();
+  renderSettings();
+  if (settings.musicMuted) stopMusic(); else startMusic();
 }
 
 /**
@@ -7686,6 +7870,7 @@ function syncMenuSettings() {
   };
   setToggle('menu-toggle-dark',      settings.darkMode);
   setToggle('menu-toggle-sfx',       !settings.sfxMuted);
+  setToggle('menu-toggle-music',     !settings.musicMuted);
   setToggle('menu-toggle-tutorials', settings.tutorialsEnabled);
 }
 
@@ -8536,6 +8721,7 @@ function init() {
   loadSettings(); // must be before any render so dark mode applies
   bindAudioUnlock(); // catch the first real click/tap/keypress so audio isn't stuck suspended
   bindGlobalClickSfx(); // give every button in the game a consistent tactile click
+  startMusic(); // arm the background music loop (audible once the AudioContext resumes on first gesture)
 
   // Wire up game-shell event listeners (panel stays hidden until launchGame)
   document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -8589,6 +8775,7 @@ function init() {
     selectInsurance, cancelInsurance,
     confirmNewGame, exportSave, hireStaff, dismissCandidate,
     toggleDarkMode, setDifficulty, toggleSfxMuted, setSfxVolume, toggleTutorials,
+    toggleMusicMuted, setMusicVolume, menuToggleMusic,
     renderCarLot, renderLeasing, renderServiceGarage, renderForSale, renderUsedMarket, renderFinance, renderAchievements,
     renderInsurance,
     renderReceipts, viewReceipt, closeReceiptModal,
