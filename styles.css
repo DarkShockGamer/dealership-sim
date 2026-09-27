@@ -437,27 +437,15 @@ h1, h2, h3, h4, h5,
   flex-direction: column;
   gap: 10px;
   transition: box-shadow var(--transition), transform var(--transition-bounce), border-color var(--transition);
-  animation: cardPopIn .3s ease both;
 }
 .car-card:hover { box-shadow: var(--shadow); transform: translateY(-3px); }
 
-/* Every card list is fully rebuilt on each render, so a plain CSS `animation`
-   (unlike `transition`) auto-plays the moment the node is inserted — no JS
-   needed. Kept short and gentle since a busy tab can re-render this often. */
-@keyframes cardPopIn {
-  from { opacity: 0; transform: translateY(8px) scale(.97); }
-  to   { opacity: 1; transform: none; }
-}
-/* Light stagger across the first several cards in a grid so a freshly
-   rendered list fills in left-to-right instead of popping in as one block. */
-.card-grid > .car-card:nth-child(1) { animation-delay: 0ms;  }
-.card-grid > .car-card:nth-child(2) { animation-delay: 25ms; }
-.card-grid > .car-card:nth-child(3) { animation-delay: 50ms; }
-.card-grid > .car-card:nth-child(4) { animation-delay: 75ms; }
-.card-grid > .car-card:nth-child(5) { animation-delay: 100ms; }
-.card-grid > .car-card:nth-child(6) { animation-delay: 125ms; }
-.card-grid > .car-card:nth-child(7) { animation-delay: 150ms; }
-.card-grid > .car-card:nth-child(8) { animation-delay: 175ms; }
+/* Car listings (Used Market, Trade-ins, Factory, Car Lot, Garage, For Sale)
+   re-render their whole grid on nearly every action — including something
+   as small as a single Inspect click — so an entrance animation here used
+   to replay for every card, every time, even ones you'd already looked at.
+   That's the "inspecting a car" animation this game intentionally skips:
+   cards just appear in their resting state, no pop-in. */
 
 /* Momentary success glow, added by JS right after a service action
    (wash / repair / parts upgrade) so the exact car just worked on is
@@ -894,9 +882,9 @@ img.ui-icon { filter: brightness(0) invert(1); }
 .kpi-row > .kpi-tile:nth-child(2) { animation-delay: 40ms; }
 .kpi-row > .kpi-tile:nth-child(3) { animation-delay: 80ms; }
 .kpi-row > .kpi-tile:nth-child(4) { animation-delay: 120ms; }
-/* Shared, quieter entrance for informational rows/tiles (as opposed to the
-   bouncier cardPopIn used for actionable car cards) — keeps the motion
-   language legible: bouncy = "you can act on this", plain fade = "FYI". */
+/* Quiet entrance for informational rows/tiles (stat dashboards, receipts,
+   etc.) — car listing cards deliberately don't get an entrance animation
+   at all, since those grids re-render on almost every action. */
 @keyframes fadeSlideUp {
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: none; }
@@ -2538,8 +2526,11 @@ body.dark ::-webkit-scrollbar-track { background: rgba(3, 12, 26, .55); }
 .insurance-event-box .modal-actions .btn { min-width: 140px; }
 
 /* ============================================================
-   Day Transition Overlay — brief light-sweep + "Day N" title card
-   played once per nextDay(), timed to the existing day-advance sound.
+   Day Transition Overlay — a small "desk calendar" page flip.
+   Played once per nextDay(), instead of a screen-filling effect: it's a
+   single compact card, so it stays a pleasant little beat rather than
+   something to brace for on day 200. The old day's page flips up and
+   over to reveal the new day underneath, then the whole thing fades.
    ============================================================ */
 #day-sweep-overlay {
   position: fixed;
@@ -2549,50 +2540,56 @@ body.dark ::-webkit-scrollbar-track { background: rgba(3, 12, 26, .55); }
   display: flex;
   align-items: center;
   justify-content: center;
+  background: rgba(6, 14, 26, .38);
   opacity: 0;
-  overflow: hidden;
 }
-#day-sweep-overlay.active { animation: daySweepFade .95s ease forwards; }
-#day-sweep-overlay::before {
-  content: '';
-  position: absolute;
-  inset: -10% -30%;
-  background: linear-gradient(100deg,
-    transparent 30%,
-    rgba(120, 180, 255, .30) 47%,
-    rgba(255, 255, 255, .55) 50%,
-    rgba(120, 180, 255, .30) 53%,
-    transparent 70%);
-  transform: translateX(-60%);
-}
-#day-sweep-overlay.active::before { animation: daySweepBand .95s cubic-bezier(.4,0,.2,1) forwards; }
-@keyframes daySweepBand {
-  from { transform: translateX(-60%); }
-  to   { transform: translateX(60%); }
-}
-@keyframes daySweepFade {
+#day-sweep-overlay.active { animation: dayCardFade .9s ease forwards; }
+@keyframes dayCardFade {
   0%   { opacity: 0; }
-  18%  { opacity: 1; }
-  72%  { opacity: 1; }
+  14%  { opacity: 1; }
+  80%  { opacity: 1; }
   100% { opacity: 0; }
 }
-#day-sweep-label {
-  font-family: var(--font-display);
-  font-size: 2.2rem;
+#day-flip-card {
+  position: relative;
+  width: 138px;
+  height: 158px;
+  perspective: 900px;
+}
+.day-flip-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: linear-gradient(180deg, #fbfcfe, #e6ebf2);
+  border-radius: 14px;
+  border-top: 5px solid var(--primary);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, .45);
+  backface-visibility: hidden;
+}
+.day-flip-old { transform: rotateX(0deg);    transform-origin: top center; z-index: 2; }
+.day-flip-new { transform: rotateX(180deg);  transform-origin: top center; z-index: 1; }
+.day-flip-tab {
+  font-size: .64rem;
   font-weight: 800;
-  letter-spacing: .03em;
-  color: #eaf3ff;
-  text-shadow: 0 4px 24px rgba(0,0,0,.55);
-  opacity: 0;
-  transform: translateY(8px) scale(.94);
+  letter-spacing: .16em;
+  color: #7d90a8;
+  text-transform: uppercase;
 }
-#day-sweep-overlay.active #day-sweep-label { animation: daySweepLabel .95s ease forwards; }
-@keyframes daySweepLabel {
-  0%   { opacity: 0; transform: translateY(8px) scale(.94); }
-  25%  { opacity: 1; transform: translateY(0) scale(1); }
-  75%  { opacity: 1; transform: translateY(0) scale(1); }
-  100% { opacity: 0; transform: translateY(-6px) scale(1.02); }
+.day-flip-num {
+  font-family: var(--font-display);
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: #1b2b40;
+  line-height: 1;
 }
+#day-sweep-overlay.active .day-flip-old { animation: dayFlipOld .55s cubic-bezier(.5,0,.4,1) .18s both; }
+#day-sweep-overlay.active .day-flip-new { animation: dayFlipNew .55s cubic-bezier(.5,0,.4,1) .18s both; }
+@keyframes dayFlipOld { from { transform: rotateX(0deg);   } to { transform: rotateX(-180deg); } }
+@keyframes dayFlipNew { from { transform: rotateX(180deg); } to { transform: rotateX(0deg);    } }
 
 /* ============================================================
    Reduced motion — accessibility escape hatch for every animation
@@ -2606,13 +2603,18 @@ body.dark ::-webkit-scrollbar-track { background: rgba(3, 12, 26, .55); }
   .receipt-row,
   .toast,
   .toast-achievement.show,
+  .modal-overlay,
   .modal-box,
   .stat-chip.flash-pos,
   .stat-chip.flash-neg,
   .floating-number,
+  .tutorial-spotlight,
+  .tutorial-spotlight.tutorial-nudge,
+  .tutorial-tooltip,
+  .tutorial-tooltip.tutorial-nudge,
   #day-sweep-overlay,
-  #day-sweep-overlay::before,
-  #day-sweep-label {
+  .day-flip-old,
+  .day-flip-new {
     animation: none !important;
     transition: none !important;
   }
