@@ -7012,17 +7012,22 @@ function flashCarCard(carId) {
   });
 }
 
-/** Full-screen light-sweep + "Day N" title card, played once per nextDay()
- *  call, timed alongside the existing day-advance sound. */
+/** Small "desk calendar" page flip — the old day's page flips up and over
+ *  to reveal the new day underneath, then fades. Played once per nextDay()
+ *  call, alongside a short chime. Deliberately compact and quiet (not a
+ *  full-screen effect) so it stays pleasant even hundreds of days in. */
 function triggerDayTransition(dayNum) {
-  const overlay = document.getElementById('day-sweep-overlay');
-  const label   = document.getElementById('day-sweep-label');
-  if (!overlay || !label) return;
-  label.textContent = `Day ${dayNum}`;
+  const overlay  = document.getElementById('day-sweep-overlay');
+  const oldNumEl = document.getElementById('day-flip-old-num');
+  const newNumEl = document.getElementById('day-flip-new-num');
+  if (!overlay || !oldNumEl || !newNumEl) return;
+  oldNumEl.textContent = dayNum - 1;
+  newNumEl.textContent = dayNum;
   overlay.classList.remove('active');
   void overlay.offsetWidth;
   overlay.classList.add('active');
-  setTimeout(() => overlay.classList.remove('active'), 1000);
+  playSfx('day');
+  setTimeout(() => overlay.classList.remove('active'), 950);
 }
 
 // Tracks what renderStats() last painted, so it can tell what actually
