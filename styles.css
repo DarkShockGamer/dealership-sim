@@ -2526,11 +2526,9 @@ body.dark ::-webkit-scrollbar-track { background: rgba(3, 12, 26, .55); }
 .insurance-event-box .modal-actions .btn { min-width: 140px; }
 
 /* ============================================================
-   Day Transition Overlay — a small "desk calendar" page flip.
-   Played once per nextDay(), instead of a screen-filling effect: it's a
-   single compact card, so it stays a pleasant little beat rather than
-   something to brace for on day 200. The old day's page flips up and
-   over to reveal the new day underneath, then the whole thing fades.
+   Day Transition Overlay — the "Day N" title card fades/scales in over
+   a soft dim, holds a beat, then fades out. No moving light-sweep band —
+   just the text beat itself, which is the part worth keeping on repeat.
    ============================================================ */
 #day-sweep-overlay {
   position: fixed;
@@ -2540,61 +2538,41 @@ body.dark ::-webkit-scrollbar-track { background: rgba(3, 12, 26, .55); }
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(6, 14, 26, .38);
   opacity: 0;
 }
-#day-sweep-overlay.active { animation: dayCardFade .9s ease forwards; }
-@keyframes dayCardFade {
+#day-sweep-overlay.active { animation: daySweepFade .95s ease forwards; }
+@keyframes daySweepFade {
   0%   { opacity: 0; }
-  14%  { opacity: 1; }
-  80%  { opacity: 1; }
+  18%  { opacity: 1; }
+  72%  { opacity: 1; }
   100% { opacity: 0; }
 }
-#day-flip-card {
-  position: relative;
-  width: 138px;
-  height: 158px;
-  perspective: 900px;
-}
-.day-flip-face {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  background: linear-gradient(180deg, #fbfcfe, #e6ebf2);
-  border-radius: 14px;
-  border-top: 5px solid var(--primary);
-  box-shadow: 0 16px 34px rgba(0, 0, 0, .45);
-  backface-visibility: hidden;
-}
-.day-flip-old { transform: rotateX(0deg);    transform-origin: top center; z-index: 2; }
-.day-flip-new { transform: rotateX(180deg);  transform-origin: top center; z-index: 1; }
-.day-flip-tab {
-  font-size: .64rem;
-  font-weight: 800;
-  letter-spacing: .16em;
-  color: #7d90a8;
-  text-transform: uppercase;
-}
-.day-flip-num {
+#day-sweep-label {
   font-family: var(--font-display);
-  font-size: 2.5rem;
+  font-size: 2.2rem;
   font-weight: 800;
-  color: #1b2b40;
-  line-height: 1;
+  letter-spacing: .03em;
+  color: #eaf3ff;
+  text-shadow: 0 4px 24px rgba(0,0,0,.55);
+  opacity: 0;
+  transform: translateY(8px) scale(.94);
 }
-#day-sweep-overlay.active .day-flip-old { animation: dayFlipOld .55s cubic-bezier(.5,0,.4,1) .18s both; }
-#day-sweep-overlay.active .day-flip-new { animation: dayFlipNew .55s cubic-bezier(.5,0,.4,1) .18s both; }
-@keyframes dayFlipOld { from { transform: rotateX(0deg);   } to { transform: rotateX(-180deg); } }
-@keyframes dayFlipNew { from { transform: rotateX(180deg); } to { transform: rotateX(0deg);    } }
+#day-sweep-overlay.active #day-sweep-label { animation: daySweepLabel .95s ease forwards; }
+@keyframes daySweepLabel {
+  0%   { opacity: 0; transform: translateY(8px) scale(.94); }
+  25%  { opacity: 1; transform: translateY(0) scale(1); }
+  75%  { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-6px) scale(1.02); }
+}
 
 /* ============================================================
    Reduced motion — accessibility escape hatch for every animation
    added above. Effects are cut, not just slowed, and every affected
    element still ends in its normal, fully-visible resting state.
+   Triggers two ways: the OS/browser "prefers-reduced-motion" setting
+   (media query below), or the in-game Reduce Motion toggle in
+   Settings → Display (adds .reduce-motion to <body> — see
+   applyReduceMotion() in app.js). Either one is enough.
    ============================================================ */
 @media (prefers-reduced-motion: reduce) {
   .car-card,
@@ -2613,11 +2591,32 @@ body.dark ::-webkit-scrollbar-track { background: rgba(3, 12, 26, .55); }
   .tutorial-tooltip,
   .tutorial-tooltip.tutorial-nudge,
   #day-sweep-overlay,
-  .day-flip-old,
-  .day-flip-new {
+  #day-sweep-label {
     animation: none !important;
     transition: none !important;
   }
   .toast { opacity: 1; transform: none; }
   #day-sweep-overlay { display: none !important; }
 }
+body.reduce-motion .car-card,
+body.reduce-motion .car-card.action-flash,
+body.reduce-motion .kpi-tile,
+body.reduce-motion .receipt-row,
+body.reduce-motion .toast,
+body.reduce-motion .toast-achievement.show,
+body.reduce-motion .modal-overlay,
+body.reduce-motion .modal-box,
+body.reduce-motion .stat-chip.flash-pos,
+body.reduce-motion .stat-chip.flash-neg,
+body.reduce-motion .floating-number,
+body.reduce-motion .tutorial-spotlight,
+body.reduce-motion .tutorial-spotlight.tutorial-nudge,
+body.reduce-motion .tutorial-tooltip,
+body.reduce-motion .tutorial-tooltip.tutorial-nudge,
+body.reduce-motion #day-sweep-overlay,
+body.reduce-motion #day-sweep-label {
+  animation: none !important;
+  transition: none !important;
+}
+body.reduce-motion .toast { opacity: 1; transform: none; }
+body.reduce-motion #day-sweep-overlay { display: none !important; }
