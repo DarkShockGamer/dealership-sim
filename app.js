@@ -4129,7 +4129,7 @@ function runAchievementChecks() {
     if (!ach.check(state)) continue;
     state.achievementsUnlocked[ach.id] = state.day;
     addNote(`🏆 Achievement unlocked: ${ach.name}`, 'success');
-    showToast(`🏆 ${ach.name}`, 'success', 'achievement');
+    showToast(`🏆 ${ach.name}`, 'achievement', 'achievement');
   }
 }
 
@@ -4138,6 +4138,7 @@ function runAchievementChecks() {
 // ============================================================
 function nextDay() {
   if (state.gameOver) { showToast('Game over — start a new game to continue.', 'error'); return; }
+  triggerDayTransition(state.day + 1);
   state.day++;
   processDeliveries();
   processService();
@@ -4733,6 +4734,7 @@ function carWash(carId) {
   addNote(`🚿 Washed ${car.year} ${car.make} ${car.model} — looks great! +${Math.round(WASH_VALUE_BOOST * 100)}% value, boosted sale chance for ${WASH_BOOST_DAYS} days.`, 'success');
   saveState();
   renderAll();
+  flashCarCard(carId);
   showToast(`Washed — looking sharp!`, 'success');
 }
 
@@ -4770,6 +4772,7 @@ function basicRepair(carId) {
   }
   saveState();
   renderAll();
+  flashCarCard(carId);
   showToast(instant ? 'Repair finished instantly at your workshop.' : 'Car is being repaired — ready next day.', instant ? 'success' : 'info');
 }
 
@@ -4803,6 +4806,7 @@ function partsUpgrade(carId) {
   }
   saveState();
   renderAll();
+  flashCarCard(carId);
   showToast(instant ? 'Parts upgrade installed instantly at your workshop.' : 'Parts upgrade in progress — ready next day.', instant ? 'success' : 'info');
 }
 
@@ -4826,6 +4830,8 @@ function detailCar(carId) {
   addNote(`✨ Detailed ${car.year} ${car.make} ${car.model} → condition now ${car.condition}.`, 'success');
   saveState();
   renderAll();
+  flashCarCard(carId);
+  showToast(`Detailed — now condition ${car.condition}!`, 'success');
 }
 
 function makeLeaseAvailable(carId) {
@@ -5034,6 +5040,19 @@ function renderStats() {
       ? `${uiIcon('lock')} ${company.name.split(' ')[0]} · ${formatCurrency(computeMonthlyPremium(company))}/mo`
       : `${uiIcon('lock')} Uninsured`;
   }
+
+  // Flash + float a small "+/-" figure on any stat that actually changed
+  // since the last render, so player actions register as visible, tactile
+  // feedback instead of just silently updating numbers underneath them.
+  const repRounded = Number(state.reputation.toFixed(2));
+  const debtVal     = state.loanBalance || 0;
+  _flashStatIfChanged('stat-cash',   state.cash,      _prevStats.cash,        d => `${d > 0 ? '+' : '-'}${formatCurrency(Math.abs(d))}`);
+  _flashStatIfChanged('stat-rep',    repRounded,       _prevStats.reputation, d => `${d > 0 ? '+' : ''}${d.toFixed(2)}`);
+  _flashStatIfChanged('stat-garage', state.garage.length, _prevStats.garageCount, null);
+  // Debt is "bad" when it grows, so its polarity is inverted vs. cash/rep.
+  _flashStatIfChanged('stat-debt',   debtVal,          _prevStats.debt,        d => `${d > 0 ? '+' : '-'}${formatCurrency(Math.abs(d))}`, true);
+
+  _prevStats = { cash: state.cash, reputation: repRounded, garageCount: state.garage.length, debt: debtVal };
 }
 
 // ============================================================
@@ -5931,7 +5950,7 @@ function renderServiceGarage() {
       : `${state.upgrades.reconditioningWorkshop ? 'Instant' : '1 day'}: fixes all issues, restores condition`;
 
     return `
-      <div class="car-card service-car-card">
+      <div class="car-card service-car-card" data-car-id="${car.id}">
         <div class="car-card-header">
           <div>
             <span class="car-name">${formatCarDisplayName(car)}</span>
@@ -6953,6 +6972,74 @@ function switchTab(name) {
   _tutorialUpdateNextButton();
   // Remember the tab so a refresh returns to it
   if (getActiveSession()) setActiveSession(currentSlot, name);
+}
+
+// ============================================================
+// ANIMATION HELPERS — lightweight visual feedback for player actions
+// ============================================================
+// Small, reusable helpers that add a CSS animation class and clean up after
+// themselves. Everything here is purely additive — if an element is missing
+// (e.g. a car card that scrolled out of a re-rendered list) these all just
+// no-op instead of throwing.
+
+/** Adds `cls` to `el` for one animation cycle, restarting cleanly even if
+ *  the class is already present from a very recent previous call. */
+function playPulse(el, cls, duration = 700) {
+  if (!el) return;
+  el.classList.remove(cls);
+  void el.offsetWidth; // force reflow so a repeated flash restarts from frame 0
+  el.classList.add(cls);
+  setTimeout(() => el.classList.remove(cls), duration);
+}
+
+/** Spawns a floating "+$1,234" / "-$500" figure that rises and fades above `el`. */
+function spawnFloatingNumber(el, text, positive) {
+  if (!el) return;
+  const span = document.createElement('span');
+  span.className = `floating-number ${positive ? 'floating-number-pos' : 'floating-number-neg'}`;
+  span.textContent = text;
+  el.appendChild(span);
+  setTimeout(() => span.remove(), 1150);
+}
+
+/** Briefly glows the given car's card (matched by data-car-id) right after a
+ *  service action (wash / repair / parts upgrade / detail) re-renders the
+ *  tab, so it's obvious which car just got worked on. */
+function flashCarCard(carId) {
+  requestAnimationFrame(() => {
+    const card = document.querySelector(`.car-card[data-car-id="${carId}"]`);
+    if (card) playPulse(card, 'action-flash', 800);
+  });
+}
+
+/** Full-screen light-sweep + "Day N" title card, played once per nextDay()
+ *  call, timed alongside the existing day-advance sound. */
+function triggerDayTransition(dayNum) {
+  const overlay = document.getElementById('day-sweep-overlay');
+  const label   = document.getElementById('day-sweep-label');
+  if (!overlay || !label) return;
+  label.textContent = `Day ${dayNum}`;
+  overlay.classList.remove('active');
+  void overlay.offsetWidth;
+  overlay.classList.add('active');
+  setTimeout(() => overlay.classList.remove('active'), 1000);
+}
+
+// Tracks what renderStats() last painted, so it can tell what actually
+// changed and give just that stat a flash + floating number instead of
+// silently swapping text on every render (which happens very often).
+let _prevStats = { cash: null, reputation: null, garageCount: null, debt: null };
+
+/** Flashes `id`'s chip green/red and floats `formatDelta(delta)` above it
+ *  if `newVal` differs from the previously rendered value. `invert` flips
+ *  the polarity for stats where "up" is bad (e.g. debt). */
+function _flashStatIfChanged(id, newVal, prevVal, formatDelta, invert = false) {
+  const el = document.getElementById(id);
+  if (!el || prevVal === null || newVal === prevVal) return;
+  const delta = newVal - prevVal;
+  const positive = invert ? delta < 0 : delta > 0;
+  playPulse(el, positive ? 'flash-pos' : 'flash-neg', 650);
+  if (formatDelta) spawnFloatingNumber(el, formatDelta(delta), positive);
 }
 
 // ============================================================
