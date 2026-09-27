@@ -11,9 +11,17 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.10.0';
+const GAME_VERSION = '1.11.0';
 
 const PATCH_NOTES = [
+  {
+    version: '1.11.0',
+    date: 'September 2026',
+    notes: [
+      { type: 'feature', text: 'The soundtrack now has two tracks: the original calm ambient loop, which plays on the main menu and any Settings page, and a new livelier in-game track with a walking bass line and syncopated comping for the rest of gameplay — same synthesized, royalty-free style, just more upbeat and active.' },
+      { type: 'feature', text: "The in-game track's tone now reacts to how the dealership is doing — reputation, cash on hand, and outstanding debt set its overall mood, and a good sale or a fine/warning gives it a short-lived brighter or darker nudge." },
+    ],
+  },
   {
     version: '1.10.0',
     date: 'September 2026',
@@ -3125,6 +3133,7 @@ function showGameOverScreen() {
       <div class="game-over-stat-row"><span>Difficulty</span><strong class="text-red">Hard 💪</strong></div>`;
   }
   el.classList.remove('hidden');
+  setMusicTrack('menu'); // ease back to the calm soundtrack for the Game Over screen
 }
 
 function gameOverReturnToMenu() {
@@ -3140,6 +3149,7 @@ function gameOverNewGame() {
   state.usedMarketOffers = generateUsedMarket();
   saveState();
   renderAll();
+  applyMusicForContext(); // back to the in-game soundtrack now that a fresh run is underway
   showToast('New Hard game started. Good luck! 💪', 'success');
 }
 
@@ -5061,6 +5071,7 @@ function renderStats() {
   _flashStatIfChanged('stat-debt',   debtVal,          _prevStats.debt,        d => `${d > 0 ? '+' : '-'}${formatCurrency(Math.abs(d))}`, true);
 
   _prevStats = { cash: state.cash, reputation: repRounded, garageCount: state.garage.length, debt: debtVal };
+  updateMusicBaseline(); // let the in-game soundtrack's tone track the business's current standing
 }
 
 // ============================================================
@@ -6986,6 +6997,7 @@ function switchTab(name) {
     case 'achievements':renderAchievements();    break;
     case 'settings':    renderSettings();        break;
   }
+  applyMusicForContext(); // Settings tab gets the calm menu soundtrack; every other tab gets the livelier one
   playSfx('tab');
   _tutorialUpdateNextButton();
   // Remember the tab so a refresh returns to it
@@ -7099,6 +7111,8 @@ function showToast(message, type = 'info', sfx = null) {
   else if (type === 'warning') playSfx('warning');
   else if (type === 'error') playSfx('error');
   else playSfx('click');
+  // Let the in-game soundtrack's tone react to this event (no-op on the menu track)
+  nudgeMusicTone(type);
 }
 
 /** Releases every toast that piled up during a day advance, lightly
@@ -7538,7 +7552,7 @@ function ensureAudioCtx() {
 function bindAudioUnlock() {
   if (_audioUnlockBound) return;
   _audioUnlockBound = true;
-  const unlock = () => { ensureAudioCtx(); startMusic(); };
+  const unlock = () => { ensureAudioCtx(); applyMusicForContext(); };
   ['pointerdown', 'keydown', 'touchstart'].forEach(evt =>
     document.addEventListener(evt, unlock, { once: true, passive: true }));
 }
@@ -7753,7 +7767,7 @@ function toggleMusicMuted() {
   saveSettings();
   renderSettings();
   syncMenuSettings();
-  if (settings.musicMuted) stopMusic(); else startMusic();
+  if (settings.musicMuted) stopCurrentMusic(); else startCurrentMusic();
 }
 
 /** Adjust background music volume (0–1) and refresh every visible "NN%" label for it (settings tab + main menu). */
@@ -7763,6 +7777,9 @@ function setMusicVolume(raw) {
   saveSettings();
   if (musicGainNode && audioCtx) {
     musicGainNode.gain.setTargetAtTime(vol * MUSIC_VOLUME_SCALE, audioCtx.currentTime, 0.1);
+  }
+  if (gameMusicGainNode && audioCtx) {
+    gameMusicGainNode.gain.setTargetAtTime(vol * GAME_MUSIC_VOLUME_SCALE, audioCtx.currentTime, 0.1);
   }
   const pct = Math.round(settings.musicVolume * 100) + '%';
   ['music-volume-pct', 'menu-music-volume-pct'].forEach(id => {
@@ -7777,7 +7794,272 @@ function menuToggleMusic() {
   saveSettings();
   syncMenuSettings();
   renderSettings();
-  if (settings.musicMuted) stopMusic(); else startMusic();
+  if (settings.musicMuted) stopCurrentMusic(); else startCurrentMusic();
+}
+
+// ============================================================
+// IN-GAME MUSIC — a livelier sibling of the menu soundtrack above
+// ============================================================
+// The menu loop above (BPM, chord progression, envelopes, everything) is
+// completely untouched by any of this — it keeps playing, unchanged, on the
+// main menu and on any Settings page. This second engine only takes over
+// while an active game session is on screen (and not on its Settings tab),
+// giving gameplay its own more upbeat, active track built the same way —
+// oscillators + gain envelopes, no audio files — just faster and busier:
+// a walking bass line and syncopated chord "comping" stabs layered under
+// the same kind of soft pad voicings the menu loop uses. It shares the
+// same AudioContext and the same Music mute/volume settings, just through
+// its own gain (and filter) node so it can't interfere with the menu bus.
+const GAME_MUSIC_VOLUME_SCALE = 0.42;
+const GAME_MUSIC_BPM = 106;                 // notably more upbeat than the menu's 74
+const GAME_MUSIC_BEAT_SECONDS = 60 / GAME_MUSIC_BPM;
+const GAME_MUSIC_BAR_BEATS = 4;
+const GAME_MUSIC_BAR_SECONDS = GAME_MUSIC_BEAT_SECONDS * GAME_MUSIC_BAR_BEATS;
+const GAME_MUSIC_PAD_ATTACK = 0.5;
+const GAME_MUSIC_PAD_RELEASE = 0.35;
+const GAME_MUSIC_MIN_GAIN = 0.0001;
+
+// A brighter, forward-moving 16-bar progression (reuses noteFreq/defChord
+// from the menu section above) — same lounge/jazz chord language, tuned for
+// energy instead of drift.
+const MUSIC_GAME_PROGRESSION = [
+  defChord('C3', ['C4','E4','G4','B4'],  ['E5','G5']),   // Cmaj7
+  defChord('E3', ['E4','G4','B4','D5'],  ['G5','B4']),   // Em7
+  defChord('F3', ['F4','A4','C5','E5'],  ['A5','C5']),   // Fmaj7
+  defChord('G3', ['G4','B4','D5','F5'],  ['B4','D5']),   // G7
+  defChord('A2', ['A3','C4','E4','G4'],  ['C5','E5']),   // Am7
+  defChord('D3', ['D4','F4','A4','C5'],  ['F5','A5']),   // Dm7
+  defChord('F3', ['F4','A4','C5','E5'],  ['C5','A4']),   // Fmaj7
+  defChord('G3', ['B3','D4','F4','A4'],  ['D5','F5']),   // G9
+  defChord('C3', ['E4','G4','B4','D5'],  ['G5','E5']),   // Cmaj9
+  defChord('A2', ['C4','E4','G4','B4'],  ['E5','C5']),   // Am9
+  defChord('D3', ['F4','A4','C5','E5'],  ['A5','F5']),   // Dm9
+  defChord('G3', ['G4','B4','D5','F5'],  ['F5','D5']),   // G7
+  defChord('F3', ['A4','C5','E5','G5'],  ['C5','E5']),   // Fmaj7 (higher voicing)
+  defChord('E3', ['G3','B3','D4','G4'],  ['B4','D5']),   // Em7 (lower voicing)
+  defChord('D3', ['D4','F4','A4','C5'],  ['F5','A4']),   // Dm7
+  defChord('G3', ['G4','B4','D5','F5'],  ['B4','D5']),   // G7 (turnaround)
+];
+
+let gameMusicGainNode   = null;
+let gameMusicFilterNode = null;
+let gameMusicChordIndex = 0;
+let gameMusicActiveGen  = 0;
+let gameMusicTimerId    = null;
+
+// --- Music "tone" — lets the in-game track react to how the business is doing ---
+// A single 0..1 intensity value steers the track's brightness (a lowpass
+// filter), how busy the bass/comping layers are, and a small tempo nudge.
+// It's the sum of two layers:
+//  - gameMusicBaseline: slow-moving, recomputed from reputation/cash/debt
+//    every time renderStats() runs, so it tracks how the business is doing
+//    overall (struggling and in debt → moodier; flush and reputable → brighter).
+//  - gameMusicPulse: fast-decaying, nudged by showToast()'s success/warning/
+//    error calls, so a good sale brightens the next bar or two and a fine
+//    or warning dims it, easing back to the baseline shortly after.
+let gameMusicBaseline  = 0.5;
+let gameMusicPulse     = 0;
+let gameMusicIntensity = 0.5; // smoothed value actually used when scheduling
+
+/** Recomputes the slow-moving baseline from the player's current standing.
+ *  Called from renderStats(), so it always reflects the latest numbers. */
+function updateMusicBaseline() {
+  if (typeof state === 'undefined' || !state) return;
+  const repTerm  = clamp(((state.reputation ?? 1) - 1) / 1.0, -1, 1);
+  const cashTerm = clamp((state.cash ?? 0) / 15000, -1, 1);
+  const debtTerm = clamp((state.loanBalance || 0) / 20000, 0, 1);
+  gameMusicBaseline = clamp(0.5 + repTerm * 0.22 + cashTerm * 0.2 - debtTerm * 0.22, 0.12, 0.95);
+}
+
+/** Called from showToast() — nudges the fast "pulse" layer on good/bad news.
+ *  No-ops whenever the menu track (not the in-game one) is playing. */
+function nudgeMusicTone(toastType) {
+  if (currentMusicTrack !== 'game') return;
+  if (toastType === 'success') gameMusicPulse = clamp(gameMusicPulse + 0.22, -0.4, 0.5);
+  else if (toastType === 'warning') gameMusicPulse = clamp(gameMusicPulse - 0.18, -0.5, 0.4);
+  else if (toastType === 'error') gameMusicPulse = clamp(gameMusicPulse - 0.28, -0.5, 0.4);
+}
+
+/** Lazily creates the in-game music bus: its own gain node feeding a gentle
+ *  lowpass filter, so brightness can shift with the music's tone. */
+function ensureGameMusicGain(ctx) {
+  if (!gameMusicGainNode) {
+    gameMusicFilterNode = ctx.createBiquadFilter();
+    gameMusicFilterNode.type = 'lowpass';
+    gameMusicFilterNode.frequency.value = 2600;
+    gameMusicFilterNode.Q.value = 0.3;
+    gameMusicGainNode = ctx.createGain();
+    gameMusicGainNode.gain.value = clamp(settings.musicVolume ?? 0.16, 0, 1) * GAME_MUSIC_VOLUME_SCALE;
+    gameMusicGainNode.connect(gameMusicFilterNode);
+    gameMusicFilterNode.connect(ctx.destination);
+  }
+  return gameMusicGainNode;
+}
+
+/** Schedules one bar of the in-game loop: a sustained pad (same voice recipe
+ *  as the menu loop) plus a walking bass line and syncopated comping stabs
+ *  whose density/volume scale with `intensity` — the louder/busier those
+ *  get, the livelier the bar feels. */
+function playGameMusicChord(ctx, bus, chordDef, startAt, duration, intensity) {
+  const attack = GAME_MUSIC_PAD_ATTACK, release = GAME_MUSIC_PAD_RELEASE;
+  const sustainEnd = startAt + duration - release;
+
+  // Sustained pad — bass + chord voicing, same recipe as the menu loop
+  const voices = [chordDef.bass * 0.5, ...chordDef.chord];
+  voices.forEach((freq, i) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = i === 0 ? 'sine' : 'triangle';
+    osc.frequency.setValueAtTime(freq, startAt);
+    const peak = (i === 0 ? 0.55 : 0.22) / voices.length * 2.2;
+    gain.gain.setValueAtTime(GAME_MUSIC_MIN_GAIN, startAt);
+    gain.gain.linearRampToValueAtTime(peak, startAt + attack);
+    gain.gain.setValueAtTime(peak, Math.max(startAt + attack, sustainEnd));
+    gain.gain.linearRampToValueAtTime(GAME_MUSIC_MIN_GAIN, startAt + duration);
+    osc.connect(gain); gain.connect(bus);
+    osc.start(startAt); osc.stop(startAt + duration + 0.05);
+  });
+
+  // Walking bass — one plucked note per beat; denser/louder at higher intensity
+  const bassRoot = chordDef.bass;
+  for (let b = 0; b < GAME_MUSIC_BAR_BEATS; b++) {
+    if (Math.random() > 0.55 + intensity * 0.4) continue;
+    const t = startAt + b * GAME_MUSIC_BEAT_SECONDS;
+    const stepUp = [1, 9 / 8, 5 / 4, 3 / 2][b % 4]; // gentle scalar walk up from the root
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(bassRoot * stepUp, t);
+    const peak = 0.22 + intensity * 0.12;
+    gain.gain.setValueAtTime(GAME_MUSIC_MIN_GAIN, t);
+    gain.gain.linearRampToValueAtTime(peak, t + 0.02);
+    gain.gain.exponentialRampToValueAtTime(GAME_MUSIC_MIN_GAIN, t + GAME_MUSIC_BEAT_SECONDS * 0.85);
+    osc.connect(gain); gain.connect(bus);
+    osc.start(t); osc.stop(t + GAME_MUSIC_BEAT_SECONDS);
+  }
+
+  // Syncopated off-beat comping stabs — the main "liveliness" layer; its
+  // density scales directly with intensity so a brighter tone feels busier
+  [0.5, 1.5, 2.5, 3.5].forEach(beatOffset => {
+    if (Math.random() > 0.25 + intensity * 0.65) return;
+    const t = startAt + beatOffset * GAME_MUSIC_BEAT_SECONDS;
+    chordDef.chord.slice(0, 3).forEach(freq => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(freq, t);
+      const peak = 0.05 + intensity * 0.05;
+      gain.gain.setValueAtTime(GAME_MUSIC_MIN_GAIN, t);
+      gain.gain.linearRampToValueAtTime(peak, t + 0.015);
+      gain.gain.exponentialRampToValueAtTime(GAME_MUSIC_MIN_GAIN, t + 0.18);
+      osc.connect(gain); gain.connect(bus);
+      osc.start(t); osc.stop(t + 0.2);
+    });
+  });
+
+  // Sparkle top notes — same idea as the menu loop, just denser when upbeat
+  (chordDef.sparkle || []).forEach((freq, i) => {
+    if (Math.random() > 0.3 + intensity * 0.5) return;
+    const t = startAt + (0.25 + i * 0.8 + Math.random() * 0.4) * GAME_MUSIC_BEAT_SECONDS;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, t);
+    gain.gain.setValueAtTime(GAME_MUSIC_MIN_GAIN, t);
+    gain.gain.linearRampToValueAtTime(0.16, t + 0.06);
+    gain.gain.exponentialRampToValueAtTime(GAME_MUSIC_MIN_GAIN, t + 1.1);
+    osc.connect(gain); gain.connect(bus);
+    osc.start(t); osc.stop(t + 1.2);
+  });
+}
+
+/** Main in-game music loop — same one-bar-ahead scheduling approach as the
+ *  menu loop, but each pass also eases the smoothed intensity toward the
+ *  current baseline+pulse and applies it to the filter, tempo, and density. */
+function scheduleGameMusicLoop(gen) {
+  if (gen !== gameMusicActiveGen) return;
+  const ctx = ensureAudioCtx();
+  if (!ctx) return;
+  if (ctx.state !== 'running') {
+    gameMusicTimerId = setTimeout(() => scheduleGameMusicLoop(gen), 250);
+    return;
+  }
+  const bus = ensureGameMusicGain(ctx);
+
+  // Decay the transient pulse and ease the smoothed intensity toward its target
+  gameMusicPulse *= 0.72;
+  const target = clamp(gameMusicBaseline + gameMusicPulse, 0.05, 1);
+  gameMusicIntensity += (target - gameMusicIntensity) * 0.5;
+
+  // Brighter tone → more open filter; tense/low tone → darker and muffled
+  gameMusicFilterNode.frequency.setTargetAtTime(1200 + gameMusicIntensity * 3400, ctx.currentTime, 0.6);
+  // Small tempo nudge: a bit faster when things are going well, a bit slower when tense
+  const tempoScale = 0.98 + gameMusicIntensity * 0.08;
+  const barSeconds = GAME_MUSIC_BAR_SECONDS / tempoScale;
+
+  const chordDef = MUSIC_GAME_PROGRESSION[gameMusicChordIndex % MUSIC_GAME_PROGRESSION.length];
+  const startAt = ctx.currentTime + 0.05;
+  playGameMusicChord(ctx, bus, chordDef, startAt, barSeconds, gameMusicIntensity);
+  gameMusicChordIndex++;
+  gameMusicTimerId = setTimeout(() => scheduleGameMusicLoop(gen), barSeconds * 1000);
+}
+
+/** Starts the in-game music loop if it isn't already running and isn't muted. */
+function startGameMusic() {
+  if (settings.musicMuted) return;
+  if (gameMusicTimerId !== null) return;
+  const ctx = ensureAudioCtx();
+  if (!ctx) return;
+  gameMusicActiveGen++;
+  scheduleGameMusicLoop(gameMusicActiveGen);
+}
+
+/** Stops the in-game music loop and lets the current bar fade out quickly. */
+function stopGameMusic() {
+  gameMusicActiveGen++;
+  if (gameMusicTimerId !== null) { clearTimeout(gameMusicTimerId); gameMusicTimerId = null; }
+  if (gameMusicGainNode) {
+    try {
+      if (audioCtx) {
+        gameMusicGainNode.gain.cancelScheduledValues(audioCtx.currentTime);
+        gameMusicGainNode.gain.setTargetAtTime(GAME_MUSIC_MIN_GAIN, audioCtx.currentTime, 0.15);
+      }
+    } catch (_) {}
+    setTimeout(() => {
+      try { gameMusicGainNode && gameMusicGainNode.disconnect(); } catch (_) {}
+      try { gameMusicFilterNode && gameMusicFilterNode.disconnect(); } catch (_) {}
+      gameMusicGainNode = null;
+      gameMusicFilterNode = null;
+    }, 400);
+  }
+}
+
+// --- Track switching: decides which of the two soundtracks should be playing ---
+let currentMusicTrack = 'menu'; // 'menu' (original loop) | 'game' (livelier loop)
+
+/** Starts/stops whichever track is current — used by the mute toggle and
+ *  anything else that just needs to act on "the music", not a specific track. */
+function startCurrentMusic() { if (currentMusicTrack === 'game') startGameMusic(); else startMusic(); }
+function stopCurrentMusic()  { if (currentMusicTrack === 'game') stopGameMusic();  else stopMusic(); }
+
+/** Switches which soundtrack is playing, if it isn't already. */
+function setMusicTrack(track) {
+  if (track === currentMusicTrack) return;
+  currentMusicTrack = track;
+  if (track === 'menu') { stopGameMusic(); startMusic(); }
+  else { stopMusic(); startGameMusic(); }
+}
+
+/** Looks at what's actually on screen and picks the right track: the
+ *  original calm loop for the main menu and any Settings page, the livelier
+ *  loop everywhere else during an active game session. Safe to call anytime
+ *  the screen changes — it's a no-op if the right track is already playing. */
+function applyMusicForContext() {
+  const hs = document.getElementById('home-screen');
+  const inGame = !!(hs && hs.classList.contains('hidden'));
+  const activePanel = document.querySelector('.tab-panel.active');
+  const onSettingsTab = inGame && activePanel && activePanel.id === 'tab-settings';
+  setMusicTrack(inGame && !onSettingsTab ? 'game' : 'menu');
 }
 
 /**
@@ -8679,7 +8961,8 @@ function launchGame(slot, isNew, difficulty, opts = {}) {
   // Resuming after a page refresh — skip the fade so the menu never flashes.
   if (opts.instant) {
     hs.classList.add('hidden');
-    if (opts.resumeTab) switchTab(opts.resumeTab);
+    if (opts.resumeTab) switchTab(opts.resumeTab); // switchTab() applies the right soundtrack itself
+    else applyMusicForContext();
     return;
   }
 
@@ -8687,6 +8970,7 @@ function launchGame(slot, isNew, difficulty, opts = {}) {
   hs.classList.add('fade-out');
   setTimeout(() => {
     hs.classList.add('hidden');
+    applyMusicForContext(); // hand off from the menu soundtrack to the livelier in-game one
     // Auto-start tutorial for new saves if tutorials are enabled
     if (isNew && settings.tutorialsEnabled) {
       tutorialStart();
@@ -8711,6 +8995,7 @@ function returnToMenu() {
   // Restore home screen
   const hs = document.getElementById('home-screen');
   hs.classList.remove('hidden');
+  applyMusicForContext(); // hand back off from the in-game soundtrack to the menu one
   // Force reflow so the opacity transition fires
   void hs.offsetWidth;
   hs.classList.remove('fade-out');
@@ -8955,6 +9240,7 @@ function cheatToggleGameOver() {
     showToast('✅ Game Over flag cleared.', 'success');
     document.getElementById('game-over-screen')?.classList.add('hidden');
     renderAll();
+    applyMusicForContext();
   }
 }
 
@@ -8962,7 +9248,7 @@ function init() {
   loadSettings(); // must be before any render so dark mode applies
   bindAudioUnlock(); // catch the first real click/tap/keypress so audio isn't stuck suspended
   bindGlobalClickSfx(); // give every button in the game a consistent tactile click
-  startMusic(); // arm the background music loop (audible once the AudioContext resumes on first gesture)
+  applyMusicForContext(); // arm the menu soundtrack (audible once the AudioContext resumes on first gesture)
 
   // Wire up game-shell event listeners (panel stays hidden until launchGame)
   document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -9018,6 +9304,7 @@ function init() {
     toggleDarkMode, setDifficulty, toggleSfxMuted, setSfxVolume, toggleTutorials,
     toggleMusicMuted, setMusicVolume, menuToggleMusic, playSfx,
     startMusic, // exposed so the boot-intro screen (index.html) can arm the soundtrack on its own first gesture
+    applyMusicForContext, // preferred over startMusic() once app.js has booted — picks the right track (menu vs. in-game) instead of always arming the menu one
     renderCarLot, renderLeasing, renderServiceGarage, renderForSale, renderUsedMarket, renderFinance, renderAchievements,
     renderInsurance,
     renderReceipts, viewReceipt, closeReceiptModal,
