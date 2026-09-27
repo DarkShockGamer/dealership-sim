@@ -6805,6 +6805,7 @@ function renderAchievements() {
 // ============================================================
 function renderSettings() {
   const isDark = settings.darkMode;
+  const reduceMotion = shouldReduceMotion();
   const sfxMuted = !!settings.sfxMuted;
   const musicMuted = !!settings.musicMuted;
   const overhead = getLotOverhead();
@@ -6822,6 +6823,15 @@ function renderSettings() {
             <div class="setting-desc">Easy on the eyes for late-night dealin'.</div>
           </div>
           <button class="toggle-btn ${isDark ? 'active' : ''}" onclick="toggleDarkMode()" aria-label="Toggle dark mode">
+            <span class="toggle-thumb"></span>
+          </button>
+        </div>
+        <div class="setting-row" style="margin-top:10px">
+          <div>
+            <div class="setting-label">Reduce Motion</div>
+            <div class="setting-desc">Cuts pop-ins, pulses, and the day-transition animation for motion sensitivity. ${settings.reduceMotion ? '' : (reduceMotion ? '<em>Currently on because your system asks for reduced motion.</em>' : '')}</div>
+          </div>
+          <button class="toggle-btn ${settings.reduceMotion ? 'active' : ''}" onclick="toggleReduceMotion()" aria-label="Toggle reduce motion">
             <span class="toggle-thumb"></span>
           </button>
         </div>
@@ -7012,22 +7022,19 @@ function flashCarCard(carId) {
   });
 }
 
-/** Small "desk calendar" page flip — the old day's page flips up and over
- *  to reveal the new day underneath, then fades. Played once per nextDay()
- *  call, alongside a short chime. Deliberately compact and quiet (not a
- *  full-screen effect) so it stays pleasant even hundreds of days in. */
+/** "Day N" title card — fades and scales in over a soft dim, holds a
+ *  beat, then fades out. Played once per nextDay() call, alongside a
+ *  short chime. Just the text beat, no moving light-sweep. */
 function triggerDayTransition(dayNum) {
-  const overlay  = document.getElementById('day-sweep-overlay');
-  const oldNumEl = document.getElementById('day-flip-old-num');
-  const newNumEl = document.getElementById('day-flip-new-num');
-  if (!overlay || !oldNumEl || !newNumEl) return;
-  oldNumEl.textContent = dayNum - 1;
-  newNumEl.textContent = dayNum;
+  const overlay = document.getElementById('day-sweep-overlay');
+  const label   = document.getElementById('day-sweep-label');
+  if (!overlay || !label) return;
+  label.textContent = `Day ${dayNum}`;
   overlay.classList.remove('active');
   void overlay.offsetWidth;
   overlay.classList.add('active');
   playSfx('day');
-  setTimeout(() => overlay.classList.remove('active'), 950);
+  setTimeout(() => overlay.classList.remove('active'), 1000);
 }
 
 // Tracks what renderStats() last painted, so it can tell what actually
@@ -7205,6 +7212,7 @@ function checkAndShowPatchNotes() {
 
 let settings = {
   darkMode: false,
+  reduceMotion: false,
   difficulty: 'normal',
   sfxMuted: false,
   sfxVolume: 0.22,
@@ -7385,6 +7393,12 @@ function loadSettings() {
   if (settings.tutorialsEnabled === undefined) settings.tutorialsEnabled = true;
   if (settings.carLotSortBy === undefined) settings.carLotSortBy = 'default';
   applyDarkMode();
+  applyReduceMotion();
+  // Live-update if the OS-level preference changes while the game is open
+  // (e.g. the player flips it in their system settings mid-session).
+  try {
+    window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', applyReduceMotion);
+  } catch (_) {}
 }
 
 function saveSettings() {
@@ -7398,6 +7412,27 @@ function applyDarkMode() {
 function toggleDarkMode() {
   settings.darkMode = !settings.darkMode;
   applyDarkMode();
+  saveSettings();
+  renderSettings();
+  playSfx('toggle');
+}
+
+/** True if animations should be cut — either the player turned on the
+ *  in-game "Reduce Motion" toggle, or their OS/browser already asks for
+ *  reduced motion. Either one is enough. */
+function shouldReduceMotion() {
+  let systemPrefers = false;
+  try { systemPrefers = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) {}
+  return !!settings.reduceMotion || systemPrefers;
+}
+
+function applyReduceMotion() {
+  document.body.classList.toggle('reduce-motion', shouldReduceMotion());
+}
+
+function toggleReduceMotion() {
+  settings.reduceMotion = !settings.reduceMotion;
+  applyReduceMotion();
   saveSettings();
   renderSettings();
   playSfx('toggle');
