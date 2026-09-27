@@ -7534,6 +7534,14 @@ function scheduleMusicLoop(gen) {
   if (gen !== musicActiveGen) return; // a stop() happened since this chain was armed — abandon it
   const ctx = ensureAudioCtx();
   if (!ctx) return;
+  if (ctx.state !== 'running') {
+    // The AudioContext is still suspended (no user gesture yet) — its clock is frozen,
+    // so scheduling chords now would just stack them all at the same startAt. They'd
+    // then all fire at once the instant the context resumes on the first real click.
+    // Instead, quietly poll (no notes queued) until the context is actually running.
+    musicTimerId = setTimeout(() => scheduleMusicLoop(gen), 250);
+    return;
+  }
   const bus = ensureMusicGain(ctx);
   const chordDef = MUSIC_PROGRESSION[musicChordIndex % MUSIC_PROGRESSION.length];
   const startAt = ctx.currentTime + 0.05;
