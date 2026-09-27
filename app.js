@@ -11,9 +11,16 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.11.2';
+const GAME_VERSION = '1.12.0';
 
 const PATCH_NOTES = [
+  {
+    version: '1.12.0',
+    date: 'September 2026',
+    notes: [
+      { type: 'feature', text: "The in-game soundtrack is now a rotating playlist of five original tracks instead of one — \"Showroom Bossa\" (the original warm chill-bossa), plus four new pieces: \"Open Road\" (a brighter, driving mallet-ostinato track), \"Late Shift\" (a slow, moody felt-piano ambience for the quiet end of a long day), \"Sunday Lot\" (a laid-back acoustic-pluck feel), and \"Neon Drive\" (an energetic after-dark synth pulse). Every ~10 minutes of actual gameplay, playback eases into the next track and loops back around once it's been through all five — each one its own key, tempo, and instrumentation, not just a remix of the others. The calm menu loop is untouched." },
+    ],
+  },
   {
     version: '1.11.2',
     date: 'September 2026',
@@ -7812,35 +7819,38 @@ function menuToggleMusic() {
 }
 
 // ============================================================
-// IN-GAME MUSIC — a related but distinct, more upbeat-relaxed track
+// IN-GAME MUSIC — a rotating playlist of distinct tracks
 // ============================================================
 // The menu loop above (BPM, chords, envelopes, everything) is completely
 // untouched by any of this and keeps playing, unchanged, on the main menu
 // and on any Settings page. This second engine takes over while an active
-// game session is on screen (and not on its Settings tab). It's built the
-// same synthesized way — oscillators + gain envelopes, no audio files —
-// but is deliberately a different piece rather than the menu loop with
-// extra layers bolted on: a different key and chord color (warm 6ths/9ths
-// instead of the menu's maj7/m7 jazz voicings), a plucked bossa-style bass
-// instead of a sustained sub-bass, a soft marimba-style melodic arpeggio
-// instead of block chord stabs, and a light brushed-shaker texture for
-// groove. It shares the same AudioContext and the same Music mute/volume
-// settings, just through its own gain (and filter) node so it can't
-// interfere with the menu bus.
+// game session is on screen (and not on its Settings tab).
+//
+// Rather than one in-game track, gameplay now has a small rotating
+// playlist — every GAME_MUSIC_ROTATE_MS of actual in-game listening time,
+// playback eases into the next track in the list (wrapping back to the
+// first once it reaches the end), the way a generative soundtrack like
+// Mini Motorways' quietly moves on to its next piece rather than looping
+// the same one forever. Each track is a genuinely different composition —
+// its own key, tempo, chord progression, and instrumental palette (pad
+// timbre, bass style, melodic arpeggio character, percussion texture, and
+// filter brightness) — not the same piece with a different mix. All of it
+// is still synthesized live with the Web Audio API: oscillators and gain
+// envelopes, no audio files, nothing copyrighted. Every track shares the
+// same AudioContext, the same Music mute/volume settings, and the same
+// mood-reactive "intensity" system (see updateMusicBaseline/nudgeMusicTone
+// below), so however the business is doing keeps coloring whichever track
+// happens to be playing.
 const GAME_MUSIC_VOLUME_SCALE = 0.44;
-const GAME_MUSIC_BPM = 98;                  // upbeat but still relaxed — a warm chill-bossa feel
-const GAME_MUSIC_BEAT_SECONDS = 60 / GAME_MUSIC_BPM;
-const GAME_MUSIC_BAR_BEATS = 4;
-const GAME_MUSIC_BAR_SECONDS = GAME_MUSIC_BEAT_SECONDS * GAME_MUSIC_BAR_BEATS;
-const GAME_MUSIC_PAD_ATTACK = 0.7;
-const GAME_MUSIC_PAD_RELEASE = 0.5;
-const GAME_MUSIC_MIN_GAIN = 0.0001;
+const GAME_MUSIC_MIN_GAIN     = 0.0001;
+const GAME_MUSIC_ROTATE_MS    = 10 * 60 * 1000; // switch to the next track every 10 minutes of in-game playback
 
-// A warm 16-bar progression in G major (the menu loop lives in C major) built
-// from 6th/9th "chill" voicings rather than the menu's maj7/m7 jazz-lounge
-// ones — a related family of chord, but a distinctly different color.
 // Reuses noteFreq/defChord from the menu section above.
-const MUSIC_GAME_PROGRESSION = [
+
+// ── Track 1: "Showroom Bossa" — warm chill-bossa in G major ────────────────
+// The original in-game track: a plucked bossa-style bass, a soft
+// marimba-style melodic arpeggio, and a light brushed-shaker groove.
+const MUSIC_GAME_PROGRESSION_BOSSA = [
   defChord('G3', ['B4','D5','E5','F#5'], ['A5','D5']),   // Gmaj6/9
   defChord('E3', ['G4','B4','D5','F#5'], ['B5','D5']),   // Em9
   defChord('C3', ['E4','G4','A4','D5'],  ['G5','A5']),   // Cmaj6/9
@@ -7859,17 +7869,187 @@ const MUSIC_GAME_PROGRESSION = [
   defChord('D3', ['A3','C#4','F#4','A4'],['F#5','A5']),  // D7 (turnaround back to G)
 ];
 
-let gameMusicGainNode   = null;
-let gameMusicFilterNode = null;
-let gameMusicChordIndex = 0;
-let gameMusicActiveGen  = 0;
-let gameMusicTimerId    = null;
-let gameMusicNoiseBuffer = null; // shared short noise burst, reused for the shaker texture
+// ── Track 2: "Open Road" — driving mallet ostinato in D major ──────────────
+// Brighter and more forward-moving: a steady pizzicato quarter-note bass
+// pulse, a busier directional (up-then-down) mallet arpeggio that's the
+// track's real melody, and a shaker on every beat instead of just the
+// off-beats — the "cruising with the windows down" track.
+const MUSIC_GAME_PROGRESSION_OPENROAD = [
+  defChord('D3', ['F#4','A4','C#5','E5'],['A5','E5']),   // Dmaj9
+  defChord('B2', ['D4','F#4','A4','C#5'],['F#5','D5']),  // Bm9
+  defChord('G3', ['B4','D5','E5','A5'],  ['D5','A5']),   // Gmaj6/9
+  defChord('A2', ['C#4','E4','G4','B4'], ['E5','C#5']),  // A9
+  defChord('E3', ['G4','B4','D5','F#5'], ['B5','D5']),   // Em9
+  defChord('A2', ['C#4','E4','G4','B4'], ['G5','B4']),   // A9
+  defChord('D3', ['A4','C#5','E5','F#5'],['C#5','A4']),  // Dmaj9 (higher voicing)
+  defChord('G3', ['B4','D5','F#5','A5'], ['F#5','D5']),  // Gmaj9
+  defChord('B2', ['D4','F#4','A4','C#5'],['A5','C#5']),  // Bm9
+  defChord('E3', ['G4','B4','D5','F#5'], ['D5','F#5']),  // Em9
+  defChord('A2', ['E4','G4','B4','C#5'], ['G5','E5']),   // A11-ish
+  defChord('D3', ['F#4','A4','C#5','E5'],['E5','C#5']),  // Dmaj9 (turnaround)
+];
 
-// --- Music "tone" — lets the in-game track react to how the business is doing ---
-// A single 0..1 intensity value steers the track's brightness (a lowpass
-// filter), how busy the arpeggio/shaker layers are, and a small tempo nudge.
-// It's the sum of two layers:
+// ── Track 3: "Late Shift" — moody felt-piano ambience in A minor ───────────
+// Slow and spacious: sine-heavy pads with a long swell, a single sustained
+// low note per bar instead of a rhythmic bass, sparse sine "bell" chimes
+// instead of a busy arpeggio, and no percussion at all — for the quiet,
+// after-hours end of a long day on the lot.
+const MUSIC_GAME_PROGRESSION_LATESHIFT = [
+  defChord('A2', ['C4','E4','G4','B4'],  ['E5','C5']),   // Am9
+  defChord('F2', ['A3','C4','E4','G4'],  ['C5','A4']),   // Fmaj7
+  defChord('C3', ['E4','G4','B4','D5'],  ['G5','B4']),   // Cmaj9
+  defChord('G2', ['B3','D4','F4','A4'],  ['D5','F4']),   // G9
+  defChord('D3', ['F4','A4','C5','E5'],  ['A5','C5']),   // Dm9
+  defChord('E3', ['G4','B4','D5','F#5'], ['B5','D5']),   // Em9
+  defChord('A2', ['C4','E4','G4','B4'],  ['G5','E5']),   // Am9
+  defChord('F2', ['A3','C4','E4','G4'],  ['E5','G5']),   // Fmaj7
+  defChord('D3', ['F4','A4','C5','E5'],  ['C5','E5']),   // Dm9
+  defChord('G2', ['B3','D4','F4','A4'],  ['F4','A5']),   // G9
+  defChord('C3', ['E4','G4','B4','D5'],  ['D5','G5']),   // Cmaj9
+  defChord('E3', ['G4','B4','D5','F#5'], ['D5','F#5']),  // Em9 (turnaround)
+];
+
+// ── Track 4: "Sunday Lot" — laid-back acoustic pluck in E major ────────────
+// A gentle fingerstyle feel: a soft root-and-fifth pluck on the downbeats,
+// a quick-decaying sawtooth arpeggio standing in for plucked guitar
+// strings, and sparse conga-like clicks on the backbeats — an easy,
+// unhurried Sunday-morning-at-the-lot mood.
+const MUSIC_GAME_PROGRESSION_SUNDAYLOT = [
+  defChord('E3', ['G#4','B4','D#5','F#5'],['B5','F#5']), // Emaj9
+  defChord('C#3',['E4','G#4','B4','D#5'], ['G#5','E5']), // C#m9
+  defChord('A2', ['C#4','E4','G#4','B4'], ['E5','C#5']), // Amaj7
+  defChord('B2', ['D#4','F#4','A4','C#5'],['F#5','D#5']),// B9
+  defChord('F#3',['A4','C#5','E5','G#5'], ['C#5','A4']), // F#m9
+  defChord('B2', ['D#4','F#4','A4','C#5'],['A5','C#5']), // B9
+  defChord('E3', ['B4','D#5','F#5','G#5'],['D#5','G#5']),// Emaj9 (higher voicing)
+  defChord('A2', ['C#4','E4','G#4','B4'], ['B5','E5']),  // Amaj9
+  defChord('C#3',['E4','G#4','B4','D#5'], ['B5','D#5']), // C#m9
+  defChord('F#3',['A4','C#5','E5','G#5'], ['E5','G#5']), // F#m9
+  defChord('B2', ['D#4','F#4','A4','C#5'],['F#5','A5']), // B9
+  defChord('E3', ['G#4','B4','D#5','F#5'],['F#5','B5']), // Emaj9 (turnaround)
+];
+
+// ── Track 5: "Neon Drive" — energetic synth pulse in B minor ───────────────
+// The liveliest of the five: a brighter, thinner sawtooth pad, a punchy
+// octave-jumping synth-pulse bassline on every beat, a fast directional
+// 16th-note arpeggio, and a busier shaker pattern — an upbeat, after-dark
+// "closing time" energy without ever getting harsh.
+const MUSIC_GAME_PROGRESSION_NEONDRIVE = [
+  defChord('B2', ['D4','F#4','A4','C#5'], ['F#5','C#5']),// Bm9
+  defChord('G2', ['B3','D4','F#4','A4'],  ['D5','A4']),  // Gmaj7
+  defChord('D3', ['F#4','A4','C5','E5'],  ['A5','E5']),  // D9
+  defChord('A2', ['C#4','E4','G4','B4'],  ['E5','C#5']), // A9
+  defChord('B2', ['D4','F#4','A4','C#5'], ['A5','D5']),  // Bm9
+  defChord('F#3',['A4','C#5','E5','G#5'], ['C#5','A4']), // F#9 (secondary dominant)
+  defChord('G2', ['B3','D4','F#4','A4'],  ['F#5','D5']), // Gmaj7
+  defChord('D3', ['F#4','A4','C5','E5'],  ['C5','E5']),  // D9
+  defChord('B2', ['D4','F#4','A4','C#5'], ['C#5','F#5']),// Bm9
+  defChord('A2', ['C#4','E4','G4','B4'],  ['G5','B4']),  // A9
+  defChord('G2', ['B3','D4','F#4','A4'],  ['A5','F#5']), // Gmaj7
+  defChord('F#3',['A4','C#5','E5','G#5'], ['G#5','E5']), // F#9 (turnaround back to Bm)
+];
+
+// The rotating playlist itself. Each entry fully describes one track: its
+// tempo/progression plus the instrumentation that makes it sound like a
+// different piece rather than a re-skinned copy of the others.
+//   pad.{waveform,detunePair,attack,release,peakScale} — the sustained chord bed
+//   bass.style 'pattern' (short plucked notes at given beat offsets) or
+//     'sustained' (one long swelling note per bar); pattern entries are
+//     {beat, mult (frequency multiplier off the chord's bass note), decayBeats}
+//   arp.style 'random' (loose scattered picking) or 'directional' (an
+//     up-then-down run through the chord, more purposeful/melodic) or
+//     'bell' (sparse, slow, long-decay chimes)
+//   perc.kind 'shaker', 'click' (softer, conga-like), or 'none'; offsets are
+//     beat positions within the bar
+//   filterBase/filterRange — the shared lowpass filter's brightness range,
+//     letting each track have its own tonal "color" independent of the others
+const GAME_MUSIC_TRACKS = [
+  {
+    id: 'bossa', name: 'Showroom Bossa',
+    bpm: 98, progression: MUSIC_GAME_PROGRESSION_BOSSA,
+    pad:  { waveform: 'triangle', detunePair: [-3, 3], attack: 0.7, release: 0.5, peakScale: 0.24 },
+    bass: { style: 'pattern', waveform: 'sine',
+      pattern: [{ beat: 0, mult: 1, decayBeats: 1.3 }, { beat: 2.5, mult: 1.5, decayBeats: 1.3 }],
+      peak: 0.34, peakIntensity: 0.1 },
+    arp:  { style: 'random', waveform: 'triangle', stepsPerBeat: 2,
+      densityBase: 0.3, densityIntensity: 0.55, peakBase: 0.12, peakIntensity: 0.08, decay: 0.4 },
+    perc: { kind: 'shaker', offsets: [0.5, 1.5, 2.5, 3.5],
+      densityBase: 0.35, densityIntensity: 0.5, peakBase: 0.05, peakIntensity: 0.04 },
+    filterBase: 1000, filterRange: 3000,
+  },
+  {
+    id: 'openroad', name: 'Open Road',
+    bpm: 112, progression: MUSIC_GAME_PROGRESSION_OPENROAD,
+    pad:  { waveform: 'triangle', detunePair: [-4, 4], attack: 0.5, release: 0.4, peakScale: 0.18 },
+    bass: { style: 'pattern', waveform: 'sine',
+      pattern: [{ beat: 0, mult: 1, decayBeats: 0.9 }, { beat: 1, mult: 1, decayBeats: 0.9 },
+                { beat: 2, mult: 1, decayBeats: 0.9 }, { beat: 3, mult: 1, decayBeats: 0.9 }],
+      peak: 0.3, peakIntensity: 0.08 },
+    arp:  { style: 'directional', waveform: 'triangle', stepsPerBeat: 2,
+      densityBase: 0.55, densityIntensity: 0.35, peakBase: 0.14, peakIntensity: 0.07, decay: 0.35 },
+    perc: { kind: 'shaker', offsets: [0, 1, 2, 3],
+      densityBase: 0.5, densityIntensity: 0.35, peakBase: 0.045, peakIntensity: 0.035 },
+    filterBase: 1400, filterRange: 2600,
+  },
+  {
+    id: 'lateshift', name: 'Late Shift',
+    bpm: 66, progression: MUSIC_GAME_PROGRESSION_LATESHIFT,
+    pad:  { waveform: 'sine', detunePair: [-2, 2], attack: 1.6, release: 1.3, peakScale: 0.3 },
+    bass: { style: 'sustained', attack: 1.2, peak: 0.32 },
+    arp:  { style: 'bell', waveform: 'sine', stepsPerBeat: 1,
+      densityBase: 0.22, densityIntensity: 0.25, peakBase: 0.1, peakIntensity: 0.05, decay: 1.3 },
+    perc: { kind: 'none', offsets: [] },
+    filterBase: 700, filterRange: 1600,
+  },
+  {
+    id: 'sundaylot', name: 'Sunday Lot',
+    bpm: 84, progression: MUSIC_GAME_PROGRESSION_SUNDAYLOT,
+    pad:  { waveform: 'triangle', detunePair: [-2, 2], attack: 0.9, release: 0.7, peakScale: 0.16 },
+    bass: { style: 'pattern', waveform: 'sine',
+      pattern: [{ beat: 0, mult: 1, decayBeats: 1.6 }, { beat: 2, mult: 1.5, decayBeats: 1.6 }],
+      peak: 0.3, peakIntensity: 0.06 },
+    arp:  { style: 'directional', waveform: 'sawtooth', stepsPerBeat: 2,
+      densityBase: 0.42, densityIntensity: 0.3, peakBase: 0.09, peakIntensity: 0.05, decay: 0.3 },
+    perc: { kind: 'click', offsets: [1, 3],
+      densityBase: 0.4, densityIntensity: 0.25, peakBase: 0.035, peakIntensity: 0.02 },
+    filterBase: 1200, filterRange: 2000,
+  },
+  {
+    id: 'neondrive', name: 'Neon Drive',
+    bpm: 124, progression: MUSIC_GAME_PROGRESSION_NEONDRIVE,
+    pad:  { waveform: 'sawtooth', detunePair: [-5, 5], attack: 0.4, release: 0.35, peakScale: 0.14 },
+    bass: { style: 'pattern', waveform: 'sine',
+      pattern: [{ beat: 0, mult: 1, decayBeats: 0.7 }, { beat: 1, mult: 2, decayBeats: 0.4 },
+                { beat: 2, mult: 1, decayBeats: 0.7 }, { beat: 3, mult: 2, decayBeats: 0.4 }],
+      peak: 0.3, peakIntensity: 0.1 },
+    arp:  { style: 'directional', waveform: 'triangle', stepsPerBeat: 4,
+      densityBase: 0.5, densityIntensity: 0.4, peakBase: 0.1, peakIntensity: 0.06, decay: 0.18 },
+    perc: { kind: 'shaker', offsets: [0.5, 1, 1.5, 2.5, 3, 3.5],
+      densityBase: 0.4, densityIntensity: 0.35, peakBase: 0.04, peakIntensity: 0.03 },
+    filterBase: 1600, filterRange: 3400,
+  },
+];
+
+let gameMusicGainNode    = null;
+let gameMusicFilterNode  = null;
+let gameMusicChordIndex  = 0;
+let gameMusicActiveGen   = 0;
+let gameMusicTimerId     = null;
+let gameMusicNoiseBuffer = null; // shared short noise burst, reused for every percussion texture
+
+// --- Playlist rotation state ---
+// gameMusicElapsedMs tracks how long the CURRENT track has actually been
+// audible (accumulated across pauses — switching to the Settings tab or the
+// main menu pauses the clock rather than resetting it, so a quick peek at
+// Settings doesn't cost the current track its remaining time).
+let gameMusicTrackIndex    = 0;
+let gameMusicElapsedMs     = 0;
+let gameMusicLastResumeMs  = null;
+
+// --- Music "tone" — lets the in-game tracks react to how the business is doing ---
+// A single 0..1 intensity value steers whichever track is currently playing:
+// its brightness (the shared lowpass filter), how busy its arpeggio/
+// percussion layers are, and a small tempo nudge. It's the sum of two layers:
 //  - gameMusicBaseline: slow-moving, recomputed from reputation/cash/debt
 //    every time renderStats() runs, so it tracks how the business is doing
 //    overall (struggling and in debt → moodier; flush and reputable → brighter).
@@ -7891,7 +8071,7 @@ function updateMusicBaseline() {
 }
 
 /** Called from showToast() — nudges the fast "pulse" layer on good/bad news.
- *  No-ops whenever the menu track (not the in-game one) is playing. */
+ *  No-ops whenever the menu track (not a game track) is playing. */
 function nudgeMusicTone(toastType) {
   if (currentMusicTrack !== 'game') return;
   if (toastType === 'success') gameMusicPulse = clamp(gameMusicPulse + 0.22, -0.4, 0.5);
@@ -7900,7 +8080,9 @@ function nudgeMusicTone(toastType) {
 }
 
 /** Lazily creates the in-game music bus: its own gain node feeding a gentle
- *  lowpass filter, so brightness can shift with the music's tone. */
+ *  lowpass filter, so brightness can shift with the music's tone. Shared by
+ *  every track in the playlist — only each track's target frequency range
+ *  changes, not the node itself, so rotating tracks never clicks or pops. */
 function ensureGameMusicGain(ctx) {
   if (!gameMusicGainNode) {
     gameMusicFilterNode = ctx.createBiquadFilter();
@@ -7916,7 +8098,7 @@ function ensureGameMusicGain(ctx) {
 }
 
 /** A short reusable buffer of white noise, used to make brief filtered
- *  "shaker" bursts without needing an actual audio sample. */
+ *  percussion ticks without needing an actual audio sample. */
 function getGameMusicNoiseBuffer(ctx) {
   if (!gameMusicNoiseBuffer || gameMusicNoiseBuffer.sampleRate !== ctx.sampleRate) {
     const len = Math.ceil(ctx.sampleRate * 0.06);
@@ -7927,47 +8109,40 @@ function getGameMusicNoiseBuffer(ctx) {
   return gameMusicNoiseBuffer;
 }
 
-/** One soft, filtered noise tick — a brushed shaker sound, not a harsh hi-hat. */
-function playGameMusicShaker(ctx, bus, t, peak) {
+/** One soft, filtered noise tick. `kind` picks the timbre: 'shaker' is a
+ *  bright, quick brushed-shaker tick; 'click' is a lower, slightly longer
+ *  conga-like tock. Both are built from the same shared noise buffer. */
+function playGameMusicPercHit(ctx, bus, t, peak, kind) {
   const src = ctx.createBufferSource();
   src.buffer = getGameMusicNoiseBuffer(ctx);
   const bp = ctx.createBiquadFilter();
   bp.type = 'bandpass';
-  bp.frequency.value = 6500;
-  bp.Q.value = 0.7;
+  const isClick = kind === 'click';
+  bp.frequency.value = isClick ? 1700 : 6500;
+  bp.Q.value = isClick ? 1.3 : 0.7;
+  const decay = isClick ? 0.1 : 0.07;
   const gain = ctx.createGain();
   gain.gain.setValueAtTime(GAME_MUSIC_MIN_GAIN, t);
   gain.gain.linearRampToValueAtTime(peak, t + 0.005);
-  gain.gain.exponentialRampToValueAtTime(GAME_MUSIC_MIN_GAIN, t + 0.07);
+  gain.gain.exponentialRampToValueAtTime(GAME_MUSIC_MIN_GAIN, t + decay);
   src.connect(bp); bp.connect(gain); gain.connect(bus);
-  src.start(t); src.stop(t + 0.08);
+  src.start(t); src.stop(t + decay + 0.01);
 }
 
-/** Schedules one bar of the in-game loop:
- *   - a warm sustained pad (two gently detuned triangle oscillators per
- *     voice, for a rounder "electric piano" character rather than the menu
- *     pad's plainer sine/triangle blend)
- *   - a plucked bossa-style bass on beat 1 and the "and" of beat 2, instead
- *     of the menu loop's continuous sub-bass drone
- *   - a soft marimba-style melodic arpeggio picking through the chord tones
- *     — the main "different tune, not just extra layers" element — whose
- *     note density scales with `intensity`
- *   - a light brushed-shaker texture on the off-beats for groove, also
- *     scaling with `intensity`
- */
-function playGameMusicChord(ctx, bus, chordDef, startAt, duration, intensity) {
-  const attack = GAME_MUSIC_PAD_ATTACK, release = GAME_MUSIC_PAD_RELEASE;
+/** Schedules one bar's sustained chord pad — a warm bed of gently detuned
+ *  oscillators, waveform/detune/attack/release/level all driven by the
+ *  current track's `pad` definition so each track has its own timbre. */
+function playGameMusicPad(ctx, bus, chordDef, startAt, duration, pad) {
+  const attack = pad.attack, release = pad.release;
   const sustainEnd = startAt + duration - release;
-
-  // Warm detuned-triangle pad (no bass note here — the plucked bass below covers that)
-  chordDef.chord.forEach((freq, i) => {
-    [-3, 3].forEach(centsOffset => {
+  chordDef.chord.forEach((freq) => {
+    pad.detunePair.forEach((centsOffset) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.type = 'triangle';
+      osc.type = pad.waveform;
       osc.frequency.setValueAtTime(freq, startAt);
       osc.detune.setValueAtTime(centsOffset, startAt);
-      const peak = 0.24 / chordDef.chord.length;
+      const peak = pad.peakScale / chordDef.chord.length;
       gain.gain.setValueAtTime(GAME_MUSIC_MIN_GAIN, startAt);
       gain.gain.linearRampToValueAtTime(peak, startAt + attack);
       gain.gain.setValueAtTime(peak, Math.max(startAt + attack, sustainEnd));
@@ -7976,59 +8151,109 @@ function playGameMusicChord(ctx, bus, chordDef, startAt, duration, intensity) {
       osc.start(startAt); osc.stop(startAt + duration + 0.05);
     });
   });
+}
 
-  // Plucked bossa-style bass — root on beat 1, a soft fifth on the "and" of beat 2
-  const bassNotes = [
-    { beat: 0,   freq: chordDef.bass },
-    { beat: 2.5, freq: chordDef.bass * 1.5 },
-  ];
-  bassNotes.forEach(({ beat, freq }) => {
-    const t = startAt + beat * GAME_MUSIC_BEAT_SECONDS;
+/** Schedules one bar's bass part. 'sustained' tracks get one long, softly
+ *  swelling low note (a felt-piano left hand); 'pattern' tracks get short
+ *  plucked notes at whatever beat offsets the track defines — a bossa
+ *  pluck, a driving quarter-note pulse, a gentle root-and-fifth, or a
+ *  punchy octave-jumping pulse, depending on the track. */
+function playGameMusicBass(ctx, bus, chordDef, startAt, beatSeconds, barSeconds, bass, intensity) {
+  if (bass.style === 'sustained') {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(freq, t);
-    const peak = 0.34 + intensity * 0.1;
-    gain.gain.setValueAtTime(GAME_MUSIC_MIN_GAIN, t);
-    gain.gain.linearRampToValueAtTime(peak, t + 0.015);
-    gain.gain.exponentialRampToValueAtTime(GAME_MUSIC_MIN_GAIN, t + GAME_MUSIC_BEAT_SECONDS * 1.3);
+    osc.frequency.setValueAtTime(chordDef.bass * 0.5, startAt);
+    const peak = bass.peak + intensity * 0.05;
+    gain.gain.setValueAtTime(GAME_MUSIC_MIN_GAIN, startAt);
+    gain.gain.linearRampToValueAtTime(peak, startAt + bass.attack);
+    gain.gain.linearRampToValueAtTime(GAME_MUSIC_MIN_GAIN, startAt + barSeconds);
     osc.connect(gain); gain.connect(bus);
-    osc.start(t); osc.stop(t + GAME_MUSIC_BEAT_SECONDS * 1.4);
-  });
-
-  // Marimba-style melodic arpeggio — the track's main "tune", not chord stabs.
-  // Picks through this bar's chord + sparkle tones in a loose eighth-note
-  // pattern; how many notes actually sound (and how bright they are) scales
-  // with intensity, so a confident/reputable run feels noticeably livelier.
-  const arpNotes = [...chordDef.chord, ...(chordDef.sparkle || [])];
-  const steps = 8; // eighth notes across the bar
-  for (let s = 0; s < steps; s++) {
-    if (Math.random() > 0.3 + intensity * 0.55) continue;
-    const t = startAt + s * (GAME_MUSIC_BEAT_SECONDS / 2) + (Math.random() * 0.02 - 0.01);
-    const freq = arpNotes[Math.floor(Math.random() * arpNotes.length)];
+    osc.start(startAt); osc.stop(startAt + barSeconds + 0.05);
+    return;
+  }
+  bass.pattern.forEach(({ beat, mult, decayBeats }) => {
+    const t = startAt + beat * beatSeconds;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(freq, t);
-    const peak = 0.12 + intensity * 0.08;
+    osc.type = bass.waveform;
+    osc.frequency.setValueAtTime(chordDef.bass * mult, t);
+    const peak = bass.peak + intensity * bass.peakIntensity;
+    const decay = decayBeats * beatSeconds;
     gain.gain.setValueAtTime(GAME_MUSIC_MIN_GAIN, t);
-    gain.gain.linearRampToValueAtTime(peak, t + 0.008);
-    gain.gain.exponentialRampToValueAtTime(GAME_MUSIC_MIN_GAIN, t + 0.4);
+    gain.gain.linearRampToValueAtTime(peak, t + 0.015);
+    gain.gain.exponentialRampToValueAtTime(GAME_MUSIC_MIN_GAIN, t + decay);
     osc.connect(gain); gain.connect(bus);
-    osc.start(t); osc.stop(t + 0.45);
-  }
-
-  // Light brushed shaker on the off-beats — subtle groove texture, busier when upbeat
-  [0.5, 1.5, 2.5, 3.5].forEach(beatOffset => {
-    if (Math.random() > 0.35 + intensity * 0.5) return;
-    const t = startAt + beatOffset * GAME_MUSIC_BEAT_SECONDS;
-    playGameMusicShaker(ctx, bus, t, 0.05 + intensity * 0.04);
+    osc.start(t); osc.stop(t + decay + 0.05);
   });
 }
 
+/** Builds an up-then-down index order through `n` notes, e.g. for n=4:
+ *  [0,1,2,3,2,1] — used by 'directional' arpeggios so they read as a
+ *  purposeful melodic run instead of scattered random picking. */
+function gameMusicDirectionalOrder(n) {
+  const up = Array.from({ length: n }, (_, i) => i);
+  const down = up.slice(1, -1).reverse();
+  return up.concat(down);
+}
+
+/** Schedules one bar's melodic arpeggio — the track's real "tune", not
+ *  chord stabs. 'random' loosely scatters picks across the chord+sparkle
+ *  tones (the original bossa feel); 'directional' runs up and down through
+ *  them for a more purposeful, driving line; 'bell' plays sparse, slow,
+ *  long-decay chimes. Density and volume both scale with `intensity`. */
+function playGameMusicArp(ctx, bus, chordDef, startAt, beatSeconds, arp, intensity) {
+  const notes = [...chordDef.chord, ...(chordDef.sparkle || [])];
+  const stepSeconds = beatSeconds / arp.stepsPerBeat;
+  const totalSteps = arp.stepsPerBeat * 4;
+  const density = arp.densityBase + intensity * arp.densityIntensity;
+  const order = arp.style === 'directional' ? gameMusicDirectionalOrder(notes.length) : null;
+  for (let s = 0; s < totalSteps; s++) {
+    if (Math.random() > density) continue;
+    const t = startAt + s * stepSeconds + (Math.random() * 0.02 - 0.01);
+    const freq = order ? notes[order[s % order.length]] : notes[Math.floor(Math.random() * notes.length)];
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = arp.waveform;
+    osc.frequency.setValueAtTime(freq, t);
+    const peak = arp.peakBase + intensity * arp.peakIntensity;
+    gain.gain.setValueAtTime(GAME_MUSIC_MIN_GAIN, t);
+    gain.gain.linearRampToValueAtTime(peak, t + 0.008);
+    gain.gain.exponentialRampToValueAtTime(GAME_MUSIC_MIN_GAIN, t + arp.decay);
+    osc.connect(gain); gain.connect(bus);
+    osc.start(t); osc.stop(t + arp.decay + 0.05);
+  }
+}
+
+/** Schedules one bar's percussion layer at the track's defined beat
+ *  offsets — a brushed shaker, a softer conga-like click, or nothing at
+ *  all for the more ambient tracks. Density and level scale with
+ *  `intensity`, same as the arpeggio. */
+function playGameMusicPerc(ctx, bus, startAt, beatSeconds, perc, intensity) {
+  if (perc.kind === 'none') return;
+  const density = perc.densityBase + intensity * perc.densityIntensity;
+  perc.offsets.forEach((beatOffset) => {
+    if (Math.random() > density) return;
+    const t = startAt + beatOffset * beatSeconds;
+    const peak = perc.peakBase + intensity * perc.peakIntensity;
+    playGameMusicPercHit(ctx, bus, t, peak, perc.kind);
+  });
+}
+
+/** Schedules one full bar of whichever track is currently playing: pad,
+ *  bass, arpeggio, and percussion, each driven by that track's own
+ *  instrumentation definition. */
+function playGameMusicChord(ctx, bus, track, chordDef, startAt, duration, beatSeconds, intensity) {
+  playGameMusicPad(ctx, bus, chordDef, startAt, duration, track.pad);
+  playGameMusicBass(ctx, bus, chordDef, startAt, beatSeconds, duration, track.bass, intensity);
+  playGameMusicArp(ctx, bus, chordDef, startAt, beatSeconds, track.arp, intensity);
+  playGameMusicPerc(ctx, bus, startAt, beatSeconds, track.perc, intensity);
+}
+
 /** Main in-game music loop — same one-bar-ahead scheduling approach as the
- *  menu loop, but each pass also eases the smoothed intensity toward the
- *  current baseline+pulse and applies it to the filter, tempo, and density. */
+ *  menu loop. Each pass also eases the smoothed intensity toward its
+ *  target and, once the current track has been playing for
+ *  GAME_MUSIC_ROTATE_MS, eases the playlist on to the next track. */
 function scheduleGameMusicLoop(gen) {
   if (gen !== gameMusicActiveGen) return;
   const ctx = ensureAudioCtx();
@@ -8039,38 +8264,60 @@ function scheduleGameMusicLoop(gen) {
   }
   const bus = ensureGameMusicGain(ctx);
 
+  // Has the current track been playing long enough to move on to the next one?
+  const elapsedMs = gameMusicElapsedMs + (gameMusicLastResumeMs !== null ? Date.now() - gameMusicLastResumeMs : 0);
+  if (elapsedMs >= GAME_MUSIC_ROTATE_MS) {
+    gameMusicTrackIndex = (gameMusicTrackIndex + 1) % GAME_MUSIC_TRACKS.length;
+    gameMusicChordIndex = 0;
+    gameMusicElapsedMs = 0;
+    gameMusicLastResumeMs = Date.now();
+  }
+  const track = GAME_MUSIC_TRACKS[gameMusicTrackIndex];
+
   // Decay the transient pulse and ease the smoothed intensity toward its target
   gameMusicPulse *= 0.72;
   const target = clamp(gameMusicBaseline + gameMusicPulse, 0.05, 1);
   gameMusicIntensity += (target - gameMusicIntensity) * 0.5;
 
-  // Brighter tone → more open filter; tense/low tone → darker and warmer
-  gameMusicFilterNode.frequency.setTargetAtTime(1000 + gameMusicIntensity * 3000, ctx.currentTime, 0.6);
+  // Brighter tone → more open filter; tense/low tone → darker and warmer,
+  // scaled within this track's own brightness range.
+  gameMusicFilterNode.frequency.setTargetAtTime(
+    track.filterBase + gameMusicIntensity * track.filterRange, ctx.currentTime, 0.6);
   // Small tempo nudge: a bit faster when things are going well, a bit slower when tense
   const tempoScale = 0.98 + gameMusicIntensity * 0.08;
-  const barSeconds = GAME_MUSIC_BAR_SECONDS / tempoScale;
+  const beatSeconds = (60 / track.bpm) / tempoScale;
+  const barSeconds = beatSeconds * 4;
 
-  const chordDef = MUSIC_GAME_PROGRESSION[gameMusicChordIndex % MUSIC_GAME_PROGRESSION.length];
+  const chordDef = track.progression[gameMusicChordIndex % track.progression.length];
   const startAt = ctx.currentTime + 0.05;
-  playGameMusicChord(ctx, bus, chordDef, startAt, barSeconds, gameMusicIntensity);
+  playGameMusicChord(ctx, bus, track, chordDef, startAt, barSeconds, beatSeconds, gameMusicIntensity);
   gameMusicChordIndex++;
   gameMusicTimerId = setTimeout(() => scheduleGameMusicLoop(gen), barSeconds * 1000);
 }
 
-/** Starts the in-game music loop if it isn't already running and isn't muted. */
+/** Starts the in-game music loop if it isn't already running and isn't
+ *  muted, and resumes the current track's rotation clock. */
 function startGameMusic() {
   if (settings.musicMuted) return;
   if (gameMusicTimerId !== null) return;
   const ctx = ensureAudioCtx();
   if (!ctx) return;
+  gameMusicLastResumeMs = Date.now();
   gameMusicActiveGen++;
   scheduleGameMusicLoop(gameMusicActiveGen);
 }
 
-/** Stops the in-game music loop and lets the current bar fade out quickly. */
+/** Stops the in-game music loop, lets the current bar fade out quickly,
+ *  and banks the elapsed time so the rotation clock pauses rather than
+ *  resetting (a quick trip to Settings or the menu doesn't cost the
+ *  current track its remaining time). */
 function stopGameMusic() {
   gameMusicActiveGen++;
   if (gameMusicTimerId !== null) { clearTimeout(gameMusicTimerId); gameMusicTimerId = null; }
+  if (gameMusicLastResumeMs !== null) {
+    gameMusicElapsedMs += Date.now() - gameMusicLastResumeMs;
+    gameMusicLastResumeMs = null;
+  }
   if (gameMusicGainNode) {
     try {
       if (audioCtx) {
@@ -8087,8 +8334,8 @@ function stopGameMusic() {
   }
 }
 
-// --- Track switching: decides which of the two soundtracks should be playing ---
-let currentMusicTrack = 'menu'; // 'menu' (original loop) | 'game' (upbeat-relaxed loop)
+// --- Track switching: decides which soundtrack should be playing ---
+let currentMusicTrack = 'menu'; // 'menu' (original loop) | 'game' (rotating in-game playlist)
 
 /** Starts/stops whichever track is current — used by the mute toggle and
  *  anything else that just needs to act on "the music", not a specific track. */
@@ -8110,9 +8357,9 @@ function setMusicTrack(track) {
 
 /** Looks at what's actually on screen and picks the right track: the
  *  original calm loop for the main menu and any Settings page, the
- *  upbeat-relaxed loop everywhere else during an active game session. Safe
- *  to call anytime the screen changes — it's a no-op if the right track is
- *  already playing. */
+ *  rotating in-game playlist everywhere else during an active game
+ *  session. Safe to call anytime the screen changes — it's a no-op if the
+ *  right track is already playing. */
 function applyMusicForContext() {
   const hs = document.getElementById('home-screen');
   const inGame = !!(hs && hs.classList.contains('hidden'));
