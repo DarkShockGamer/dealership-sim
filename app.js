@@ -11,9 +11,16 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.11.1';
+const GAME_VERSION = '1.11.2';
 
 const PATCH_NOTES = [
+  {
+    version: '1.11.2',
+    date: 'September 2026',
+    notes: [
+      { type: 'fix', text: "Fixed the main menu soundtrack not playing after a fresh page load/refresh on the main menu — it would stay silent until you'd started a game and returned to the menu at least once. The track-switching logic was treating \"already on the menu track by default\" as \"already playing,\" so it never actually armed the loop." },
+    ],
+  },
   {
     version: '1.11.1',
     date: 'September 2026',
@@ -8088,12 +8095,17 @@ let currentMusicTrack = 'menu'; // 'menu' (original loop) | 'game' (upbeat-relax
 function startCurrentMusic() { if (currentMusicTrack === 'game') startGameMusic(); else startMusic(); }
 function stopCurrentMusic()  { if (currentMusicTrack === 'game') stopGameMusic();  else stopMusic(); }
 
-/** Switches which soundtrack is playing, if it isn't already. */
+/** Makes sure the given track is the one actually playing. Both startMusic()
+ *  and startGameMusic() are already no-ops if their loop is running, so this
+ *  is safe to call every time — including the very first call of a fresh
+ *  page load, where `track` may already equal the default currentMusicTrack
+ *  and nothing has actually started playing yet. */
 function setMusicTrack(track) {
-  if (track === currentMusicTrack) return;
-  currentMusicTrack = track;
-  if (track === 'menu') { stopGameMusic(); startMusic(); }
-  else { stopMusic(); startGameMusic(); }
+  if (track !== currentMusicTrack) {
+    currentMusicTrack = track;
+    if (track === 'menu') stopGameMusic(); else stopMusic();
+  }
+  if (track === 'menu') startMusic(); else startGameMusic();
 }
 
 /** Looks at what's actually on screen and picks the right track: the
