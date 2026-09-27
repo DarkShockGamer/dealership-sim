@@ -62,6 +62,21 @@
       var reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
       var done = false;
 
+      // If a game is already in progress (tracked the same way app.js tracks
+      // it — see SESSION_KEY in app.js), a refresh should drop the player
+      // straight back into their game immediately, not force them to sit
+      // through the intro again every time they reload. Only a fresh visit
+      // to the title screen gets the full cinematic.
+      var resuming = false;
+      try {
+        var raw = localStorage.getItem('dealerSim_activeSession');
+        if (raw) {
+          var d = JSON.parse(raw);
+          var slot = parseInt(d && d.slot, 10);
+          resuming = slot >= 1 && slot <= 3;
+        }
+      } catch (_) {}
+
       function finish(fast) {
         if (done) return;
         done = true;
@@ -74,31 +89,54 @@
       }
 
       // Browsers only allow audio to start inside a real user gesture, so the
-      // background music can't truly autoplay the instant the page loads —
-      // but the first tap/click/keypress anywhere on this screen (including
-      // the "skip" gesture below) arms it immediately, right here, before the
-      // fade into the menu even finishes. app.js exposes startMusic() once it
-      // has booted; if it isn't ready yet (only possible in the first
-      // instant), we retry for a moment so the earliest gesture still counts.
-      var musicArmed = false;
+      // background music can't truly autoplay the instant the page loads.
+      // We arm it on the very first gesture anywhere on the page (a tap, a
+      // click, a keypress — whichever comes first), and again whenever the
+      // tab regains focus/visibility in case the browser is willing to
+      // resume it then too. app.js exposes startMusic() once it has booted;
+      // if it isn't ready yet (only possible in the first instant), we retry
+      // briefly so the earliest gesture still counts.
+      var musicReady = false;
       function armMusic() {
-        if (musicArmed) return;
         if (typeof window.startMusic === 'function') {
-          musicArmed = true;
+          musicReady = true;
           try { window.startMusic(); } catch (_) {}
-        } else {
+        } else if (!musicReady) {
           setTimeout(armMusic, 50);
         }
       }
 
-      // Let the intro play out on its own...
-      setTimeout(function () { finish(false); }, reduced ? 150 : 3000);
-
-      // ...or skip straight to the menu on the first tap/click/keypress —
-      // either way, that same gesture is what unlocks the soundtrack.
-      ['pointerdown', 'keydown'].forEach(function (evt) {
-        boot.addEventListener(evt, function () { armMusic(); finish(true); }, { once: true });
+      // Catch the first gesture anywhere on the document, not just on the
+      // boot screen itself — matters most for the "resuming" fast path
+      // below, where the boot screen is gone almost immediately.
+      ['pointerdown', 'keydown', 'touchstart'].forEach(function (evt) {
+        document.addEventListener(evt, armMusic, { once: true, passive: true });
       });
+      // A tab switch/window focus isn't a user gesture the browser will
+      // accept on its own, but if audio was already unlocked earlier (or
+      // the browser is willing to allow it for this site) this makes sure
+      // it actually resumes playing again the moment the player tabs back
+      // in, instead of staying silently stuck.
+      document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) armMusic();
+      });
+      window.addEventListener('focus', armMusic);
+
+      if (resuming) {
+        // Skip the cinematic entirely — jump straight to the game.
+        boot.classList.add('boot-hidden');
+        boot.setAttribute('aria-hidden', 'true');
+        done = true;
+      } else {
+        // Let the intro play out on its own...
+        setTimeout(function () { finish(false); }, reduced ? 150 : 3000);
+
+        // ...or skip straight to the menu on the first tap/click/keypress —
+        // either way, that same gesture is what unlocks the soundtrack.
+        ['pointerdown', 'keydown'].forEach(function (evt) {
+          boot.addEventListener(evt, function () { armMusic(); finish(true); }, { once: true });
+        });
+      }
     })();
   </script>
 
