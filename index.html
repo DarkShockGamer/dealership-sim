@@ -73,12 +73,31 @@
         }, fast ? 260 : 700);
       }
 
+      // Browsers only allow audio to start inside a real user gesture, so the
+      // background music can't truly autoplay the instant the page loads —
+      // but the first tap/click/keypress anywhere on this screen (including
+      // the "skip" gesture below) arms it immediately, right here, before the
+      // fade into the menu even finishes. app.js exposes startMusic() once it
+      // has booted; if it isn't ready yet (only possible in the first
+      // instant), we retry for a moment so the earliest gesture still counts.
+      var musicArmed = false;
+      function armMusic() {
+        if (musicArmed) return;
+        if (typeof window.startMusic === 'function') {
+          musicArmed = true;
+          try { window.startMusic(); } catch (_) {}
+        } else {
+          setTimeout(armMusic, 50);
+        }
+      }
+
       // Let the intro play out on its own...
       setTimeout(function () { finish(false); }, reduced ? 150 : 3000);
 
-      // ...or skip straight to the menu on the first tap/click/keypress.
+      // ...or skip straight to the menu on the first tap/click/keypress —
+      // either way, that same gesture is what unlocks the soundtrack.
       ['pointerdown', 'keydown'].forEach(function (evt) {
-        boot.addEventListener(evt, function () { finish(true); }, { once: true });
+        boot.addEventListener(evt, function () { armMusic(); finish(true); }, { once: true });
       });
     })();
   </script>
