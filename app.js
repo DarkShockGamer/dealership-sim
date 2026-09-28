@@ -5714,7 +5714,7 @@ function renderCarLot() {
       const showroomFull = state.showroom.length >= showroomCapacity;
       const blocked = car.isForSale ? 'Unlist to move to the Showroom'
         : inService ? 'In service' : isLeased ? 'Leased out' : showroomFull ? 'Showroom is full' : null;
-      showroomBtn = `<button class="btn btn-secondary showroom-move-btn" onclick="moveToShowroom('${car.id}')"
+      showroomBtn = `<button class="btn btn-secondary showroom-move-btn btn-full" onclick="moveToShowroom('${car.id}')"
         ${blocked ? 'disabled' : ''} title="${blocked || 'Keep this car on display — it stops using a Car Lot slot and can never be stolen'}">
         ${uiIcon('sparkles')} Move to Showroom</button>`;
     }
@@ -5771,9 +5771,9 @@ function renderCarLot() {
             onclick="markForSale('${car.id}')" ${inService || isLeased ? 'disabled' : ''}>
             ${car.isForSale ? `${uiIcon('upload')} Unlist` : `${uiIcon('tag')} Mark for Sale`}
           </button>
-          ${showroomBtn}
           ${leaseActionButtons.join('')}
         </div>
+        ${showroomBtn ? `<div class="car-actions" style="margin-top:6px">${showroomBtn}</div>` : ''}
       </div>`;
   }).join('');
 
