@@ -11,9 +11,24 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.12.0';
+const GAME_VERSION = '1.13.0';
 
 const PATCH_NOTES = [
+  {
+    version: '1.13.0',
+    date: 'September 2026',
+    notes: [
+      { type: 'balance', text: "Production audit — cars that are no longer built are now Used Market only and can never be ordered new from the Factory. Retired for 2026: Kia Forte (replaced by the K4), Kia Stinger, Kia Soul, Audi R8, Audi A4, Honda NSX, Nissan GT-R, Chevrolet Camaro and Malibu, Dodge Challenger and the previous-generation Charger, Ford Escape, Edge, and Shelby GT500/Mach 1, Lincoln Corsair, Cadillac XT4/XT5, Infiniti Q50/Q60/QX50, Acura TLX, Toyota Venza and bZ4X, Subaru Legacy and WRX STI, Mitsubishi Mirage and Eclipse Cross, Volvo S60, Maserati Ghibli and Levante, Alfa Romeo Quadrifoglios, Dodge Hornet, Jeep Wagoneer, Porsche 718 Cayman, Ferrari Roma, Lamborghini Huracán, Tesla Model S and Model X, and more. Each one only rolls model years from its real production run, and shows the Discontinued badge." },
+      { type: 'balance', text: "Bugatti Chiron, Mistral and Bolide, the Pagani Huayra BC, and the McLaren GT have also ended production, so they are now rare used-market-only finds too." },
+      { type: 'feature', text: "Kia lineup completed — new K4 sedan (LX through GT-Line Turbo) and K4 Hatchback, EV9, Niro and Niro EV, Sportage Hybrid/X-Pro/Plug-In, Sorento Hybrid/Plug-In, Carnival SX and SX Prestige, Telluride X-Line/X-Pro, EV6 GT, and Seltos S/X-Line. Older Kias — Rio, Optima, Sedona, Cadenza, K900, and Niro Plug-In — are used-market classics." },
+      { type: 'feature', text: "The full Tesla lineup is here — Model 3 (Standard, Premium RWD/AWD, Performance), Model Y (Standard, Premium, L, and Performance), and the Cybertruck (Dual Motor, Premium, Cyberbeast). The original Roadster is a rare used find, and the retired Model S and Model X remain available used." },
+      { type: 'feature', text: "New brand: Slate — the bare-bones, customizable Slate Truck is orderable as the Blank Slate pickup or the Squareback and Fastback SUV conversions." },
+      { type: 'feature', text: "Rolls-Royce joins the showroom — Ghost, Cullinan, Phantom, and the all-electric Spectre are orderable new, while the Wraith, Dawn, Phantom VII, Ghost Series I, Silver Shadow, and Silver Spirit are used-only. The DeLorean DMC-12 (manual and automatic) is a rare used-market find." },
+      { type: 'feature', text: "More supercars and hypercars — new: Aston Martin (Vantage, DB12, DBX, Vanquish, Valhalla), Ferrari 12Cilindri, Purosangue, Amalfi and F80, Lamborghini Temerario and Urus SE, McLaren W1 and GTS, Maserati MC20/GranCabrio/Grecale, Lotus Emira and Evija, Koenigsegg CC850/Gemera/Jesko Absolut, Pagani Utopia Roadster, Rimac Nevera R, and Bugatti Tourbillon. New used-only icons include the Ferrari F40, F50, Enzo and LaFerrari, Lamborghini Aventador/Countach/Diablo, McLaren P1/Senna/Speedtail, Porsche Carrera GT and 918 Spyder, Lexus LFA, Ford GT, Mercedes SLS AMG and AMG ONE, Aston Martin Valkyrie, Koenigsegg Regera and Agera RS, Pagani Zonda, and Bugatti Divo, Centodieci and EB110." },
+      { type: 'feature', text: "Plenty more new metal: the new-generation Dodge Charger (Sixpack R/T and Scat Pack) and Charger Daytona Scat Pack, Chevrolet Bolt and Equinox EV, Toyota bZ, Nissan Leaf, Hyundai IONIQ 9, Genesis G90 and GV60, Audi A5/e-tron GT/RS 6 Avant/Q6 e-tron, BMW i4/i5/M5, Porsche 911 GTS and GT3 plus Macan Electric, Lucid Air, Polestar 3 and 4, Mini Cooper and Countryman, Volvo EX90, Volkswagen Golf R/Taos/ID.4, and Ford Bronco Sport." },
+      { type: 'feature', text: "Roughly 200 more retired favorites are lurking on the Used Market, including the Jaguar F-Type/XJ220, Ford Fusion, Chevy Impala/Cruze/Bolt EV, Honda Fit/Insight/Element, Nissan Maxima/Titan/350Z/Skyline R32-R33, Mazda6/CX-9/RX-8, Mitsubishi 3000GT, Dodge Demon, Shelby GT350, Fisker Ocean, and Alfa Romeo 4C. The catalog now stands at 1,041 trims." },
+    ],
+  },
   {
     version: '1.12.0',
     date: 'September 2026',
