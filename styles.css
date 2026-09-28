@@ -2664,6 +2664,7 @@ body.reduce-motion #day-sweep-overlay { display: none !important; }
   border: 1px solid rgba(255, 214, 130, .18);
   border-radius: var(--radius-lg);
   padding: 30px 22px;
+  margin-bottom: 32px;
   box-shadow: inset 0 0 60px rgba(0, 0, 0, .5), var(--shadow);
 }
 
