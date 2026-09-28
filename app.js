@@ -11,9 +11,18 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.13.0';
+const GAME_VERSION = '1.14.0';
 
 const PATCH_NOTES = [
+  {
+    version: '1.14.0',
+    date: 'September 2026',
+    notes: [
+      { type: 'feature', text: "New: The Showroom. Build a private showroom to display cars you never want to sell — discontinued classics, one-offs, whatever you can't bear to let go — without them eating into your Car Lot capacity. Showroom cars are also safe from theft. Move any car into the Showroom from the Car Lot, and expand it through four tiers, from a 3-car Private Showroom up to the 16-car Private Collection Wing." },
+      { type: 'feature', text: "Its own stylized tab: velvet-rope pedestal cards with a spotlight glow for every car on display, plus a marquee entrance screen before you build it." },
+      { type: 'chore', text: "The Receipts tab has moved — purchase agreements now live under a new Receipts sub-tab inside Finance, so Finance is your one-stop shop for credit, loans, and past sales. The old top-level Receipts button has been replaced by the new Showroom button." },
+    ],
+  },
   {
     version: '1.13.0',
     date: 'September 2026',
@@ -473,13 +482,14 @@ const PATCH_NOTES = [
 // DEFAULT STATE
 // ============================================================
 const DEFAULT_STATE = {
-  saveVersion: 16,
+  saveVersion: 17,
   difficulty: 'normal',
   cash: 25000,
   day: 1,
   reputation: 1.0,
   garage: [],
   garageSlots: 5,
+  showroom: [],           // v1.14.0 — private display collection; never counts against garageSlots
   deliveries: [],
   usedMarketOffers: [],    // buy-used cars with negotiation (was tradeInOffers)
   tradeInRequests: [],     // customers proposing to swap their car for one of yours
@@ -532,6 +542,8 @@ const DEFAULT_STATE = {
     creditLineBoost4: false,
     creditLineBoost5: false,
     fleetLeasing: false,
+    // v1.14.0 — The Showroom
+    showroomTier: 0,
   },
   salesHistory: [],
   notifications: [],
@@ -1498,6 +1510,39 @@ const UPGRADES_CONFIG = [
   },
 ];
 
+// ============================================================
+// THE SHOWROOM — v1.14.0
+// ============================================================
+// A private display collection, separate from state.garage entirely. Cars parked here:
+//   - never count against garageSlots (no lot-capacity pressure)
+//   - are never rolled for theft (processTheft only iterates state.garage)
+//   - can't be listed for sale, serviced, or leased — they're just kept, on display
+// Tiers are gated behind Garage tiers so the Showroom reads as an endgame flex purchase,
+// the natural home for a discontinued classic or a hypercar you never want to let go of.
+const SHOWROOM_TIERS = [
+  null, // index 0 = not built yet
+  { tier: 1, name: 'Private Showroom',          cost: 75000,    slots: 3,  icon: 'sparkles',    reqGarageTier: 3,
+    desc: 'A small glass-walled room off the lot — three pedestals, soft lighting, a place to keep the cars that mean something.' },
+  { tier: 2, name: 'Showroom Expansion',        cost: 250000,   slots: 6,  icon: 'building',    reqGarageTier: 4,
+    desc: 'Knock through the back wall. Six pedestals, and room to walk between them.' },
+  { tier: 3, name: 'Grand Showroom Hall',       cost: 750000,   slots: 10, icon: 'pillar',       reqGarageTier: 5,
+    desc: 'A proper hall — marble floor, a mezzanine, ten cars under individual spotlights.' },
+  { tier: 4, name: 'Private Collection Wing',   cost: 2500000,  slots: 16, icon: 'trophy',       reqGarageTier: 6,
+    desc: 'Your own wing. Sixteen pedestals for the cars that were never, ever for sale.' },
+];
+
+/** How many display slots the Showroom currently has (0 if not built). */
+function getShowroomCapacity() {
+  const t = SHOWROOM_TIERS[state.upgrades.showroomTier || 0];
+  return t ? t.slots : 0;
+}
+
+/** The next purchasable tier config, or null if already at max tier. */
+function getNextShowroomTier() {
+  const next = (state.upgrades.showroomTier || 0) + 1;
+  return SHOWROOM_TIERS[next] || null;
+}
+
 // ---- Upgrade state helpers -----------------------------------------------------
 function getUpgradeLevel(upg, u = state.upgrades) {
   if (typeof upg.level === 'function') return upg.level(u);
@@ -1756,6 +1801,7 @@ function loadState(slot) {
       }
       if (!loaded.tradeInRequests) loaded.tradeInRequests = [];
       if (!loaded.customerOffers)  loaded.customerOffers  = [];
+      if (!loaded.showroom) loaded.showroom = [];
       if (!loaded.staff) loaded.staff = [];
       if (!loaded.staffCandidates) loaded.staffCandidates = [];
       if (!loaded.staffActivity) loaded.staffActivity = [];
@@ -2061,6 +2107,18 @@ function loadState(slot) {
           day: loaded.day ?? 1,
         });
       }
+      if (loaded.saveVersion < 17) {
+        loaded.saveVersion = 17;
+        // v1.14.0: The Showroom — private display collection, plus Receipts moving under Finance.
+        loaded.showroom = loaded.showroom || [];
+        loaded.upgrades.showroomTier = loaded.upgrades.showroomTier ?? 0;
+        loaded.notifications = loaded.notifications || [];
+        loaded.notifications.unshift({
+          message: '🏛️ Save upgraded to v17 — new Showroom tab! Build a private collection for cars you never want to sell. Receipts moved under the Finance tab.',
+          type: 'info',
+          day: loaded.day ?? 1,
+        });
+      }
       // Always-apply defaults for new fields added in v14 (in case migration block is skipped)
       loaded.daysGoodStanding       = loaded.daysGoodStanding       ?? 0;
       loaded.hardBankruptcyOccurred = loaded.hardBankruptcyOccurred ?? false;
@@ -2076,8 +2134,12 @@ function loadState(slot) {
       };
       loaded.totalCarsInsuredStolen  = loaded.totalCarsInsuredStolen  ?? 0;
       loaded.totalCarsInsuredTotaled = loaded.totalCarsInsuredTotaled ?? 0;
+      // Always-apply default for v1.14.0 fields (in case migration block is skipped)
+      loaded.showroom = loaded.showroom || [];
+      loaded.upgrades.showroomTier = loaded.upgrades.showroomTier ?? 0;
       // Migrate car objects
       for (const car of loaded.garage || []) migrateCar(car);
+      for (const car of loaded.showroom || []) migrateCar(car);
       for (const d of loaded.deliveries || []) migrateCar(d.car);
       for (const o of loaded.usedMarketOffers || []) migrateCar(o);
       for (const req of loaded.tradeInRequests || []) migrateCar(req.customerCar);
@@ -4771,6 +4833,59 @@ function buyUpgrade(upgradeId) {
 }
 
 // ============================================================
+// PLAYER ACTIONS — The Showroom
+// ============================================================
+function buyShowroomTier(tier) {
+  const cfg = SHOWROOM_TIERS[tier];
+  if (!cfg) return;
+  if ((state.upgrades.showroomTier || 0) >= tier) { showToast('Already built!', 'error'); return; }
+  if ((state.upgrades.showroomTier || 0) !== tier - 1) { showToast('Build the previous tier first.', 'error'); return; }
+  if ((state.upgrades.garageLevel || 1) < cfg.reqGarageTier) { showToast(`Requires Garage Tier ${cfg.reqGarageTier} first.`, 'error'); return; }
+  if (state.cash < cfg.cost) { showToast('Not enough cash!', 'error'); return; }
+  state.cash -= cfg.cost;
+  state.upgrades.showroomTier = tier;
+  addNote(`🏛️ Built: ${cfg.name} (${formatCurrency(cfg.cost)}) — ${cfg.slots} display slots.`, 'success');
+  saveState();
+  renderAll();
+  showToast(`${cfg.name} built!`, 'success', 'purchase');
+}
+
+/** Move an owned car from the Car Lot into the private Showroom — it stops counting
+ *  against garageSlots and is never at risk of theft, but can no longer be sold, serviced,
+ *  or leased until it's brought back to the lot. */
+function moveToShowroom(carId) {
+  const capacity = getShowroomCapacity();
+  if (capacity <= 0) { showToast('Build the Showroom first!', 'error'); return; }
+  const idx = state.garage.findIndex(c => c.id === carId);
+  if (idx === -1) return;
+  const car = state.garage[idx];
+  if (car.isForSale) { showToast('Unlist the car before moving it to the Showroom.', 'error'); return; }
+  if (car.inServiceUntilDay) { showToast('Car is currently in service — wait until complete.', 'error'); return; }
+  if (car.leaseStatus === 'active' && car.activeLease) { showToast('Leased cars cannot be moved to the Showroom.', 'error'); return; }
+  if (state.showroom.length >= capacity) { showToast('Showroom is full — expand it or make room first.', 'error'); return; }
+  state.garage.splice(idx, 1);
+  state.showroom.push(car);
+  addNote(`🏛️ ${formatCarDisplayName(car)} moved to the Showroom.`, 'success');
+  saveState();
+  renderAll();
+  showToast('Moved to the Showroom.', 'success');
+}
+
+/** Bring a Showroom car back to the Car Lot, if there's room. */
+function moveToLot(carId) {
+  const idx = state.showroom.findIndex(c => c.id === carId);
+  if (idx === -1) return;
+  if (state.garage.length >= state.garageSlots) { showToast('Car Lot is full — expand it or make room first.', 'error'); return; }
+  const car = state.showroom[idx];
+  state.showroom.splice(idx, 1);
+  state.garage.push(car);
+  addNote(`🔑 ${formatCarDisplayName(car)} brought back to the Car Lot.`, 'info');
+  saveState();
+  renderAll();
+  showToast('Moved to the Car Lot.', 'success');
+}
+
+// ============================================================
 // PLAYER ACTIONS — Reconditioning
 // ============================================================
 function carWash(carId) {
@@ -5591,6 +5706,19 @@ function renderCarLot() {
       );
     }
 
+    // Showroom button — only shown once the Showroom is built; otherwise the Car Lot doesn't
+    // advertise a feature the player hasn't unlocked yet.
+    const showroomCapacity = getShowroomCapacity();
+    let showroomBtn = '';
+    if (showroomCapacity > 0) {
+      const showroomFull = state.showroom.length >= showroomCapacity;
+      const blocked = car.isForSale ? 'Unlist to move to the Showroom'
+        : inService ? 'In service' : isLeased ? 'Leased out' : showroomFull ? 'Showroom is full' : null;
+      showroomBtn = `<button class="btn btn-secondary showroom-move-btn" onclick="moveToShowroom('${car.id}')"
+        ${blocked ? 'disabled' : ''} title="${blocked || 'Keep this car on display — it stops using a Car Lot slot and can never be stolen'}">
+        ${uiIcon('sparkles')} Move to Showroom</button>`;
+    }
+
     return `
         <div class="car-card garage-card ${car.isForSale ? 'for-sale' : ''} ${inService ? 'in-service' : ''}" data-car-id="${car.id}">
           <div class="car-card-header">
@@ -5643,6 +5771,7 @@ function renderCarLot() {
             onclick="markForSale('${car.id}')" ${inService || isLeased ? 'disabled' : ''}>
             ${car.isForSale ? `${uiIcon('upload')} Unlist` : `${uiIcon('tag')} Mark for Sale`}
           </button>
+          ${showroomBtn}
           ${leaseActionButtons.join('')}
         </div>
       </div>`;
@@ -5657,6 +5786,7 @@ function renderCarLot() {
       ${activeLeases ? `${uiIcon('document')} ${activeLeases} active lease(s).` : ''}
       <br>Lease income/day: <strong>${formatCurrency(computeLeaseIncomePerDay())}</strong>.
       ${state.upgrades.crmSuite ? `<br>${uiIcon('layers')} High-volume tools active: bulk list/unlist available.` : ''}
+      ${getShowroomCapacity() > 0 ? `<br>${uiIcon('sparkles')} Showroom: <strong>${state.showroom.length}/${getShowroomCapacity()}</strong> on display.` : ''}
     </div>
     <div class="bulk-row">
       <label style="display:flex; align-items:center; gap:6px;">
@@ -6494,7 +6624,29 @@ function creditScoreInfo(score) {
   return { label: 'Poor', cls: 'text-red' };
 }
 
+/** Which Finance sub-tab is showing: 'overview' (credit/loans) or 'receipts' (past sales). */
+let financeSubTab = 'overview';
+function switchFinanceSubTab(name) {
+  financeSubTab = name;
+  renderFinance();
+}
+
 function renderFinance() {
+  const el = document.getElementById('tab-finance');
+  if (!el) return;
+  el.innerHTML = `
+    <div class="finance-subnav" role="tablist">
+      <button class="finance-subnav-btn ${financeSubTab === 'overview' ? 'active' : ''}" role="tab"
+        aria-selected="${financeSubTab === 'overview'}" onclick="switchFinanceSubTab('overview')">${uiIcon('bank')} Overview</button>
+      <button class="finance-subnav-btn ${financeSubTab === 'receipts' ? 'active' : ''}" role="tab"
+        aria-selected="${financeSubTab === 'receipts'}" onclick="switchFinanceSubTab('receipts')">${uiIcon('receipt')} Receipts</button>
+    </div>
+    <div id="finance-subpanel"></div>`;
+  if (financeSubTab === 'receipts') renderReceipts();
+  else renderFinanceOverview();
+}
+
+function renderFinanceOverview() {
   const available = Math.max(0, state.loanLimit - state.loanBalance);
   const dailyInterest = state.loanBalance > 0 ? Math.max(1, Math.round(state.loanBalance * state.loanApr / 365)) : 0;
   const minPrincipal = state.difficulty === 'hard' && state.loanBalance > 0
@@ -6513,7 +6665,9 @@ function renderFinance() {
   const creditInfo   = creditScoreInfo(creditScore);
   const creditPct    = clamp((creditScore - CREDIT_SCORE_MIN) / (CREDIT_SCORE_MAX - CREDIT_SCORE_MIN), 0, 1) * 100;
 
-  document.getElementById('tab-finance').innerHTML = `
+  const el2 = document.getElementById('finance-subpanel');
+  if (!el2) return;
+  el2.innerHTML = `
     <div class="dashboard-grid">
       <div class="dash-card">
         <h3>${uiIcon('trendingUp')} Credit Score</h3>
@@ -6697,7 +6851,7 @@ const DEALERSHIP_INFO = {
 };
 
 function renderReceipts() {
-  const el = document.getElementById('tab-receipts');
+  const el = document.getElementById('finance-subpanel');
   if (!el) return;
   const sales = state.salesHistory || [];
   const totalRevenue = sales.reduce((s, h) => s + (h.salePrice || 0), 0);
@@ -6832,6 +6986,110 @@ function viewReceipt(agreementNo) {
 function closeReceiptModal() {
   document.getElementById('receipt-modal').classList.add('hidden');
   playSfx('modalClose');
+}
+
+// ============================================================
+// RENDER — The Showroom
+// ============================================================
+function renderShowroom() {
+  const el = document.getElementById('tab-showroom');
+  if (!el) return;
+
+  const tierNum   = state.upgrades.showroomTier || 0;
+  const capacity  = getShowroomCapacity();
+  const nextTier  = getNextShowroomTier();
+
+  // ── Not built yet — marquee entrance pitch ──────────────────────────
+  if (tierNum === 0) {
+    const first = SHOWROOM_TIERS[1];
+    const garageTier = state.upgrades.garageLevel || 1;
+    const locked = garageTier < first.reqGarageTier;
+    el.innerHTML = `
+      <div class="showroom-hall">
+        <div class="showroom-hero">
+          <div class="showroom-hero-spot" aria-hidden="true"></div>
+          <div class="showroom-hero-icon">${uiIconLg('sparkles')}</div>
+          <h2 class="showroom-hero-title">The Showroom</h2>
+          <p class="showroom-hero-sub">Some cars aren't inventory — they're keepers. Build a private showroom to display the ones you never want to sell, without giving up a single Car Lot slot.</p>
+          <ul class="showroom-hero-perks">
+            <li>${uiIcon('home')} Showroom cars never count against your Car Lot capacity</li>
+            <li>${uiIcon('lock')} Safe on display — never at risk of theft</li>
+            <li>${uiIcon('star')} The perfect home for a discontinued classic or a hypercar you can't bear to flip</li>
+          </ul>
+          <div class="showroom-build-card">
+            <div class="showroom-build-name">${first.name}</div>
+            <div class="showroom-build-desc">${first.desc}</div>
+            <div class="showroom-build-slots">${first.slots} display slots</div>
+            ${locked
+              ? `<button class="btn btn-primary showroom-build-btn" disabled title="Requires Garage Tier ${first.reqGarageTier}">${uiIcon('lock')} Requires Garage Tier ${first.reqGarageTier}</button>`
+              : state.cash < first.cost
+                ? `<button class="btn btn-primary showroom-build-btn" disabled title="Need ${formatCurrency(first.cost - state.cash)} more">${uiIcon('warning')} Need ${formatCurrencyCompact(first.cost - state.cash)}</button>`
+                : `<button class="btn btn-primary showroom-build-btn" onclick="buyShowroomTier(1)">${uiIcon('sparkles')} Build — ${formatCurrency(first.cost)}</button>`}
+          </div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  // ── Built — pedestal grid + expansion card ──────────────────────────
+  const cars = state.showroom || [];
+  const pedestals = cars.map(car => `
+    <div class="pedestal-card" data-car-id="${car.id}">
+      <div class="pedestal-spot" aria-hidden="true"></div>
+      <div class="pedestal-badges">
+        ${condBadge(car.condition)}
+        ${titleBadge(car.titleStatus)}
+      </div>
+      <div class="pedestal-name">${formatCarDisplayName(car)}</div>
+      <div class="pedestal-details">
+        <div class="detail-row"><span>Category</span><span>${car.category}</span></div>
+        <div class="detail-row"><span>Mileage</span><span>${car.mileage.toLocaleString()} mi</span></div>
+        <div class="detail-row"><span>Value</span><span class="text-green">${formatCurrency(car.marketValue)}</span></div>
+        <div class="detail-row"><span>Source</span><span>${car.source === 'factory' ? `${uiIcon('factory')} Factory` : `${uiIcon('car')} Used Market`}</span></div>
+      </div>
+      <div class="pedestal-plaque">On permanent display</div>
+      <button class="btn btn-secondary btn-full" onclick="moveToLot('${car.id}')"
+        ${state.garage.length >= state.garageSlots ? 'disabled title="Car Lot is full"' : ''}>
+        ${uiIcon('key')} Return to Lot
+      </button>
+    </div>`).join('');
+
+  const emptyPedestals = Array.from({ length: Math.max(0, capacity - cars.length) }, () => `
+    <div class="pedestal-card pedestal-empty">
+      <div class="pedestal-empty-icon">${uiIcon('sparkles')}</div>
+      <div class="pedestal-empty-text">Empty Pedestal</div>
+      <div class="pedestal-empty-sub">Move a car here from the Car Lot</div>
+    </div>`).join('');
+
+  const expansionCard = nextTier ? `
+    <div class="showroom-expand-card">
+      <div class="showroom-expand-icon">${uiIconLg(nextTier.icon)}</div>
+      <div class="showroom-expand-name">${nextTier.name}</div>
+      <div class="showroom-expand-desc">${nextTier.desc}</div>
+      <div class="showroom-expand-slots">${nextTier.slots} display slots total</div>
+      ${(state.upgrades.garageLevel || 1) < nextTier.reqGarageTier
+        ? `<button class="btn btn-primary showroom-build-btn" disabled title="Requires Garage Tier ${nextTier.reqGarageTier}">${uiIcon('lock')} Requires Garage Tier ${nextTier.reqGarageTier}</button>`
+        : state.cash < nextTier.cost
+          ? `<button class="btn btn-primary showroom-build-btn" disabled title="Need ${formatCurrency(nextTier.cost - state.cash)} more">${uiIcon('warning')} Need ${formatCurrencyCompact(nextTier.cost - state.cash)}</button>`
+          : `<button class="btn btn-primary showroom-build-btn" onclick="buyShowroomTier(${nextTier.tier})">${uiIcon('sparkles')} Expand — ${formatCurrency(nextTier.cost)}</button>`}
+    </div>` : `
+    <div class="showroom-expand-card showroom-expand-maxed">
+      <div class="showroom-expand-icon">${uiIconLg('trophy')}</div>
+      <div class="showroom-expand-name">Fully Expanded</div>
+      <div class="showroom-expand-desc">Your Private Collection Wing is complete — ${capacity} pedestals, every one a car you'll never sell.</div>
+    </div>`;
+
+  el.innerHTML = `
+    <div class="tab-info">
+      ${uiIcon('sparkles')} Showroom: <strong>${cars.length}/${capacity}</strong> on display · ${SHOWROOM_TIERS[tierNum].name}.
+      Cars here don't use Car Lot slots and can never be stolen — but they can't be sold, serviced, or leased until you bring them back.
+    </div>
+    <div class="showroom-hall">
+      <div class="pedestal-grid">${pedestals}${emptyPedestals}</div>
+    </div>
+    <div class="category-section"><h3>${uiIcon('arrowUp')} Expand the Showroom</h3>
+      <div class="showroom-expand-row">${expansionCard}</div>
+    </div>`;
 }
 
 function renderAchievements() {
@@ -7000,7 +7258,7 @@ function renderAll() {
     case 'insurance':   renderInsurance();       break;
     case 'upgrades':    renderUpgrades();        break;
     case 'staff':       renderStaff();           break;
-    case 'receipts':    renderReceipts();       break;
+    case 'showroom':    renderShowroom();       break;
     case 'achievements':renderAchievements();    break;
     case 'settings':    renderSettings();        break;
   }
@@ -7029,7 +7287,7 @@ function switchTab(name) {
     case 'insurance':   renderInsurance();       break;
     case 'upgrades':    renderUpgrades();        break;
     case 'staff':       renderStaff();           break;
-    case 'receipts':    renderReceipts();       break;
+    case 'showroom':    renderShowroom();       break;
     case 'achievements':renderAchievements();    break;
     case 'settings':    renderSettings();        break;
   }
@@ -9497,6 +9755,7 @@ function cheatUnlockAllUpgrades() {
     }
   }
   state.serviceBayUnlockedDay = -9999;
+  state.upgrades.showroomTier = SHOWROOM_TIERS.length - 1;
   syncLoanTermsToDifficulty();
   ensureStaffCandidates();
   _cheatApply('⬆️ All upgrades unlocked.');
@@ -9628,7 +9887,8 @@ function init() {
     applyMusicForContext, // preferred over startMusic() once app.js has booted — picks the right track (menu vs. in-game) instead of always arming the menu one
     renderCarLot, renderLeasing, renderServiceGarage, renderForSale, renderUsedMarket, renderFinance, renderAchievements,
     renderInsurance,
-    renderReceipts, viewReceipt, closeReceiptModal,
+    renderReceipts, viewReceipt, closeReceiptModal, switchFinanceSubTab,
+    renderShowroom, buyShowroomTier, moveToShowroom, moveToLot,
     menuToggleDark, menuToggleSfx, menuToggleTutorials, menuSetDifficulty,
     returnToMenu,
     showPatchNotesModal, closePatchNotesModal,
