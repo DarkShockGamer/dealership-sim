@@ -18,6 +18,7 @@ const PATCH_NOTES = [
     version: '1.16.0',
     date: 'September 2026',
     notes: [
+      { type: 'fix', text: "Trade-in profit is no longer double counted. A car you took in on trade used to have a $0 cost, so reselling it showed a huge profit even though its value had already been counted as income on the car you traded it for. Trade-in cars now cost what you credited the customer for them, so each deal's profit is shown fairly. Trade-in cars already on your lot in existing saves get a cost equal to their current value. Past sales in your history are left as they were." },
       { type: 'fix', text: "Auction House: you can now click the big circle in the middle of the bidding ring to place a bid (or to hammer the sale when selling), as well as using the Bid button or Space. The circle still starts the auction too." },
       { type: 'feature', text: "Achievements are now shared across your whole game on this browser. Unlock one in any save slot and it stays unlocked in every slot and every new game. Achievements you already earned in existing saves are merged in automatically the first time you load this version." },
       { type: 'feature', text: "64 new achievements, bringing the total to 125. New goals cover sales milestones, cash and profit targets, longer runs, category specialists, staff, upgrades, the Showroom, auctions, trade-ins, leases, credit score, hard mode and more." },
@@ -2391,6 +2392,13 @@ function loadState(slot) {
       loaded.upgrades.showroomTier = loaded.upgrades.showroomTier ?? 0;
       // Migrate car objects
       for (const car of loaded.garage || []) migrateCar(car);
+      // Older saves booked trade-in cars at $0 cost. Give them a cost basis (their value) so resales don't show fake profit.
+      for (const car of [...(loaded.garage || []), ...(loaded.showroom || [])]) {
+        if (car.source === 'tradein' && !(car.purchasePrice > 0) && car.marketValue > 0) {
+          car.purchasePrice = Math.round(car.marketValue);
+          car.tradeInCredit = car.purchasePrice;
+        }
+      }
       for (const car of loaded.showroom || []) migrateCar(car);
       for (const d of loaded.deliveries || []) migrateCar(d.car);
       for (const o of loaded.usedMarketOffers || []) migrateCar(o);
@@ -4995,7 +5003,11 @@ function executeTradeIn(req, cashDelta) {
 
   // Add customer's car to inventory
   const newCar = { ...req.customerCar };
-  newCar.purchasePrice = 0; // we acquired it through trade
+  // The car's cost basis is the trade-in credit the customer was given for it. It used to be $0, which
+  // made the resale look like pure profit even though the value was already counted as revenue on the
+  // car that went out the door.
+  newCar.purchasePrice = Math.max(0, Math.round(req.customerCarValue || 0));
+  newCar.tradeInCredit = newCar.purchasePrice;
   newCar.source = 'tradein';
   migrateCar(newCar);
   if (state.garage.length < state.garageSlots) {
@@ -7679,7 +7691,7 @@ function renderForSale() {
             ${car.discontinued ? `<span class="badge badge-purple" title="No longer made — produced ${car.productionStart}–${car.productionEnd}">🏛️ Discontinued</span>` : ''}
           </div>
         </div>
-        ${car.source === 'tradein' ? `<div class="tradein-source-banner">${uiIcon('refresh')} Accepted trade-in vehicle</div>` : ''}
+        ${car.source === 'tradein' ? `<div class="tradein-source-banner">${uiIcon('refresh')} Accepted trade-in vehicle${car.purchasePrice > 0 ? ` — credited at ${formatCurrency(car.purchasePrice)}` : ''}</div>` : ''}
         ${hasOffer ? `<div class="offer-banner">${uiIcon('inbox')} Customer offer waiting (see above)</div>` : ''}
         ${car.washBoostDays > 0 ? `<div class="wash-banner">${uiIcon('droplet')} Wash boost active (${car.washBoostDays} days)</div>` : ''}
         <div class="car-details">
