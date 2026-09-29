@@ -3011,6 +3011,7 @@ body.reduce-motion #day-sweep-overlay { display: none !important; }
   overflow: hidden;
 }
 button.au-center[onclick] { cursor: pointer; }
+button.au-center[onclick]:active { transform: scale(.985); }
 button.au-center[onclick]:hover { background: linear-gradient(180deg, #a8a8a8, #999); }
 .au-start { font-size: 1.5rem; font-weight: 700; text-shadow: 0 1px 2px rgba(0, 0, 0, .5); }
 .au-c-name   { font-size: 1.05rem; text-shadow: 0 1px 2px rgba(0, 0, 0, .5); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
