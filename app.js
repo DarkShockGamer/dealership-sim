@@ -11,9 +11,19 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.15.1';
+const GAME_VERSION = '1.16.0';
 
 const PATCH_NOTES = [
+  {
+    version: '1.16.0',
+    date: 'September 2026',
+    notes: [
+      { type: 'feature', text: "Achievements are now shared across your whole game on this browser. Unlock one in any save slot and it stays unlocked in every slot and every new game. Achievements you already earned in existing saves are merged in automatically the first time you load this version." },
+      { type: 'feature', text: "64 new achievements, bringing the total to 125. New goals cover sales milestones, cash and profit targets, longer runs, category specialists, staff, upgrades, the Showroom, auctions, trade-ins, leases, credit score, hard mode and more." },
+      { type: 'fix', text: "Fixed \"Not Today\": stolen cars you identified and turned down only counted if you clicked Decline. Walking away from a negotiation, letting the listing rotate off the Used Market, or rejecting or ignoring a stolen trade-in car now count as well. Each stolen car counts once." },
+      { type: 'fix', text: "Fixed \"Crash Rebuilder\": the game checked a car's crash severity after the repair had already cleared it, so the counter never moved. It now remembers how badly the car was damaged before the repair, and counts the car when you sell it (a profit is no longer required)." },
+    ],
+  },
   {
     version: '1.15.1',
     date: 'September 2026',
@@ -1138,6 +1148,179 @@ const ACHIEVEMENT_DEFS = [
     check: s => (s.auctionsSold || 0) >= 1 },
   { id: 'auction_seven_figures',icon: ACH_ICONS.star,       name: 'Seven-Figure Paddle',     desc: 'Win an auction lot with a winning bid of $1,000,000 or more.',
     check: s => (s.auctionBestWin || 0) >= 1000000 },
+  { id: 'sales_25', icon: ACH_ICONS.tag, name: "Getting Warmed Up", desc: "Sell 25 cars total.",
+    check: s => (s.salesHistory||[]).length >= 25,
+    progress: s => Math.min((s.salesHistory||[]).length,25) + '/25' },
+  { id: 'sales_250', icon: ACH_ICONS.award, name: "Dealer Row Fixture", desc: "Sell 250 cars total. Locals give you directions as a landmark.",
+    check: s => (s.salesHistory||[]).length >= 250,
+    progress: s => Math.min((s.salesHistory||[]).length,250) + '/250' },
+  { id: 'sales_500', icon: ACH_ICONS.trophy, name: "Half-Thousand Club", desc: "Sell 500 cars total.",
+    check: s => (s.salesHistory||[]).length >= 500,
+    progress: s => Math.min((s.salesHistory||[]).length,500) + '/500' },
+  { id: 'sales_1000', icon: ACH_ICONS.trophy, name: "One Thousand Keys", desc: "Sell 1,000 cars total. Your handshake has calluses.",
+    check: s => (s.salesHistory||[]).length >= 1000,
+    progress: s => Math.min((s.salesHistory||[]).length,1000) + '/1000' },
+  { id: 'cash_50k', icon: ACH_ICONS.dollar, name: "Pocket Change", desc: "Hold $50,000 in cash.",
+    check: s => (s.cash||0) >= 50000,
+    progress: s => formatCurrency(Math.min(s.cash||0,50000)) + '/$50k' },
+  { id: 'cash_250k', icon: ACH_ICONS.trending, name: "Quarter Million", desc: "Hold $250,000 in cash.",
+    check: s => (s.cash||0) >= 250000,
+    progress: s => formatCurrency(Math.min(s.cash||0,250000)) + '/$250k' },
+  { id: 'cash_2m', icon: ACH_ICONS.flame, name: "Two Comma Club", desc: "Hold $2,000,000 in cash.",
+    check: s => (s.cash||0) >= 2000000,
+    progress: s => formatCurrency(Math.min(s.cash||0,2000000)) + '/$2M' },
+  { id: 'cash_5m', icon: ACH_ICONS.flame, name: "Scrooge Territory", desc: "Hold $5,000,000 in cash. Time for a vault.",
+    check: s => (s.cash||0) >= 5000000,
+    progress: s => formatCurrency(Math.min(s.cash||0,5000000)) + '/$5M' },
+  { id: 'cash_10m', icon: ACH_ICONS.zap, name: "Eight Figures", desc: "Hold $10,000,000 in cash. Is this even a dealership anymore?",
+    check: s => (s.cash||0) >= 10000000,
+    progress: s => formatCurrency(Math.min(s.cash||0,10000000)) + '/$10M' },
+  { id: 'profit_10k', icon: ACH_ICONS.dollar, name: "Nice Margin", desc: "Make $10,000 profit on a single sale.",
+    check: s => (s.salesHistory||[]).some(h => (h.profit||0) >= 10000) },
+  { id: 'profit_50k', icon: ACH_ICONS.dollar, name: "Jackpot Flip", desc: "Make $50,000 profit on a single sale.",
+    check: s => (s.salesHistory||[]).some(h => (h.profit||0) >= 50000) },
+  { id: 'profit_100k', icon: ACH_ICONS.flame, name: "Six-Figure Flip", desc: "Make $100,000 profit on a single sale.",
+    check: s => (s.salesHistory||[]).some(h => (h.profit||0) >= 100000) },
+  { id: 'total_profit_100k', icon: ACH_ICONS.trending, name: "Steady Earner", desc: "Earn $100,000 total profit from sales.",
+    check: s => (s.salesHistory||[]).reduce((t,h) => t + (h.profit||0), 0) >= 100000,
+    progress: s => formatCurrency(Math.max(0,Math.min((s.salesHistory||[]).reduce((t,h) => t + (h.profit||0), 0),100000))) + '/$100k' },
+  { id: 'total_profit_1m', icon: ACH_ICONS.trending, name: "Profit Machine", desc: "Earn $1,000,000 total profit from sales.",
+    check: s => (s.salesHistory||[]).reduce((t,h) => t + (h.profit||0), 0) >= 1000000,
+    progress: s => formatCurrency(Math.max(0,Math.min((s.salesHistory||[]).reduce((t,h) => t + (h.profit||0), 0),1000000))) + '/$1M' },
+  { id: 'day_100', icon: ACH_ICONS.clock, name: "Triple Digits", desc: "Reach Day 100.",
+    check: s => (s.day||1) >= 100,
+    progress: s => Math.min(s.day||1,100) + '/100' },
+  { id: 'day_500', icon: ACH_ICONS.clock, name: "Five Hundred Days", desc: "Reach Day 500.",
+    check: s => (s.day||1) >= 500,
+    progress: s => Math.min(s.day||1,500) + '/500' },
+  { id: 'day_730', icon: ACH_ICONS.map, name: "Two Years In", desc: "Reach Day 730. Two full years of dealing.",
+    check: s => (s.day||1) >= 730,
+    progress: s => Math.min(s.day||1,730) + '/730' },
+  { id: 'day_1000', icon: ACH_ICONS.map, name: "Institution", desc: "Reach Day 1,000. The dealership has a plaque now.",
+    check: s => (s.day||1) >= 1000,
+    progress: s => Math.min(s.day||1,1000) + '/1000' },
+  { id: 'rep_150', icon: ACH_ICONS.award, name: "Well Respected", desc: "Reach a reputation of 1.5 or higher.",
+    check: s => (s.reputation||1) >= 1.5 },
+  { id: 'econ_10', icon: ACH_ICONS.car, name: "Bargain Bin Boss", desc: "Sell 10 Economy cars.",
+    check: s => (s.salesHistory||[]).filter(h => h.category === "Economy").length >= 10,
+    progress: s => (s.salesHistory||[]).filter(h => h.category === "Economy").length + '/10' },
+  { id: 'sedan_10', icon: ACH_ICONS.car, name: "Sedan Sensei", desc: "Sell 10 Sedans.",
+    check: s => (s.salesHistory||[]).filter(h => h.category === "Sedan").length >= 10,
+    progress: s => (s.salesHistory||[]).filter(h => h.category === "Sedan").length + '/10' },
+  { id: 'suv_10', icon: ACH_ICONS.car, name: "Soccer Parent Supplier", desc: "Sell 10 SUVs.",
+    check: s => (s.salesHistory||[]).filter(h => h.category === "SUV").length >= 10,
+    progress: s => (s.salesHistory||[]).filter(h => h.category === "SUV").length + '/10' },
+  { id: 'truck_10', icon: ACH_ICONS.wrench, name: "Bed Liner Believer", desc: "Sell 10 Trucks.",
+    check: s => (s.salesHistory||[]).filter(h => h.category === "Truck").length >= 10,
+    progress: s => (s.salesHistory||[]).filter(h => h.category === "Truck").length + '/10' },
+  { id: 'sports_10', icon: ACH_ICONS.zap, name: "Need for Speed", desc: "Sell 10 Sports cars.",
+    check: s => (s.salesHistory||[]).filter(h => h.category === "Sports").length >= 10,
+    progress: s => (s.salesHistory||[]).filter(h => h.category === "Sports").length + '/10' },
+  { id: 'luxury_25', icon: ACH_ICONS.award, name: "Champagne Dealer", desc: "Sell 25 Luxury cars.",
+    check: s => (s.salesHistory||[]).filter(h => h.category === "Luxury").length >= 25,
+    progress: s => (s.salesHistory||[]).filter(h => h.category === "Luxury").length + '/25' },
+  { id: 'mint_10', icon: ACH_ICONS.star, name: "Showroom Shine", desc: "Sell 10 cars in Excellent (A) condition.",
+    check: s => (s.salesHistory||[]).filter(h => h.condition === 'A').length >= 10,
+    progress: s => (s.salesHistory||[]).filter(h => h.condition === 'A').length + '/10' },
+  { id: 'rebuilt_sale', icon: ACH_ICONS.wrench, name: "Second Life", desc: "Sell a car with a rebuilt title.",
+    check: s => (s.salesHistory||[]).some(h => h.titleStatus === 'rebuilt') },
+  { id: 'salvage_sale', icon: ACH_ICONS.alert, name: "Salvage Yard Hero", desc: "Sell a salvage-title car.",
+    check: s => (s.salesHistory||[]).some(h => h.titleStatus === 'salvage') },
+  { id: 'factory_10', icon: ACH_ICONS.tag, name: "Straight From the Factory", desc: "Sell 10 cars you ordered from the Factory.",
+    check: s => (s.salesHistory||[]).filter(h => h.source === 'factory').length >= 10,
+    progress: s => (s.salesHistory||[]).filter(h => h.source === 'factory').length + '/10' },
+  { id: 'used_10', icon: ACH_ICONS.car, name: "Used Car Salesperson", desc: "Sell 10 cars you bought on the Used Market.",
+    check: s => (s.salesHistory||[]).filter(h => h.source === 'used').length >= 10,
+    progress: s => (s.salesHistory||[]).filter(h => h.source === 'used').length + '/10' },
+  { id: 'first_hire', icon: ACH_ICONS.handshake, name: "Help Wanted", desc: "Hire your first staff member.",
+    check: s => (s.staff||[]).length >= 1 },
+  { id: 'staff_4', icon: ACH_ICONS.handshake, name: "Growing Team", desc: "Have 4 staff members at once.",
+    check: s => (s.staff||[]).length >= 4,
+    progress: s => (s.staff||[]).length + '/4' },
+  { id: 'staff_8', icon: ACH_ICONS.layers, name: "Full Payroll", desc: "Have 8 staff members at once.",
+    check: s => (s.staff||[]).length >= 8,
+    progress: s => (s.staff||[]).length + '/8' },
+  { id: 'garage_tier2', icon: ACH_ICONS.map, name: "Room to Grow", desc: "Expand to Garage Tier 2.",
+    check: s => (s.upgrades?.garageLevel||1) >= 2 },
+  { id: 'garage_tier3', icon: ACH_ICONS.map, name: "Proper Lot", desc: "Expand to Garage Tier 3.",
+    check: s => (s.upgrades?.garageLevel||1) >= 3 },
+  { id: 'showroom_built', icon: ACH_ICONS.sparkles, name: "Velvet Rope", desc: "Build your first Showroom.",
+    check: s => (s.upgrades?.showroomTier||0) >= 1 },
+  { id: 'showroom_max', icon: ACH_ICONS.trophy, name: "Private Collection Wing", desc: "Fully upgrade the Showroom to Tier 4.",
+    check: s => (s.upgrades?.showroomTier||0) >= 4 },
+  { id: 'showroom_five', icon: ACH_ICONS.star, name: "Curator", desc: "Display 5 cars in your Showroom at once.",
+    check: s => (s.showroom||[]).length >= 5,
+    progress: s => (s.showroom||[]).length + '/5' },
+  { id: 'detective_kit', icon: ACH_ICONS.shield, name: "Detective Kit", desc: "Own the DMV Database, VIN Scanner and Frame Damage Tools upgrades.",
+    check: s => !!(s.upgrades?.dmvDatabaseAccess && s.upgrades?.vinScanner && s.upgrades?.frameDamageTools) },
+  { id: 'locked_down', icon: ACH_ICONS.lock, name: "Locked Down", desc: "Buy your first Security upgrade.",
+    check: s => (s.upgrades?.securityLevel||0) >= 1 },
+  { id: 'auction_five_wins', icon: ACH_ICONS.trophy, name: "Regular Bidder", desc: "Win 5 lots at the Auction House.",
+    check: s => (s.auctionsWon||0) >= 5,
+    progress: s => Math.min(s.auctionsWon||0,5) + '/5' },
+  { id: 'auction_five_sales', icon: ACH_ICONS.tag, name: "Consignor", desc: "Sell 5 of your own cars at auction.",
+    check: s => (s.auctionsSold||0) >= 5,
+    progress: s => Math.min(s.auctionsSold||0,5) + '/5' },
+  { id: 'auction_quarter_mil', icon: ACH_ICONS.star, name: "Paddle Up", desc: "Win an auction lot with a bid of $250,000 or more.",
+    check: s => (s.auctionBestWin||0) >= 250000 },
+  { id: 'tradeins_10', icon: ACH_ICONS.handshake, name: "Swap Meet Regular", desc: "Accept 10 trade-ins.",
+    check: s => (s.totalTradeInsAccepted||0) >= 10,
+    progress: s => Math.min(s.totalTradeInsAccepted||0,10) + '/10' },
+  { id: 'tradeins_25', icon: ACH_ICONS.handshake, name: "Trade-In Legend", desc: "Accept 25 trade-ins.",
+    check: s => (s.totalTradeInsAccepted||0) >= 25,
+    progress: s => Math.min(s.totalTradeInsAccepted||0,25) + '/25' },
+  { id: 'detail_50', icon: ACH_ICONS.star, name: "Wax On, Wax Off", desc: "Detail 50 cars in total.",
+    check: s => (s.totalDetailsPerformed||0) >= 50,
+    progress: s => Math.min(s.totalDetailsPerformed||0,50) + '/50' },
+  { id: 'service_50', icon: ACH_ICONS.wrench, name: "Shop Foreman", desc: "Complete 50 customer service jobs.",
+    check: s => (s.totalServiceJobsCompleted||0) >= 50,
+    progress: s => Math.min(s.totalServiceJobsCompleted||0,50) + '/50' },
+  { id: 'leases_10', icon: ACH_ICONS.key, name: "Leasing Empire", desc: "Run 10 simultaneous active leases.",
+    check: s => (s.garage||[]).filter(c => c.leaseStatus === 'active').length >= 10,
+    progress: s => (s.garage||[]).filter(c => c.leaseStatus === 'active').length + '/10' },
+  { id: 'clean_streak_10', icon: ACH_ICONS.repeat, name: "Spotless Record", desc: "Sell 10 clean-title cars in a row.",
+    check: s => (s.consecutiveCleanSales||0) >= 10,
+    progress: s => Math.min(s.consecutiveCleanSales||0,10) + '/10' },
+  { id: 'stolen_first', icon: ACH_ICONS.shield, name: "Nope, Not Buying That", desc: "Identify a stolen car and turn it down.",
+    check: s => (s.stolenCarsAvoided||0) >= 1 },
+  { id: 'stolen_25', icon: ACH_ICONS.shield, name: "Neighborhood Watch", desc: "Avoid 25 stolen cars.",
+    check: s => (s.stolenCarsAvoided||0) >= 25,
+    progress: s => Math.min(s.stolenCarsAvoided||0,25) + '/25' },
+  { id: 'rebuilder_first', icon: ACH_ICONS.wrench, name: "Crash Test Dummy", desc: "Repair and sell a car with moderate or severe crash damage.",
+    check: s => (s.crashDamageRebuilds||0) >= 1 },
+  { id: 'rebuilder_15', icon: ACH_ICONS.wrench, name: "Body Shop Baron", desc: "Repair and sell 15 cars with moderate or severe crash damage.",
+    check: s => (s.crashDamageRebuilds||0) >= 15,
+    progress: s => Math.min(s.crashDamageRebuilds||0,15) + '/15' },
+  { id: 'paperwork_10', icon: ACH_ICONS.star, name: "Notary Public", desc: "Sell 10 verified clean-title cars.",
+    check: s => (s.cleanTitleSalesVerified||0) >= 10,
+    progress: s => Math.min(s.cleanTitleSalesVerified||0,10) + '/10' },
+  { id: 'eagle_eye_5', icon: ACH_ICONS.lock, name: "Hawk Eye", desc: "Discover severe hidden crash damage on 5 cars before buying.",
+    check: s => (s.severeDamageFoundBeforeBuy||0) >= 5,
+    progress: s => Math.min(s.severeDamageFoundBeforeBuy||0,5) + '/5' },
+  { id: 'police_5', icon: ACH_ICONS.alert, name: "Frequent Flyer", desc: "Get fined by police 5 times.",
+    check: s => (s.policeFinesReceived||0) >= 5,
+    progress: s => Math.min(s.policeFinesReceived||0,5) + '/5' },
+  { id: 'grand_theft_lot', icon: ACH_ICONS.alert, name: "Grand Theft Lot", desc: "Have a car stolen from your lot.",
+    check: s => (s.totalCarsStolen||0) >= 1 },
+  { id: 'insured_claim', icon: ACH_ICONS.shield, name: "Covered", desc: "Have a stolen or totaled car covered by insurance.",
+    check: s => ((s.totalCarsInsuredStolen||0) + (s.totalCarsInsuredTotaled||0)) >= 1 },
+  { id: 'loan_paid_100k', icon: ACH_ICONS.creditcard, name: "Paying It Down", desc: "Pay down $100,000 of credit line balance in total.",
+    check: s => (s.totalLoanPaidDown||0) >= 100000,
+    progress: s => formatCurrency(Math.min(s.totalLoanPaidDown||0,100000)) + '/$100k' },
+  { id: 'credit_800', icon: ACH_ICONS.creditcard, name: "Excellent Credit", desc: "Reach a credit score of 800.",
+    check: s => (s.creditScore||0) >= 800,
+    progress: s => Math.min(s.creditScore||0,800) + '/800' },
+  { id: 'credit_850', icon: ACH_ICONS.creditcard, name: "Perfect Credit", desc: "Reach the maximum credit score of 850.",
+    check: s => (s.creditScore||0) >= 850,
+    progress: s => Math.min(s.creditScore||0,850) + '/850' },
+  { id: 'fire_sale_10', icon: ACH_ICONS.flame, name: "Clearance Event", desc: "Sell 10 cars in a single day.",
+    check: s => (s.salesHistory||[]).filter(h => h.soldDay === s.day).length >= 10 },
+  { id: 'hard_day_100', icon: ACH_ICONS.flame, name: "Hard Mode Survivor", desc: "Reach Day 100 on Hard mode.",
+    check: s => s.difficulty === 'hard' && (s.day||1) >= 100,
+    progress: s => s.difficulty === 'hard' ? Math.min(s.day||1,100) + '/100' : 'Hard mode only' },
+  { id: 'hard_million', icon: ACH_ICONS.flame, name: "Hard Mode Mogul", desc: "Hold $1,000,000 in cash on Hard mode.",
+    check: s => s.difficulty === 'hard' && (s.cash||0) >= 1000000,
+    progress: s => s.difficulty === 'hard' ? formatCurrency(Math.min(s.cash||0,1000000)) + '/$1M' : 'Hard mode only' },
   // Secret achievements
   { id: 'secret_konami',       icon: ACH_ICONS.zap,        name: '🔒 Power User',           desc: '???',
     check: s => !!(s.konamiActivated) },
@@ -1168,6 +1351,7 @@ const ACHIEVEMENT_ORDER = [
   'bankruptcy_survivor', 'hard_knocks',
   'flash_flip', 'brand_loyalist', 'rock_bottom_rep', 'local_legend', 'full_lineup',
   'lot_lizard', 'fire_sale_friday', 'grandmas_car', 'its_got_stories', 'rookie_mistake',
+  'sales_25', 'sales_250', 'sales_500', 'sales_1000', 'cash_50k', 'cash_250k', 'cash_2m', 'cash_5m', 'cash_10m', 'profit_10k', 'profit_50k', 'profit_100k', 'total_profit_100k', 'total_profit_1m', 'day_100', 'day_500', 'day_730', 'day_1000', 'rep_150', 'econ_10', 'sedan_10', 'suv_10', 'truck_10', 'sports_10', 'luxury_25', 'mint_10', 'rebuilt_sale', 'salvage_sale', 'factory_10', 'used_10', 'first_hire', 'staff_4', 'staff_8', 'garage_tier2', 'garage_tier3', 'showroom_built', 'showroom_max', 'showroom_five', 'detective_kit', 'locked_down', 'auction_five_wins', 'auction_five_sales', 'auction_quarter_mil', 'tradeins_10', 'tradeins_25', 'detail_50', 'service_50', 'leases_10', 'clean_streak_10', 'stolen_first', 'stolen_25', 'rebuilder_first', 'rebuilder_15', 'paperwork_10', 'eagle_eye_5', 'police_5', 'grand_theft_lot', 'insured_claim', 'loan_paid_100k', 'credit_800', 'credit_850', 'fire_sale_10', 'hard_day_100', 'hard_million',
   'secret_logo', 'secret_konami', 'secret_nice', 'secret_day69', 'secret_palindrome', 'secret_breakeven',
 ];
 
@@ -2517,6 +2701,8 @@ function pickAskingPriceMultiplier() {
 }
 
 function generateUsedMarket() {
+  // Any identified stolen car still on the old list is being left behind — that counts as avoided.
+  (state.usedMarketOffers || []).forEach(countStolenAvoided);
   const count = randomInt(4, 7) + getUsedMarketBonusListings(); // Trade Network / Auction Membership add listings
   const offers = [];
   for (let i = 0; i < count; i++) {
@@ -2859,6 +3045,14 @@ function payDownLoan(rawAmount) {
   renderAll();
 }
 
+/** Count a discovered-stolen car the player didn't buy (once per car) toward "Not Today". */
+function countStolenAvoided(car) {
+  if (!car || car.stolenAvoidCounted) return;
+  if ((car.legalStatus || 'clean') !== 'stolen' || !car.legalDiscovered) return;
+  car.stolenAvoidCounted = true;
+  state.stolenCarsAvoided = (state.stolenCarsAvoided || 0) + 1;
+}
+
 function recordSaleStats(car, profit) {
   if (!car) return;
   const status = car.titleStatus || 'clean';
@@ -2871,8 +3065,11 @@ function recordSaleStats(car, profit) {
     state.cleanTitleSalesVerified = (state.cleanTitleSalesVerified || 0) + 1;
   }
   // Track crash damage rebuilds (repaired and sold)
-  const crashSev = car.crashDamageSeverity || 'none';
-  if ((crashSev === 'moderate' || crashSev === 'severe') && car.hasCrashRepair && profit > 0) {
+  // The repair clears crashDamageSeverity, so read the severity remembered at repair time.
+  // Older repaired cars without it are counted if they carry a rebuilt title.
+  const crashSev = car.crashRepairedSeverity
+    || ((car.hasCrashRepair && car.titleStatus === 'rebuilt') ? 'moderate' : 'none');
+  if ((crashSev === 'moderate' || crashSev === 'severe') && car.hasCrashRepair) {
     state.crashDamageRebuilds = (state.crashDamageRebuilds || 0) + 1;
   }
 }
@@ -3551,6 +3748,7 @@ function finishCarService(car) {
         car.titleStatus = 'rebuilt';
       }
       car.hasCrashRepair = true;
+      car.crashRepairedSeverity = crashSeverity;
     }
     car.crashDamageSeverity = 'none';
     car.hiddenIssues = [];
@@ -4318,9 +4516,11 @@ function expireOffers() {
   );
   // Trade-in requests have no round limit — they persist until player or NPC accepts/rejects.
   // Only remove initial (round 0) offers that have been sitting idle past their expiry.
-  state.tradeInRequests = state.tradeInRequests.filter(
-    r => r.state === 'countered' || (r.round || 0) > 0 || r.expiresDay >= state.day
-  );
+  state.tradeInRequests = state.tradeInRequests.filter(r => {
+    const keep = r.state === 'countered' || (r.round || 0) > 0 || r.expiresDay >= state.day;
+    if (!keep) countStolenAvoided(r.customerCar);
+    return keep;
+  });
 }
 
 function tickDaysInLot() {
@@ -4332,15 +4532,58 @@ function addNote(message, type = 'info') {
   if (state.notifications.length > 60) state.notifications.pop();
 }
 
+// Achievements are stored per browser (not per save slot) so they carry across every game.
+const GLOBAL_ACH_KEY = 'dealerSim_globalAchievements';
+let globalAchievements = {};
+
+function saveGlobalAchievements() {
+  try { localStorage.setItem(GLOBAL_ACH_KEY, JSON.stringify(globalAchievements)); } catch (_) {}
+}
+
+/** Load the browser-wide achievements and merge in anything already earned in existing save slots. */
+function loadGlobalAchievements() {
+  try {
+    const raw = localStorage.getItem(GLOBAL_ACH_KEY);
+    const d = raw ? JSON.parse(raw) : {};
+    globalAchievements = (d && typeof d === 'object') ? d : {};
+  } catch (_) { globalAchievements = {}; }
+  for (const slot of [1, 2, 3]) {
+    try {
+      const raw = localStorage.getItem(slotKey(slot));
+      if (!raw) continue;
+      const un = JSON.parse(raw).achievementsUnlocked || {};
+      for (const id of Object.keys(un)) {
+        if (!globalAchievements[id] && un[id]) globalAchievements[id] = un[id];
+      }
+    } catch (_) {}
+  }
+  saveGlobalAchievements();
+}
+
+function unlockAchievementGlobally(id, day) {
+  if (!globalAchievements[id]) { globalAchievements[id] = day || 1; saveGlobalAchievements(); }
+  if (state.achievementsUnlocked && !state.achievementsUnlocked[id]) state.achievementsUnlocked[id] = globalAchievements[id];
+}
+
 function runAchievementChecks() {
   if (!state.achievementsUnlocked) state.achievementsUnlocked = {};
+  let dirty = false;
   for (const ach of ACHIEVEMENTS) {
-    if (state.achievementsUnlocked[ach.id]) continue;
-    if (!ach.check(state)) continue;
+    if (globalAchievements[ach.id]) {
+      if (!state.achievementsUnlocked[ach.id]) state.achievementsUnlocked[ach.id] = globalAchievements[ach.id];
+      continue;
+    }
+    if (state.achievementsUnlocked[ach.id]) { globalAchievements[ach.id] = state.achievementsUnlocked[ach.id]; dirty = true; continue; }
+    let ok = false;
+    try { ok = ach.check(state); } catch (_) { ok = false; }
+    if (!ok) continue;
     state.achievementsUnlocked[ach.id] = state.day;
+    globalAchievements[ach.id] = state.day;
+    dirty = true;
     addNote(`🏆 Achievement unlocked: ${ach.name}`, 'success');
     showToast(`🏆 ${ach.name}`, 'achievement', 'achievement');
   }
+  if (dirty) saveGlobalAchievements();
 }
 
 // ============================================================
@@ -4469,10 +4712,8 @@ function acceptUsedOffer(offerId) {
 function declineUsedOffer(offerId) {
   const offer = state.usedMarketOffers.find(o => o.id === offerId);
   // Only count as "avoided" if player discovered the stolen status before declining
-  if (offer && offer.legalDiscovered && (offer.legalStatus || 'clean') === 'stolen') {
-    state.stolenCarsAvoided = (state.stolenCarsAvoided || 0) + 1;
-    runAchievementChecks();
-  }
+  countStolenAvoided(offer);
+  runAchievementChecks();
   state.usedMarketOffers = state.usedMarketOffers.filter(o => o.id !== offerId);
   saveState();
   renderUsedMarket();
@@ -4582,6 +4823,8 @@ function submitUsedOffer(offerId, rawAmount) {
   } else if (ratio < 0.55 || offer.patience <= 0) {
     // Seller walks — offer too low or patience exhausted
     offer.negotiationState = 'declined';
+    countStolenAvoided(offer);
+    runAchievementChecks();
     state.usedMarketOffers = state.usedMarketOffers.filter(o => o.id !== offerId);
     saveState();
     renderUsedMarket();
@@ -4691,6 +4934,8 @@ function acceptTradeInRequest(requestId) {
 }
 
 function rejectTradeInRequest(requestId) {
+  countStolenAvoided(state.tradeInRequests.find(r => r.id === requestId)?.customerCar);
+  runAchievementChecks();
   state.tradeInRequests = state.tradeInRequests.filter(r => r.id !== requestId);
   saveState();
   renderForSale();
@@ -8062,7 +8307,7 @@ function renderShowroom() {
 }
 
 function renderAchievements() {
-  const unlocked = state.achievementsUnlocked || {};
+  const unlocked = { ...(state.achievementsUnlocked || {}), ...globalAchievements };
   const unlockedCount = ACHIEVEMENTS.filter(a => unlocked[a.id]).length;
   const cards = ACHIEVEMENTS.map(a => {
     const day = unlocked[a.id];
@@ -10733,7 +10978,7 @@ function cheatUnlockAllUpgrades() {
 function cheatUnlockAllAchievements() {
   if (!state.achievementsUnlocked) state.achievementsUnlocked = {};
   for (const ach of ACHIEVEMENTS) {
-    if (!state.achievementsUnlocked[ach.id]) state.achievementsUnlocked[ach.id] = state.day;
+    unlockAchievementGlobally(ach.id, state.day);
   }
   _cheatApply('🏆 All achievements unlocked.');
 }
@@ -10797,6 +11042,7 @@ function cheatToggleGameOver() {
 }
 
 function init() {
+  loadGlobalAchievements(); // browser-wide achievements (merges any already earned in saves)
   loadSettings(); // must be before any render so dark mode applies
   bindAudioUnlock(); // catch the first real click/tap/keypress so audio isn't stuck suspended
   bindGlobalClickSfx(); // give every button in the game a consistent tactile click
