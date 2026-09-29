@@ -11,9 +11,18 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.16.0';
+const GAME_VERSION = '1.17.0';
 
 const PATCH_NOTES = [
+  {
+    version: '1.17.0',
+    date: 'September 2026',
+    notes: [
+      { type: 'feature', text: "Showroom Draw: a well-stocked showroom floor now brings more buyers through the door, just like a real dealership. Every car on display in Excellent (A) condition adds +3.5% sale chance to every car you have listed for sale, and every Good (B) car adds +2.1%. The bonus stacks across the whole floor, up to a maximum of +40%. Fair and Poor cars, and salvage or lemon titles, add nothing, so keep the floor sharp. The bonus also raises how often buyers make offers on your listings." },
+      { type: 'feature', text: "The Showroom tab has a new Showroom Draw panel showing your current bonus and how close you are to the cap, and every pedestal now shows how much that car adds (or why it adds nothing). Sale Chance / Day on your listings includes the bonus automatically." },
+      { type: 'balance', text: "The Showroom is no longer just a place to keep cars you never want to sell. Building it and filling it with clean, good-condition cars is now a real sales strategy for your lot." },
+    ],
+  },
   {
     version: '1.16.0',
     date: 'September 2026',
@@ -1766,6 +1775,42 @@ function getNextShowroomTier() {
   return SHOWROOM_TIERS[next] || null;
 }
 
+// SHOWROOM DRAW — v1.17.0
+// ------------------------------------------------------------
+// A full showroom floor pulls buyers in for the rest of the dealership. Only cars in
+// good shape help: Excellent (A) counts as a full display point, Good (B) counts as 0.6,
+// Fair/Poor add nothing, and salvage/lemon titles scare people off. Each point adds
+// +3.5% to sale chance on every listed car, capped at +40% total.
+const SHOWROOM_DRAW_WEIGHT     = { A: 1.0, B: 0.6 };
+const SHOWROOM_DRAW_PER_POINT  = 0.035;
+const SHOWROOM_DRAW_MAX_BONUS  = 0.40;
+
+/** Display points one showroom car contributes (0 if it doesn't qualify). */
+function getShowroomCarDrawPoints(car) {
+  if (!car) return 0;
+  if (car.titleStatus === 'salvage' || car.titleStatus === 'lemon') return 0;
+  return SHOWROOM_DRAW_WEIGHT[car.condition] || 0;
+}
+
+/** Current showroom-floor bonus applied to every listed car's sale chance. */
+function getShowroomDraw() {
+  const cars = state.showroom || [];
+  let points = 0;
+  let qualifying = 0;
+  for (const car of cars) {
+    const p = getShowroomCarDrawPoints(car);
+    if (p > 0) { points += p; qualifying++; }
+  }
+  const raw = points * SHOWROOM_DRAW_PER_POINT;
+  return {
+    displayed: cars.length,
+    qualifying,
+    points,
+    bonus: Math.min(raw, SHOWROOM_DRAW_MAX_BONUS),
+    maxed: raw >= SHOWROOM_DRAW_MAX_BONUS,
+  };
+}
+
 // ---- Upgrade state helpers -----------------------------------------------------
 function getUpgradeLevel(upg, u = state.upgrades) {
   if (typeof upg.level === 'function') return upg.level(u);
@@ -2939,6 +2984,7 @@ function computeSaleChance(car) {
   const titleFactor        = TITLE_BUYER_MULT[car.titleStatus] || 1.0;
   const photoStudioFactor  = state.upgrades.photoStudio ? 1.10 : 1.0;
   const certifiedFactor    = isCertifiedCar(car) ? CERTIFIED_SALE_BONUS : 1.0;
+  const showroomFactor     = 1 + getShowroomDraw().bonus; // v1.17.0 — full showroom floor draws buyers
 
   // Small-lot focus bonus: with only a car or two for sale, a dealer can put real attention
   // and hustle behind each one — the exact scenario at the start of a new game.
@@ -2948,7 +2994,7 @@ function computeSaleChance(car) {
   chance = chance * priceAtt * condFactor * categoryFactor * priceTierFactor * crashFactor
          * lotFactor * marketingFactor * repFactor
          * repBoostFactor * demandFactor * washBonus * titleFactor * photoStudioFactor * certifiedFactor
-         * focusFactor;
+         * focusFactor * showroomFactor;
 
   // No guaranteed floor for overpriced cars — retries must never converge to a sale.
   const floor = askRatio > 2.0 ? 0 : askRatio > 1.5 ? 0.001 : askRatio > 1.25 ? 0.005 : 0.015;
@@ -8376,6 +8422,7 @@ function renderShowroom() {
           <ul class="showroom-hero-perks">
             <li>${uiIcon('home')} Showroom cars never count against your Car Lot capacity</li>
             <li>${uiIcon('lock')} Safe on display — never at risk of theft</li>
+            <li>${uiIcon('arrowUp')} A floor of Good and Excellent cars draws buyers — up to +${Math.round(SHOWROOM_DRAW_MAX_BONUS * 100)}% sale chance on everything you list</li>
             <li>${uiIcon('star')} The perfect home for a discontinued classic or a hypercar you can't bear to flip</li>
           </ul>
           <div class="showroom-build-card">
@@ -8395,12 +8442,24 @@ function renderShowroom() {
 
   // ── Built — pedestal grid + expansion card ──────────────────────────
   const cars = state.showroom || [];
+  const draw = getShowroomDraw();
+  const drawBadge = car => {
+    const pts = getShowroomCarDrawPoints(car);
+    if (pts > 0) {
+      return `<span class="badge badge-green" title="This car helps pull buyers in for the rest of your lot">+${(pts * SHOWROOM_DRAW_PER_POINT * 100).toFixed(1)}% sales</span>`;
+    }
+    const why = (car.titleStatus === 'salvage' || car.titleStatus === 'lemon')
+      ? 'Salvage and lemon titles do not attract buyers'
+      : 'Only Good or Excellent condition cars attract buyers';
+    return `<span class="badge badge-gray" title="${why}">No draw</span>`;
+  };
   const pedestals = cars.map(car => `
     <div class="pedestal-card" data-car-id="${car.id}">
       <div class="pedestal-spot" aria-hidden="true"></div>
       <div class="pedestal-badges">
         ${condBadge(car.condition)}
         ${titleBadge(car.titleStatus)}
+        ${drawBadge(car)}
       </div>
       <div class="pedestal-name">${formatCarDisplayName(car)}</div>
       <div class="pedestal-details">
@@ -8445,6 +8504,18 @@ function renderShowroom() {
     <div class="tab-info">
       ${uiIcon('sparkles')} Showroom: <strong>${cars.length}/${capacity}</strong> on display · ${SHOWROOM_TIERS[tierNum].name}.
       Cars here don't use Car Lot slots and can never be stolen — but they can't be sold, serviced, or leased until you bring them back.
+    </div>
+    <div class="showroom-draw-panel">
+      <div class="showroom-draw-head">
+        <span>${uiIcon('arrowUp')} Showroom Draw</span>
+        <strong class="${draw.bonus > 0 ? 'text-green' : 'text-muted'}">+${(draw.bonus * 100).toFixed(1)}% sale chance${draw.maxed ? ' (max)' : ''}</strong>
+      </div>
+      <div class="showroom-draw-bar" role="progressbar" aria-valuemin="0" aria-valuemax="${Math.round(SHOWROOM_DRAW_MAX_BONUS * 100)}" aria-valuenow="${Math.round(draw.bonus * 100)}">
+        <div class="showroom-draw-fill" style="width:${Math.min(100, (draw.bonus / SHOWROOM_DRAW_MAX_BONUS) * 100).toFixed(1)}%"></div>
+      </div>
+      <p class="showroom-draw-note">
+        ${draw.qualifying}/${draw.displayed} display cars are pulling buyers in. Excellent cars add +${(SHOWROOM_DRAW_PER_POINT * 100).toFixed(1)}% each and Good cars +${(SHOWROOM_DRAW_PER_POINT * SHOWROOM_DRAW_WEIGHT.B * 100).toFixed(1)}% each to every car you have listed for sale, up to +${Math.round(SHOWROOM_DRAW_MAX_BONUS * 100)}%. Fair and Poor cars, and salvage or lemon titles, add nothing.
+      </p>
     </div>
     <div class="showroom-hall">
       <div class="pedestal-grid">${pedestals}${emptyPedestals}</div>
