@@ -11,9 +11,22 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.14.0';
+const GAME_VERSION = '1.15.0';
 
 const PATCH_NOTES = [
+  {
+    version: '1.15.0',
+    date: 'September 2026',
+    notes: [
+      { type: 'feature', text: "New: The Auction House. The Used Market now has two pages, just like Finance — the everyday Catalog you already know, and a brand-new Auctions page at Kessler & Vale Auction House, where extremely rare cars go under the hammer. Hypercars, coachbuilt one-offs and retired icons like the Bugatti La Voiture Noire, Ferrari F40, Pagani Zonda Cinque, McLaren P1 and Rolls-Royce Boat Tail turn up as featured lots. The floor holds a few lots at a time and rotates every few days." },
+      { type: 'feature', text: "Live bidding, straight out of Car Mechanic Simulator. Enter a lot, press Start, and a countdown ring runs while a room of named bidders fights you for the car. Every bid resets the clock; the ring turns green when you're winning and red when you're not. Pick your bid size with the − / + buttons (1×, 2×, 5×, 10× the increment) and press Space to bid fast. The game calendar never moves during an auction — only the ring does." },
+      { type: 'feature', text: "Auction your own cars. Consign any car from your Car Lot (new 'Auction' button on every Car Lot card, or from the Auctions page), set a reserve price, and watch the room bid it up. Hit Accept the moment the reserve is met to take the money early, or let the ring run out and gamble that someone pushes it higher. Miss your reserve and the car comes home unsold — the listing fee is non-refundable and the house won't re-list it for 3 days." },
+      { type: 'feature', text: "Every lot has an estimate and a level of buyer interest (Low to Frenzy). Estimates are fuzzy — pay for a pre-sale inspection to get the real appraisal and reveal hidden issues before you bid. Some lots carry provenance (Concours Winner, Race-Proven Chassis, Celebrity Provenance, Barn Find and more) that changes what the car is really worth. Every auction car has a verified clean title." },
+      { type: 'balance', text: "House fees: a 5% buyer's premium on top of your winning bid, and a 6% seller's commission plus a small listing fee when you consign. Wholesale Auction Membership now also cuts those to 3% and 4% and adds an extra lot to the floor. Inspection Tools halve the cost of pre-sale inspections." },
+      { type: 'feature', text: "Three new achievements: Going, Going, Gone; Under the Hammer; and Seven-Figure Paddle. Cars won at auction show an Auction source and their provenance in your Car Lot." },
+      { type: 'chore', text: "Save format bumped to v18 — existing saves upgrade automatically. Fixed the main menu's version label, which was still showing v1.13." },
+    ],
+  },
   {
     version: '1.14.0',
     date: 'September 2026',
@@ -482,7 +495,7 @@ const PATCH_NOTES = [
 // DEFAULT STATE
 // ============================================================
 const DEFAULT_STATE = {
-  saveVersion: 17,
+  saveVersion: 18,
   difficulty: 'normal',
   cash: 25000,
   day: 1,
@@ -490,6 +503,11 @@ const DEFAULT_STATE = {
   garage: [],
   garageSlots: 5,
   showroom: [],           // v1.14.0 — private display collection; never counts against garageSlots
+  auctions: { lots: [] }, // v1.15.0 — Auction House: rotating rare lots you can bid on
+  auctionLog: [],         // v1.15.0 — recent auction results (newest first)
+  auctionsWon: 0,
+  auctionsSold: 0,
+  auctionBestWin: 0,      // highest winning bid you've ever paid at auction
   deliveries: [],
   usedMarketOffers: [],    // buy-used cars with negotiation (was tradeInOffers)
   tradeInRequests: [],     // customers proposing to swap their car for one of yours
@@ -953,6 +971,7 @@ const _P = {
   info:         '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
   lock:         '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
   shield:       '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  gavel:        '<path d="m14.5 12.5-8 8a2.119 2.119 0 1 1-3-3l8-8"/><path d="m16 16 6-6"/><path d="m8 8 6-6"/><path d="m9 7 8 8"/><path d="m21 11-8-8"/>',
 };
 // Returns a 16px UI icon SVG by key
 function uiIcon(key, ariaLabel) { return uiSvg(_P[key] || _P.info, ariaLabel); }
@@ -1104,6 +1123,12 @@ const ACHIEVEMENT_DEFS = [
     check: s => (s.salesHistory||[]).some(h => (h.mileage||0) >= 250000) },
   { id: 'rookie_mistake',      icon: ACH_ICONS.trending,   name: 'Rookie Mistake',          desc: 'Sell a car at a loss, any loss. It happens to the best of us. Ouch.',
     check: s => (s.salesHistory||[]).some(h => (h.profit||0) < 0) },
+  { id: 'auction_first_win',    icon: ACH_ICONS.trophy,     name: 'Going, Going, Gone',      desc: 'Win your first lot at the Auction House.',
+    check: s => (s.auctionsWon || 0) >= 1 },
+  { id: 'auction_first_sale',   icon: ACH_ICONS.tag,        name: 'Under the Hammer',        desc: 'Sell one of your own cars at auction.',
+    check: s => (s.auctionsSold || 0) >= 1 },
+  { id: 'auction_seven_figures',icon: ACH_ICONS.star,       name: 'Seven-Figure Paddle',     desc: 'Win an auction lot with a winning bid of $1,000,000 or more.',
+    check: s => (s.auctionBestWin || 0) >= 1000000 },
   // Secret achievements
   { id: 'secret_konami',       icon: ACH_ICONS.zap,        name: '🔒 Power User',           desc: '???',
     check: s => !!(s.konamiActivated) },
@@ -1123,6 +1148,7 @@ const ACHIEVEMENT_ORDER = [
   'first_sale', 'first_upgrade', 'title_clean_start', 'first_tradein', 'first_lease',
   'ten_sales', 'detail_ten', 'five_tradeins', 'five_leases', 'luxury_seller',
   'fifty_sales', 'hundred_sales', 'supercar_seller',
+  'auction_first_win', 'auction_first_sale', 'auction_seven_figures',
   'net_worth_100k', 'net_worth_500k', 'net_worth_1m',
   'loan_interest_paid', 'loan_debt_free', 'interest_enthusiast', 'debt_addict', 'big_draw',
   'title_clean_streak', 'salvage_profit', 'lemonade_stand', 'lemon_grove',
@@ -1260,7 +1286,7 @@ const UPGRADES_CONFIG = [
   },
   {
     id: 'auctionAccess', key: 'auctionAccess', name: 'Wholesale Auction Membership', icon: 'tag', category: 'Sourcing', stage: 3, cost: 110000,
-    desc: 'Even more Used Market listings, and cleaner stock.',
+    desc: 'Even more Used Market listings, and cleaner stock. Also cuts Auction House fees and puts an extra rare lot on the floor.',
     lock: requireAll(reqHas('tradeNetwork', 'Trade Network'), reqTier(4)),
   },
   {
@@ -1678,6 +1704,13 @@ const formatCurrencyCompact = n => {
 };
 const generateId  = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 let factorySelection = { make: null, model: null };
+
+/** Where a car came from, as a labelled icon: Factory, Auction House or Used Market. */
+function carSourceLabel(car) {
+  if (car.source === 'factory') return `${uiIcon('factory')} Factory`;
+  if (car.source === 'auction') return `${uiIcon('gavel')} Auction House${car.provenance ? ' · ' + car.provenance.label : ''}`;
+  return `${uiIcon('car')} Used Market`;
+}
 
 function formatCarDisplayName(car) {
   return `${car.year} ${car.make} ${car.model}${car.trim ? ' ' + car.trim : ''}`;
@@ -2119,6 +2152,24 @@ function loadState(slot) {
           day: loaded.day ?? 1,
         });
       }
+      if (loaded.saveVersion < 18) {
+        loaded.saveVersion = 18;
+        // v1.15.0: The Auction House — rare lots to bid on, and your own cars to consign.
+        loaded.notifications = loaded.notifications || [];
+        loaded.notifications.unshift({
+          message: '🔨 Save upgraded to v18 — new Auctions page under Used Market! Bid on extremely rare cars, or put your own cars under the hammer.',
+          type: 'info',
+          day: loaded.day ?? 1,
+        });
+      }
+      // Always-apply defaults for v1.15.0 fields (in case migration block is skipped)
+      loaded.auctions = (loaded.auctions && Array.isArray(loaded.auctions.lots)) ? loaded.auctions : { lots: [] };
+      // A lot you'd already walked into when the page closed is forfeited — no refresh-to-reroll.
+      loaded.auctions.lots = loaded.auctions.lots.filter(l => !l.started);
+      loaded.auctionLog      = loaded.auctionLog      || [];
+      loaded.auctionsWon     = loaded.auctionsWon     ?? 0;
+      loaded.auctionsSold    = loaded.auctionsSold    ?? 0;
+      loaded.auctionBestWin  = loaded.auctionBestWin  ?? 0;
       // Always-apply defaults for new fields added in v14 (in case migration block is skipped)
       loaded.daysGoodStanding       = loaded.daysGoodStanding       ?? 0;
       loaded.hardBankruptcyOccurred = loaded.hardBankruptcyOccurred ?? false;
@@ -2142,6 +2193,7 @@ function loadState(slot) {
       for (const car of loaded.showroom || []) migrateCar(car);
       for (const d of loaded.deliveries || []) migrateCar(d.car);
       for (const o of loaded.usedMarketOffers || []) migrateCar(o);
+      for (const l of loaded.auctions.lots || []) migrateCar(l.car);
       for (const req of loaded.tradeInRequests || []) migrateCar(req.customerCar);
       for (const sold of loaded.salesHistory || []) migrateCar(sold);
       state = loaded;
@@ -4269,6 +4321,7 @@ function nextDay() {
   tickDaysInLot();
   // Generate new offers for the new day
   state.usedMarketOffers = generateUsedMarket();
+  processAuctions(true);      // close stale auction lots and bring new rare ones onto the floor
   const newTIR = generateTradeInRequests();
   state.tradeInRequests = [...state.tradeInRequests, ...newTIR];
   const newOffers = generateCustomerOffers();
@@ -5439,6 +5492,25 @@ function renderFactory() {
 // ============================================================
 function renderUsedMarket() {
   const el = document.getElementById('tab-usedmarket');
+  if (!el) return;
+  ensureAuctionState();
+  const lotCount = state.auctions.lots.length;
+  el.innerHTML = `
+    <div class="finance-subnav" role="tablist">
+      <button class="finance-subnav-btn ${usedMarketSubTab === 'catalog' ? 'active' : ''}" role="tab"
+        aria-selected="${usedMarketSubTab === 'catalog'}" onclick="switchUsedMarketSubTab('catalog')">${uiIcon('car')} Catalog</button>
+      <button class="finance-subnav-btn ${usedMarketSubTab === 'auctions' ? 'active' : ''}" role="tab"
+        aria-selected="${usedMarketSubTab === 'auctions'}" onclick="switchUsedMarketSubTab('auctions')">${uiIcon('gavel')} Auctions${lotCount ? ` <span class="subnav-count">${lotCount}</span>` : ''}</button>
+    </div>
+    <div id="usedmarket-subpanel"></div>`;
+  if (usedMarketSubTab === 'auctions') renderAuctionHouse();
+  else renderUsedCatalog();
+}
+
+/** Used Market → Catalog: the daily used-car listings. */
+function renderUsedCatalog() {
+  const el = document.getElementById('usedmarket-subpanel');
+  if (!el) return;
   const inspectCost = state.upgrades.inspectionTool ? 150 : 300;
   const garageFull  = state.garage.length >= state.garageSlots;
 
@@ -5609,6 +5681,818 @@ function renderUsedMarket() {
 }
 
 // ============================================================
+// AUCTION HOUSE — v1.15.0
+// A live, Car Mechanic Simulator-style auction hall on the Used Market's second page.
+//   • BUY: a rotating handful of extremely rare lots. Enter one, press Start, and outbid a
+//     room of AI paddles while the ring counts down. Every bid resets the clock.
+//   • SELL: consign any car from your Car Lot, set a reserve, and watch the room bid it up.
+// The game clock never moves during an auction — only the ring does.
+// ============================================================
+const AUCTION_HOUSE_NAME        = 'Kessler & Vale Auction House';
+const AUCTION_BUYER_PREMIUM     = 0.05;   // added to the winning bid when YOU buy
+const AUCTION_MEMBER_PREMIUM    = 0.03;   // Wholesale Auction Membership
+const AUCTION_SELLER_COMMISSION = 0.06;   // taken from the hammer price when YOU sell
+const AUCTION_MEMBER_COMMISSION = 0.04;   // Wholesale Auction Membership
+const AUCTION_TIMER_SECONDS     = 8;      // ring resets to this after every bid
+const AUCTION_OPENING_SECONDS   = 10;     // grace period for the room to open the bidding
+const AUCTION_RECONSIGN_DAYS    = 3;      // a no-sale car can't be re-consigned for this long
+const AUCTION_LOG_MAX           = 12;
+const AUCTION_STEPS = [50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000];
+const AUCTION_BOT_NAMES = [
+  'VelvetThrottle', 'ApexAlonso', 'Baron von Piston', 'TorqueTina', 'LeMansLarry', 'Sheikh Rashid',
+  'Dr. Halloran', 'Camille Roux', 'GarageGhost', 'HeirloomHank', 'Lord Ashbury', 'Nakamura Collection',
+  'SilverArrowSam', 'Ivana K.', 'Carbon & Co.', 'ChromeHarbor', 'MonacoMike', 'Vittoria R.',
+  'Ostrich Capital', 'DuskRider', 'PatinaPete', 'Grand Prix Gary', 'The Hartwell Trust', 'RedlineRosa',
+];
+const AUCTION_PROVENANCE = [
+  { id: 'oneOwner',  label: 'One Owner From New',   mult: 1.06, blurb: 'A single owner since delivery, with a complete service file.' },
+  { id: 'concours',  label: 'Concours Winner',      mult: 1.12, blurb: 'Best-in-class at major concours events. Judges have run white gloves over every panel.' },
+  { id: 'racing',    label: 'Race-Proven Chassis',  mult: 1.10, blurb: 'Documented competition history, complete with period photographs.' },
+  { id: 'celebrity', label: 'Celebrity Provenance', mult: 1.15, blurb: 'Formerly owned by a household name — the paperwork proves it.' },
+  { id: 'museum',    label: 'Museum Deaccession',   mult: 1.08, blurb: 'Sold from a private museum collection. Preserved, not driven.' },
+  { id: 'barnFind',  label: 'Barn Find',            mult: 0.96, blurb: 'Sat undisturbed for decades. Untouched, unrestored, and unpredictable.' },
+];
+
+let usedMarketSubTab = 'catalog';   // 'catalog' | 'auctions'
+let liveAuction = null;             // the auction currently on the floor, or null
+let _auctionPool = null;
+let _auctionRaf = 0;
+
+function switchUsedMarketSubTab(name) {
+  usedMarketSubTab = name;
+  renderUsedMarket();
+}
+
+// ── Fees, steps & small helpers ──────────────────────────────
+function auctionBuyerPremium()  { return state.upgrades.auctionAccess ? AUCTION_MEMBER_PREMIUM : AUCTION_BUYER_PREMIUM; }
+function auctionCommission()    { return state.upgrades.auctionAccess ? AUCTION_MEMBER_COMMISSION : AUCTION_SELLER_COMMISSION; }
+function auctionMaxLots()       { return 3 + (state.upgrades.auctionAccess ? 1 : 0); }
+function auctionListingFee(v)   { return clamp(Math.round(v * 0.005 / 50) * 50, 150, 25000); }
+function auctionInspectCost(car) {
+  const base = clamp(Math.round(car.marketValue * 0.004 / 50) * 50, 1500, 20000);
+  return state.upgrades.inspectionTool ? Math.round(base / 2) : base;
+}
+/** Picks the "nice" bid increment (1–2% of value) closest to the ideal on a log scale. */
+function auctionStepFor(value) {
+  const raw = Math.max(50, value * 0.018);
+  let best = AUCTION_STEPS[0], bestDist = Infinity;
+  for (const s of AUCTION_STEPS) {
+    const d = Math.abs(Math.log(s / raw));
+    if (d < bestDist) { bestDist = d; best = s; }
+  }
+  return best;
+}
+function auctionInterestLabel(n) { return n <= 2 ? 'Low' : n === 3 ? 'Moderate' : n === 4 ? 'High' : 'Frenzy'; }
+function auctionInterestClass(n) { return n <= 2 ? 'badge-gray' : n === 3 ? 'badge-blue' : n === 4 ? 'badge-orange' : 'badge-red'; }
+function auctionHash(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+  return h;
+}
+function ensureAuctionState() {
+  if (!state.auctions || !Array.isArray(state.auctions.lots)) state.auctions = { lots: [] };
+  if (!Array.isArray(state.auctionLog)) state.auctionLog = [];
+  state.auctionsWon    = state.auctionsWon    || 0;
+  state.auctionsSold   = state.auctionsSold   || 0;
+  state.auctionBestWin = state.auctionBestWin || 0;
+}
+function logAuctionResult(text, type = 'info') {
+  ensureAuctionState();
+  state.auctionLog.unshift({ day: state.day, text, type });
+  if (state.auctionLog.length > AUCTION_LOG_MAX) state.auctionLog.length = AUCTION_LOG_MAX;
+}
+
+// ── Lot generation ───────────────────────────────────────────
+/** Extremely rare only: seven-figure hypercars, coachbuilt one-offs, and retired icons. */
+function getAuctionPool() {
+  if (!_auctionPool) {
+    _auctionPool = CAR_CATALOG.filter(e => e.marketValue >= 500000 && (e.usedWeight ?? 1) <= 0.1);
+  }
+  return _auctionPool;
+}
+const auctionLotKey = lot => `${lot.car.make}|${lot.car.model}|${lot.car.trim}`;
+
+function pickAuctionEntry(excludeKeys) {
+  const pool = getAuctionPool().filter(e => !excludeKeys.includes(`${e.make}|${e.model}|${e.trim || ''}`));
+  const src = pool.length ? pool : getAuctionPool();
+  // Cheaper "rare" cars turn up more often than the eight-figure unicorns.
+  const weighted = src.map(e => ({ e, w: 1 / Math.sqrt(e.marketValue / 500000) }));
+  const total = weighted.reduce((s, it) => s + it.w, 0);
+  let roll = Math.random() * total;
+  for (const it of weighted) { roll -= it.w; if (roll <= 0) return it.e; }
+  return randomFrom(src);
+}
+
+function generateAuctionLot(excludeKeys = []) {
+  const entry = pickAuctionEntry(excludeKeys);
+  let car = null;
+  for (let i = 0; i < 8; i++) {
+    car = buildCar(entry, pickCondition([0.28, 0.42, 0.22, 0.08]), 'used', false);
+    if (car.titleStatus === 'clean') break;
+  }
+  // The house vets every consignment: clean title, verified VIN, no stolen stock.
+  car.titleStatus = 'clean';
+  car.legalStatus = 'clean';   car.legalDiscovered = true;
+  car.vinStatus   = 'normal';  car.vinDiscovered   = true;
+  car.source      = 'auction';
+  if (Math.random() >= 0.45) {
+    const prov = randomFrom(AUCTION_PROVENANCE);
+    car.marketValue = Math.round(car.marketValue * prov.mult);
+    car.provenance  = { id: prov.id, label: prov.label, blurb: prov.blurb };
+  }
+  // The catalogue estimate is honest, but fuzzy — an inspection pins the real number down.
+  const estimate = Math.round(car.marketValue * randomFloat(0.90, 1.10));
+  const step     = auctionStepFor(estimate);
+  const startPrice = Math.max(step, Math.round(estimate * randomFloat(0.24, 0.38) / step) * step);
+  const r = Math.random();
+  const botCount = r < 0.15 ? 2 : r < 0.45 ? 3 : r < 0.75 ? 4 : r < 0.92 ? 5 : 6;
+  return {
+    id: generateId(), car, estimate, appraised: false, step, startPrice, botCount,
+    postedDay: state.day, expiresDay: state.day + randomInt(3, 6), started: false,
+  };
+}
+
+/** Daily rotation: closes stale lots and tops the floor back up. */
+function processAuctions(announce = false) {
+  ensureAuctionState();
+  const lots = state.auctions.lots;
+  if (announce) {
+    for (const l of lots) {
+      if (!l.started && l.expiresDay < state.day) {
+        addNote(`🔨 Auction lot closed: ${formatCarDisplayName(l.car)} sold to another bidder.`, 'info');
+      }
+    }
+  }
+  state.auctions.lots = lots.filter(l => l.expiresDay >= state.day && !l.started);
+  const live = state.auctions.lots;
+  const maxLots = auctionMaxLots();
+  const keys = live.map(auctionLotKey);
+  while (live.length < 2 || (live.length < maxLots && Math.random() < 0.30)) {
+    const lot = generateAuctionLot(keys);
+    live.push(lot);
+    keys.push(auctionLotKey(lot));
+    if (announce) {
+      addNote(`🔨 New at ${AUCTION_HOUSE_NAME}: ${formatCarDisplayName(lot.car)} (est. ${formatCurrency(lot.estimate)}).`, 'info');
+    }
+  }
+}
+
+function inspectAuctionLot(lotId) {
+  ensureAuctionState();
+  const lot = state.auctions.lots.find(l => l.id === lotId);
+  if (!lot || lot.car.inspected) return;
+  const cost = auctionInspectCost(lot.car);
+  if (state.cash < cost) { showToast(`A pre-sale inspection costs ${formatCurrency(cost)} — not enough cash!`, 'error'); return; }
+  state.cash -= cost;
+  const car = lot.car;
+  car.inspected  = true;
+  car.repairCost = car.hiddenIssues.reduce((s, i) => s + i.cost, 0);
+  if (state.upgrades.frameDamageTools || car.hiddenIssues.some(i => i.isCrashDamage)) car.crashDamageDiscovered = true;
+  lot.estimate  = car.marketValue;   // the appraiser nails the real number
+  lot.appraised = true;
+  const issueCount = car.hiddenIssues.filter(i => !i.isCrashDamage).length;
+  addNote(`🔍 Pre-sale inspection of ${formatCarDisplayName(car)}: ${issueCount} mechanical issue(s), repair cost ${formatCurrency(car.repairCost)}. Appraised at ${formatCurrency(car.marketValue)}.`, 'info');
+  playSfx('cash');
+  saveState();
+  renderAll();
+}
+
+// ── Auction House page (Used Market → Auctions) ─────────────
+function renderAuctionHouse() {
+  const el = document.getElementById('usedmarket-subpanel');
+  if (!el) return;
+  ensureAuctionState();
+  if (state.auctions.lots.length < 2) processAuctions();
+  const lots      = state.auctions.lots;
+  const prem      = auctionBuyerPremium();
+  const comm      = auctionCommission();
+  const lotFull   = state.garage.length + state.deliveries.length >= state.garageSlots;
+
+  const lotCards = lots.map(lot => {
+    const car = lot.car;
+    const daysLeft = Math.max(0, lot.expiresDay - state.day);
+    const inspectCost = auctionInspectCost(car);
+    const issuesHtml = car.inspected
+      ? (car.hiddenIssues.length === 0
+          ? `<p class="text-green" style="font-size:.82rem">${uiIcon('check')} No hidden issues found!</p>`
+          : car.hiddenIssues.map(i => {
+              const crashClass = i.isCrashDamage ? (i.severity === 'severe' ? 'crash-severe' : i.severity === 'moderate' ? 'crash-moderate' : 'crash-minor') : '';
+              return `<span class="issue-tag ${crashClass}">${uiIcon('warning')} ${i.name} (${formatCurrency(i.cost)})</span>`;
+            }).join(''))
+      : `<p class="text-muted" style="font-size:.82rem">${uiIcon('search')} Unknown — inspect before the hammer falls</p>`;
+    return `
+      <div class="car-card auction-lot-card" data-lot-id="${lot.id}">
+        <div class="car-card-header">
+          <div><span class="car-name">${formatCarDisplayName(car)}</span></div>
+          <div class="badge-stack">
+            ${condBadge(car.condition)}
+            ${car.discontinued ? `<span class="badge badge-purple" title="Out of production — built ${car.productionStart}–${car.productionEnd}">🏛️ Discontinued</span>` : ''}
+            ${car.provenance ? `<span class="badge badge-yellow" title="${car.provenance.blurb}">★ ${car.provenance.label}</span>` : ''}
+            <span class="badge ${auctionInterestClass(lot.botCount)}" title="How many serious paddles are expected in the room">${uiIcon('person')} ${auctionInterestLabel(lot.botCount)} interest</span>
+          </div>
+        </div>
+        ${car.provenance ? `<p class="au-provenance">${car.provenance.blurb}</p>` : ''}
+        <div class="car-details">
+          <div class="detail-row"><span>Mileage</span><span>${car.mileage.toLocaleString()} mi</span></div>
+          <div class="detail-row"><span>${lot.appraised ? 'Appraised value' : 'Estimated value'}</span><span class="au-est-text">${formatCurrency(lot.estimate)}</span></div>
+          <div class="detail-row"><span>Opening bid</span><span class="text-blue">${formatCurrency(lot.startPrice)}</span></div>
+          <div class="detail-row"><span>Bid increment</span><span>${formatCurrency(lot.step)}</span></div>
+          <div class="detail-row"><span>Buyer's premium</span><span>${(prem * 100).toFixed(0)}%</span></div>
+          <div class="detail-row"><span>Lot closes</span><span class="${daysLeft <= 1 ? 'text-red' : ''}">${daysLeft === 0 ? 'Today' : `in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}`}</span></div>
+          ${car.inspected ? `<div class="detail-row"><span>Repair cost</span><span class="text-red">${formatCurrency(car.repairCost)}</span></div>` : ''}
+        </div>
+        <div class="issues-section">${issuesHtml}</div>
+        ${lotFull ? `<p class="text-muted" style="font-size:.78rem">${uiIcon('warning')} Your Car Lot is full — free a slot before you can bid.</p>` : ''}
+        <div class="car-actions">
+          ${!car.inspected ? `<button class="btn btn-secondary" onclick="inspectAuctionLot('${lot.id}')" ${state.cash >= inspectCost ? '' : 'disabled'}>${uiIcon('search')} Inspect (${formatCurrency(inspectCost)})</button>` : ''}
+          <button class="btn btn-primary" onclick="openAuctionLot('${lot.id}')">${uiIcon('gavel')} Enter Auction</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  const consignCards = state.garage.map(car => {
+    const leased   = car.leaseStatus === 'active' && !!car.activeLease;
+    const cooldown = (car.auctionCooldownUntil || 0) > state.day ? car.auctionCooldownUntil - state.day : 0;
+    const blocked  = car.inServiceUntilDay ? 'In service' : leased ? 'Leased out' : cooldown ? `Re-consign in ${cooldown}d` : null;
+    return `
+      <div class="car-card consign-card">
+        <div class="car-card-header">
+          <div><span class="car-name">${formatCarDisplayName(car)}</span></div>
+          <div class="badge-stack">${condBadge(car.condition)}${car.isForSale ? '<span class="badge badge-blue">Listed</span>' : ''}${car.provenance ? '<span class="badge badge-yellow">★ ' + car.provenance.label + '</span>' : ''}</div>
+        </div>
+        <div class="car-details">
+          <div class="detail-row"><span>Market value</span><span class="text-green">${formatCurrency(car.marketValue)}</span></div>
+          <div class="detail-row"><span>Paid</span><span>${formatCurrency(car.purchasePrice)}</span></div>
+        </div>
+        <button class="btn btn-secondary btn-full" onclick="openConsignAuction('${car.id}')" ${blocked ? 'disabled' : ''}>
+          ${uiIcon('gavel')} ${blocked || 'Consign to Auction'}
+        </button>
+      </div>`;
+  }).join('');
+
+  const logRows = state.auctionLog.length
+    ? state.auctionLog.map(l => `<div class="au-history-row"><span class="text-muted">Day ${l.day}</span><span class="${l.type === 'success' ? 'text-green' : l.type === 'warning' ? 'text-yellow' : ''}">${l.text}</span></div>`).join('')
+    : `<p class="text-muted" style="font-size:.85rem">No auctions yet. The first gavel is waiting.</p>`;
+
+  el.innerHTML = `
+    <div class="tab-info">
+      ${uiIcon('gavel')} <strong>${AUCTION_HOUSE_NAME}</strong> — ${lots.length} extremely rare lot${lots.length !== 1 ? 's' : ''} up for bid. Lots rotate every few days.
+      Buyer's premium <strong>${(prem * 100).toFixed(0)}%</strong> · Seller's commission <strong>${(comm * 100).toFixed(0)}%</strong> ·
+      Car Lot: ${state.garage.length}/${state.garageSlots} slots.
+      ${state.upgrades.auctionAccess ? `<br>${uiIcon('tag')} Wholesale Auction Membership active — reduced house fees and an extra lot on the floor.` : ''}
+    </div>
+    <h3 class="au-section-title">${uiIcon('star')} Featured Lots</h3>
+    <div class="card-grid">${lotCards}</div>
+    <h3 class="au-section-title">${uiIcon('tag')} Consign Your Cars</h3>
+    <p class="text-muted au-section-sub">Put any car from your Car Lot in front of the room. Set a reserve, pay the listing fee, and watch the bids climb — if the hammer falls under your reserve, the car comes home unsold.</p>
+    ${state.garage.length ? `<div class="card-grid">${consignCards}</div>` : `<div class="empty-state"><p>Your Car Lot is empty — nothing to consign yet.</p></div>`}
+    <h3 class="au-section-title">${uiIcon('clipboard')} Recent Auction Activity</h3>
+    <div class="au-history">${logRows}</div>`;
+}
+
+// ── Live auction engine ──────────────────────────────────────
+const auctionMinNext = a => (a.bids.length ? a.current + a.step : a.startPrice);
+const auctionPlayerBid = a => (a.bids.length ? a.current + a.step * a.mult : a.startPrice + a.step * (a.mult - 1));
+
+function openAuctionLot(lotId) {
+  if (liveAuction) return;
+  ensureAuctionState();
+  const lot = state.auctions.lots.find(l => l.id === lotId);
+  if (!lot) return;
+  liveAuction = {
+    mode: 'buy', stage: 'ready', lotId: lot.id, car: lot.car,
+    estimate: lot.estimate, appraised: !!lot.appraised,
+    step: lot.step, startPrice: lot.startPrice, botCount: lot.botCount,
+    mult: 1, bids: [], current: 0, leader: null, bots: [],
+    timeLeft: 0, timerMax: AUCTION_TIMER_SECONDS, clock: 0, lastTs: 0, flashUntil: 0,
+    reserve: 0, result: null,
+  };
+  mountAuctionOverlay();
+}
+
+function openConsignAuction(carId) {
+  if (liveAuction) return;
+  const car = state.garage.find(c => c.id === carId);
+  if (!car) return;
+  if (car.inServiceUntilDay) { showToast('That car is in service — wait until it is finished.', 'error'); return; }
+  if (car.leaseStatus === 'active' && car.activeLease) { showToast('Leased cars cannot be auctioned.', 'error'); return; }
+  if ((car.auctionCooldownUntil || 0) > state.day) { showToast(`The house won't re-list this car for ${car.auctionCooldownUntil - state.day} more day(s).`, 'error'); return; }
+  const value = Math.max(1000, car.marketValue);
+  const step  = auctionStepFor(value);
+  // Interest is deterministic per car per day so closing and reopening can't re-roll the room.
+  const botCount = clamp(
+    2 + (value >= 50000 ? 1 : 0) + (value >= 250000 ? 1 : 0) + (state.reputation >= 1.3 ? 1 : 0)
+      + (car.discontinued ? 1 : 0) + (auctionHash(car.id + ':' + state.day) % 2), 2, 6);
+  liveAuction = {
+    mode: 'sell', stage: 'ready', carId: car.id, car,
+    estimate: value, appraised: true,
+    step, startPrice: Math.max(step, Math.round(value * 0.30 / step) * step), botCount,
+    mult: 1, bids: [], current: 0, leader: null, bots: [],
+    timeLeft: 0, timerMax: AUCTION_TIMER_SECONDS, clock: 0, lastTs: 0, flashUntil: 0,
+    reserve: Math.max(step, Math.round(value * 0.90 / step) * step), result: null,
+  };
+  mountAuctionOverlay();
+}
+
+function makeAuctionBots(a, trueValue) {
+  const names = [...AUCTION_BOT_NAMES].sort(() => Math.random() - 0.5).slice(0, a.botCount);
+  const hype  = { 2: -0.06, 3: -0.02, 4: 0, 5: 0.03, 6: 0.06 }[a.botCount] ?? 0;
+  const rarityBoost = a.mode === 'sell'
+    ? (a.car.discontinued ? 0.05 : 0) + (trueValue >= 1000000 ? 0.05 : 0)
+      + (state.reputation - 1) * 0.05 + (state.upgrades.luxuryLounge && trueValue >= 90000 ? 0.03 : 0)
+    : hype;
+  return names.map((name, i) => {
+    const avg = (Math.random() + Math.random()) / 2;              // bell-ish curve
+    const max = Math.round(trueValue * (0.68 + 0.56 * avg + rarityBoost));
+    return { id: 'bot' + i, name, max, eager: randomFloat(0.8, 1.5), nextAt: null };
+  });
+}
+
+function startAuction() {
+  const a = liveAuction;
+  if (!a || a.stage !== 'ready') return;
+  if (a.mode === 'buy') {
+    const lot = state.auctions.lots.find(l => l.id === a.lotId);
+    if (!lot) { closeAuction(); return; }
+    if (state.garage.length + state.deliveries.length >= state.garageSlots) { showToast('No free Car Lot space — make room before you bid.', 'error'); playSfx('denied'); return; }
+    if (state.cash < Math.ceil(a.startPrice * (1 + auctionBuyerPremium()))) { showToast("You can't cover even the opening bid.", 'error'); playSfx('denied'); return; }
+    lot.started = true;                           // walking out (or refreshing) forfeits the lot
+    a.bots = makeAuctionBots(a, lot.car.marketValue);
+  } else {
+    const input = document.getElementById('au-reserve');
+    const reserve = Math.round(parseFloat(input?.value));
+    if (!reserve || reserve <= 0) { showToast('Enter a reserve price.', 'error'); return; }
+    const fee = auctionListingFee(a.car.marketValue);
+    if (state.cash < fee) { showToast(`The listing fee is ${formatCurrency(fee)} — not enough cash.`, 'error'); playSfx('denied'); return; }
+    a.reserve = reserve;
+    a.listingFee = fee;
+    state.cash -= fee;
+    a.car.auctionCooldownUntil = state.day + AUCTION_RECONSIGN_DAYS;
+    a.bots = makeAuctionBots(a, a.car.marketValue);
+  }
+  saveState();
+  renderStats();
+  a.stage = 'live';
+  a.timeLeft = AUCTION_OPENING_SECONDS;
+  a.clock = 0;
+  a.lastTs = performance.now();
+  // Somebody in the room always opens the bidding.
+  const openers = a.bots.filter(b => b.max >= a.startPrice);
+  const opener = openers.length ? randomFrom(openers) : a.bots.reduce((m, b) => (b.max > m.max ? b : m), a.bots[0]);
+  if (opener.max < a.startPrice) opener.max = Math.round(a.startPrice * 1.15);
+  opener.nextAt = randomFloat(0.9, 2.2);
+  playSfx('start');
+  renderAuctionOverlay();
+  _auctionRaf = requestAnimationFrame(auctionLoop);
+}
+
+function auctionLoop(ts) {
+  const a = liveAuction;
+  if (!a || a.stage !== 'live') return;
+  const dt = Math.min(0.25, Math.max(0, (ts - a.lastTs) / 1000));
+  a.lastTs = ts;
+  a.clock += dt;
+  a.timeLeft -= dt;
+  auctionBotTick(a);
+  if (a.flashUntil && a.clock > a.flashUntil) a.flashUntil = 0;
+  if (a.timeLeft <= 0) { finishAuction(a); return; }
+  updateAuctionHud();
+  _auctionRaf = requestAnimationFrame(auctionLoop);
+}
+
+function auctionBotTick(a) {
+  let due = null;
+  for (const b of a.bots) {
+    if (b.nextAt !== null && b.nextAt <= a.clock && b.id !== a.leader && (!due || b.nextAt < due.nextAt)) due = b;
+  }
+  if (!due) return;
+  const next = auctionMinNext(a);
+  if (due.max < next) { due.nextAt = null; return; }
+  // Bidders with plenty of headroom take bigger bites, which keeps long auctions moving.
+  const headroom = (due.max - next) / a.step;
+  const jumps = headroom > 20 ? randomInt(1, 3) : headroom > 8 ? randomInt(1, 2) : (Math.random() < 0.2 && headroom >= 1 ? 2 : 1);
+  const amount = Math.min(due.max, next + a.step * (jumps - 1));
+  placeAuctionBid(a, due.id, due.name, Math.max(next, amount));
+}
+
+function placeAuctionBid(a, id, name, amount) {
+  const prevLeader = a.leader;
+  a.current = amount;
+  a.leader  = id;
+  a.bids.push({ id, name, amount });
+  a.timeLeft = a.timerMax;
+  a._logDirty = true;
+  if (id === 'player') {
+    a.flashUntil = a.clock + 1.2;
+    playSfx('tap');
+  } else if (prevLeader === 'player') {
+    playSfx('warning');
+  } else {
+    playSfx('click');
+  }
+  // Everyone still in the running reconsiders.
+  const next = auctionMinNext(a);
+  const speed = a.mode === 'sell' ? 0.8 : 1;
+  for (const b of a.bots) {
+    if (b.id === id || b.max < next || Math.random() < 0.10) { b.nextAt = null; continue; }
+    const d = randomFloat(0.6, Math.min(3.6, a.timerMax * 0.5)) / b.eager * speed;
+    b.nextAt = a.clock + clamp(d, 0.45, a.timerMax * 0.8);
+  }
+}
+
+function auctionPlayerBidClick() {
+  const a = liveAuction;
+  if (!a || a.stage !== 'live') return;
+  if (a.mode === 'sell') { auctionHammerNow(); return; }
+  if (a.leader === 'player') return;
+  const amount = auctionPlayerBid(a);
+  if (amount * (1 + auctionBuyerPremium()) > state.cash) { showToast('You cannot afford that bid.', 'error'); playSfx('denied'); return; }
+  placeAuctionBid(a, 'player', 'You', amount);
+  updateAuctionHud();
+}
+
+function auctionSetMult(delta) {
+  const a = liveAuction;
+  if (!a) return;
+  const opts = [1, 2, 5, 10];
+  const idx = clamp(opts.indexOf(a.mult) + delta, 0, opts.length - 1);
+  a.mult = opts[idx];
+  playSfx('toggle');
+  updateAuctionHud();
+}
+
+/** Seller ends the auction early on the current high bid (only once the reserve is met). */
+function auctionHammerNow() {
+  const a = liveAuction;
+  if (!a || a.stage !== 'live' || a.mode !== 'sell') return;
+  if (!a.bids.length || a.current < a.reserve) return;
+  finishAuction(a);
+}
+
+function finishAuction(a) {
+  cancelAnimationFrame(_auctionRaf);
+  a.stage = 'ended';
+  if (a.mode === 'buy') resolveAuctionBuy(a); else resolveAuctionSell(a);
+  runAchievementChecks();
+  saveState();
+  renderAuctionOverlay();
+}
+
+function resolveAuctionBuy(a) {
+  const lotIdx = state.auctions.lots.findIndex(l => l.id === a.lotId);
+  const lot = lotIdx >= 0 ? state.auctions.lots[lotIdx] : null;
+  if (lotIdx >= 0) state.auctions.lots.splice(lotIdx, 1);
+  const label = formatCarDisplayName(a.car);
+  const top = a.bids[a.bids.length - 1];
+  if (a.leader === 'player' && lot) {
+    const hammer  = a.current;
+    const premium = Math.round(hammer * auctionBuyerPremium());
+    const total   = hammer + premium;
+    state.cash -= total;
+    const car = lot.car;
+    car.purchasePrice = total;
+    car.auctionHammer = hammer;
+    car.source        = 'auction';
+    car.daysInLot     = 0;
+    state.garage.push(car);
+    state.auctionsWon    = (state.auctionsWon || 0) + 1;
+    state.auctionBestWin = Math.max(state.auctionBestWin || 0, hammer);
+    addNote(`🔨 Won at auction: ${label} for ${formatCurrency(hammer)} (+${formatCurrency(premium)} buyer's premium).`, 'success');
+    logAuctionResult(`Won the ${label} for ${formatCurrency(hammer)}.`, 'success');
+    a.result = {
+      outcome: 'won', title: 'SOLD — to you!',
+      lines: [
+        ['Winning bid', formatCurrency(hammer)],
+        [`Buyer's premium (${(auctionBuyerPremium() * 100).toFixed(0)}%)`, formatCurrency(premium)],
+        ['Total paid', formatCurrency(total)],
+        ['Appraised value', formatCurrency(car.marketValue)],
+      ],
+      note: `The ${label} is now parked on your Car Lot.`,
+    };
+    playSfx('purchase');
+  } else {
+    const winner = top ? top.name : 'another bidder';
+    addNote(`🔨 Outbid: ${label} went to ${winner} for ${formatCurrency(a.current)}.`, 'warning');
+    logAuctionResult(`Lost the ${label} to ${winner} at ${formatCurrency(a.current)}.`, 'warning');
+    a.result = {
+      outcome: 'lost', title: 'SOLD — to ' + winner,
+      lines: [['Final hammer price', formatCurrency(a.current)], ['Your last bid', formatCurrency(Math.max(0, ...a.bids.filter(b => b.id === 'player').map(b => b.amount)))]],
+      note: 'The lot has left the floor. Better luck with the next one.',
+    };
+    playSfx('denied');
+  }
+}
+
+function resolveAuctionSell(a) {
+  const car = state.garage.find(c => c.id === a.carId);
+  const label = formatCarDisplayName(a.car);
+  const met = a.bids.length && a.current >= a.reserve;
+  if (!car) {   // car vanished mid-auction (e.g. impounded) — nothing to settle
+    a.result = { outcome: 'nosale', title: 'NO SALE', lines: [], note: 'The car is no longer on your lot.' };
+    return;
+  }
+  if (met) {
+    const winner     = a.bids[a.bids.length - 1];
+    const hammer     = a.current;
+    const commission = Math.round(hammer * auctionCommission());
+    const net        = hammer - commission;
+    const profit     = net - a.listingFee - car.purchasePrice;
+    state.cash += net;
+    state.reputation = profit > 0 ? Math.min(state.reputation + 0.02, 2.0) : Math.max(state.reputation - 0.01, 0.1);
+    recordSaleStats(car, profit);
+    const legalRisk = (car.legalStatus || 'clean') !== 'clean' || (car.vinStatus || 'normal') === 'scratched';
+    if (legalRisk) checkPoliceEvent(car, false);
+    state.salesHistory.unshift({
+      ...car, soldDay: state.day, salePrice: hammer, fee: commission + a.listingFee, profit,
+      dealerFees: { doc: 0, title: 0, reg: 0, total: 0 },
+      buyerName: winner.name, agreementNo: generateId().toUpperCase(), soldAtAuction: true,
+    });
+    state.garage          = state.garage.filter(c => c.id !== car.id);
+    state.customerOffers  = state.customerOffers.filter(o => o.carId !== car.id);
+    state.tradeInRequests = state.tradeInRequests.filter(r => r.targetCarId !== car.id);
+    state.auctionsSold = (state.auctionsSold || 0) + 1;
+    addNote(`🔨 Sold at auction: ${label} to ${winner.name} for ${formatCurrency(hammer)}. Profit: ${profit >= 0 ? '+' : ''}${formatCurrency(profit)}.`, profit >= 0 ? 'success' : 'warning');
+    logAuctionResult(`Sold the ${label} to ${winner.name} for ${formatCurrency(hammer)}.`, profit >= 0 ? 'success' : 'warning');
+    a.result = {
+      outcome: 'sold', title: 'SOLD — ' + winner.name,
+      lines: [
+        ['Hammer price', formatCurrency(hammer)],
+        [`Commission (${(auctionCommission() * 100).toFixed(0)}%)`, '−' + formatCurrency(commission)],
+        ['Listing fee (paid up front)', '−' + formatCurrency(a.listingFee)],
+        ['Paid for the car', '−' + formatCurrency(car.purchasePrice)],
+        ['Net profit', (profit >= 0 ? '+' : '−') + formatCurrency(Math.abs(profit))],
+      ],
+      profit,
+      note: 'Proceeds have been added to your cash.',
+    };
+    playSfx('cash');
+  } else {
+    const best = a.bids.length ? formatCurrency(a.current) : 'no bids';
+    addNote(`🔨 No sale: ${label} failed to meet its ${formatCurrency(a.reserve)} reserve (high bid: ${best}).`, 'warning');
+    logAuctionResult(`${label} failed to meet its reserve (${best}).`, 'warning');
+    a.result = {
+      outcome: 'nosale', title: 'RESERVE NOT MET',
+      lines: [['Your reserve', formatCurrency(a.reserve)], ['High bid', best], ['Listing fee (non-refundable)', formatCurrency(a.listingFee)]],
+      note: `The car comes home. The house won't re-list it for ${AUCTION_RECONSIGN_DAYS} days.`,
+    };
+    playSfx('denied');
+  }
+}
+
+// ── Live auction overlay (CMS-style HUD) ─────────────────────
+function mountAuctionOverlay() {
+  let ov = document.getElementById('auction-overlay');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'auction-overlay';
+    ov.className = 'auction-overlay';
+    ov.setAttribute('role', 'dialog');
+    ov.setAttribute('aria-modal', 'true');
+    ov.setAttribute('aria-label', AUCTION_HOUSE_NAME);
+    document.body.appendChild(ov);
+  }
+  document.addEventListener('keydown', auctionKeyHandler, true);
+  playSfx('modalOpen');
+  renderAuctionOverlay();
+}
+
+function auctionKeyHandler(e) {
+  const a = liveAuction;
+  if (!a) return;
+  const tag = document.activeElement?.tagName?.toLowerCase();
+  if (e.key === 'Escape' && a.stage !== 'live') { e.preventDefault(); closeAuction(); return; }
+  if (tag === 'input') return;
+  if ((e.key === ' ' || e.key === 'Enter') && a.stage === 'live') {
+    e.preventDefault(); e.stopPropagation();
+    auctionPlayerBidClick();
+  } else if ((e.key === ' ' || e.key === 'Enter') && a.stage === 'ready' && tag !== 'button') {
+    e.preventDefault(); e.stopPropagation();
+    startAuction();
+  }
+}
+
+function closeAuction() {
+  const a = liveAuction;
+  if (a && a.stage === 'live') return;   // no walking out mid-auction
+  cancelAnimationFrame(_auctionRaf);
+  liveAuction = null;
+  document.removeEventListener('keydown', auctionKeyHandler, true);
+  document.getElementById('auction-overlay')?.remove();
+  playSfx('modalClose');
+  saveState();
+  renderAll();
+}
+
+function auctionLeftPanelHtml(a) {
+  const car = a.car;
+  const sell = a.mode === 'sell';
+  const issues = car.inspected
+    ? (car.hiddenIssues.length ? car.hiddenIssues.map(i => `<span class="issue-tag">${uiIcon('warning')} ${i.name}</span>`).join('') : `<span class="text-green">${uiIcon('check')} No hidden issues</span>`)
+    : `<span class="text-muted">${uiIcon('search')} Not inspected</span>`;
+  return `
+    <div class="au-lot-panel">
+      <div class="au-lot-kicker">${sell ? 'YOUR CONSIGNMENT' : 'LOT'}</div>
+      <h2 class="au-lot-name">${formatCarDisplayName(car)}</h2>
+      <div class="au-lot-badges">
+        ${condBadge(car.condition)}
+        ${car.discontinued ? '<span class="badge badge-purple">🏛️ Discontinued</span>' : ''}
+        ${car.provenance ? `<span class="badge badge-yellow">★ ${car.provenance.label}</span>` : ''}
+        <span class="badge ${auctionInterestClass(a.botCount)}">${uiIcon('person')} ${auctionInterestLabel(a.botCount)} interest</span>
+      </div>
+      ${car.provenance ? `<p class="au-provenance">${car.provenance.blurb}</p>` : ''}
+      <div class="car-details">
+        <div class="detail-row"><span>Category</span><span>${car.category}</span></div>
+        <div class="detail-row"><span>Mileage</span><span>${car.mileage.toLocaleString()} mi</span></div>
+        <div class="detail-row"><span>Condition</span><span>${CONDITION_NAMES[car.condition] || car.condition}</span></div>
+        <div class="detail-row"><span>Title</span><span>Clean · verified by the house</span></div>
+        ${sell ? `<div class="detail-row"><span>You paid</span><span>${formatCurrency(car.purchasePrice)}</span></div>` : ''}
+        <div class="detail-row"><span>Opening bid</span><span>${formatCurrency(a.startPrice)}</span></div>
+        <div class="detail-row"><span>Bid increment</span><span>${formatCurrency(a.step)}</span></div>
+        ${sell
+          ? `<div class="detail-row"><span>Seller's commission</span><span>${(auctionCommission() * 100).toFixed(0)}%</span></div>
+             <div class="detail-row"><span>Listing fee</span><span>${formatCurrency(auctionListingFee(car.marketValue))}</span></div>`
+          : `<div class="detail-row"><span>Buyer's premium</span><span>${(auctionBuyerPremium() * 100).toFixed(0)}%</span></div>
+             ${car.inspected ? `<div class="detail-row"><span>Repair cost</span><span class="text-red">${formatCurrency(car.repairCost)}</span></div>` : ''}`}
+      </div>
+      ${sell ? '' : `<div class="issues-section">${issues}</div>`}
+    </div>`;
+}
+
+function auctionConsoleHtml(a) {
+  const sell = a.mode === 'sell';
+  const ready = a.stage === 'ready';
+  const prem  = auctionBuyerPremium();
+  let controls;
+  if (sell) {
+    controls = ready ? `
+      <div class="au-reserve-box">
+        <label for="au-reserve">Reserve price</label>
+        <input type="number" id="au-reserve" class="price-input" min="1" step="${a.step}" value="${a.reserve}">
+        <div class="au-reserve-quick">
+          <button type="button" onclick="auctionSetReserve(0.8)">80%</button>
+          <button type="button" onclick="auctionSetReserve(0.9)">90%</button>
+          <button type="button" onclick="auctionSetReserve(1)">100%</button>
+          <button type="button" onclick="auctionSetReserve(1.15)">115%</button>
+        </div>
+      </div>` : `
+      <div class="au-bidwrap">
+        <button class="au-bidbox au-hammer" id="au-bid" onclick="auctionPlayerBidClick()">
+          <small id="au-bid-label">HAMMER</small><b id="au-bid-amt">—</b>
+        </button>
+      </div>`;
+  } else {
+    controls = `
+      <div class="au-bidwrap">
+        <button class="au-step-btn" id="au-minus" onclick="auctionSetMult(-1)" aria-label="Smaller bid step">−</button>
+        <button class="au-bidbox" id="au-bid" onclick="auctionPlayerBidClick()" ${ready ? 'disabled' : ''}>
+          <small>BID</small><b id="au-bid-amt">${formatCurrency(a.step * a.mult).replace('$', '<span class="au-cur">$</span>')}</b>
+        </button>
+        <button class="au-step-btn" id="au-plus" onclick="auctionSetMult(1)" aria-label="Bigger bid step">+</button>
+      </div>
+      <div class="au-bid-hint" id="au-bid-hint">${ready ? `Buyer's premium ${(prem * 100).toFixed(0)}% is added to the winning bid` : ''}</div>`;
+  }
+  return `
+    <div class="au-console">
+      <div class="au-ring-wrap">
+        <svg class="au-ring" viewBox="0 0 220 220" aria-hidden="true">
+          <circle class="au-ring-bg" cx="110" cy="110" r="96"/>
+          <circle class="au-arc" id="au-arc" cx="110" cy="110" r="96" transform="rotate(-90 110 110)"/>
+        </svg>
+        <button class="au-center" id="au-center" ${ready ? `onclick="startAuction()"` : 'tabindex="-1"'}>
+          ${ready ? '<span class="au-start">Start</span>' : ''}
+        </button>
+      </div>
+      ${controls}
+      <div class="au-estimate">${a.appraised && !sell ? 'Appraised' : 'Estimated'} value <span class="au-cur">$</span>${Math.round(a.estimate).toLocaleString()}</div>
+      <div class="au-log" id="au-log"></div>
+    </div>`;
+}
+
+function auctionSetReserve(frac) {
+  const a = liveAuction;
+  if (!a || a.mode !== 'sell') return;
+  const input = document.getElementById('au-reserve');
+  if (input) input.value = Math.max(a.step, Math.round(a.estimate * frac / a.step) * a.step);
+}
+
+function renderAuctionOverlay() {
+  const a = liveAuction;
+  const ov = document.getElementById('auction-overlay');
+  if (!a || !ov) return;
+  const ended = a.stage === 'ended';
+  const res = a.result;
+  ov.innerHTML = `
+    <div class="au-shell">
+      <div class="au-topbar">
+        <div class="au-house">${uiIcon('gavel')} ${AUCTION_HOUSE_NAME}</div>
+        ${a.stage === 'live' ? '<div class="au-live-pill">● LIVE</div>' : `<button class="au-close" onclick="closeAuction()" aria-label="Leave the auction">${uiIcon('xIcon')} ${ended ? 'Close' : 'Leave'}</button>`}
+      </div>
+      <div class="au-body">
+        ${auctionLeftPanelHtml(a)}
+        ${auctionConsoleHtml(a)}
+      </div>
+      ${ended && res ? `
+        <div class="au-result au-result-${res.outcome}">
+          <div class="au-result-title">${res.title}</div>
+          ${res.lines.map(([k, v]) => `<div class="au-result-row"><span>${k}</span><b>${v}</b></div>`).join('')}
+          <p class="au-result-note">${res.note}</p>
+          <button class="btn btn-primary" onclick="closeAuction()">Continue</button>
+        </div>` : ''}
+    </div>`;
+  a._logDirty = true;
+  updateAuctionHud();
+}
+
+function updateAuctionHud() {
+  const a = liveAuction;
+  if (!a) return;
+  const center = document.getElementById('au-center');
+  const arc = document.getElementById('au-arc');
+  if (!center || !arc) return;
+  const sell = a.mode === 'sell';
+  const fmt = n => `<span class="au-cur">$</span>${Math.round(n).toLocaleString()}`;
+  const C = 2 * Math.PI * 96;
+  let frac = 0, tone = 'neutral', html = '';
+
+  if (a.stage === 'ready') {
+    // Start button is rendered by the template; just show the welcome line in the log.
+    arc.style.strokeDasharray = `0 ${C}`;
+    const logEl0 = document.getElementById('au-log');
+    if (logEl0 && a._logDirty) {
+      a._logDirty = false;
+      logEl0.innerHTML = `<div class="au-log-welcome">Welcome to ${AUCTION_HOUSE_NAME}</div>`;
+    }
+    return;
+  }
+  const leaderName = a.leader === 'player' ? 'You' : (a.bids.length ? a.bids[a.bids.length - 1].name : '');
+  if (a.stage === 'live') {
+    frac = clamp(a.timeLeft / (a.bids.length ? a.timerMax : AUCTION_OPENING_SECONDS), 0, 1);
+    if (!a.bids.length) {
+      html = `<div class="au-c-name">Bidding open</div><div class="au-c-amt">${fmt(a.startPrice)}</div><div class="au-c-status">Awaiting first bid…</div>`;
+    } else if (a.flashUntil && a.clock < a.flashUntil) {
+      tone = 'good';
+      html = `<div class="au-c-flash">BID PLACED</div><div class="au-c-amt">${fmt(a.current)}</div>`;
+    } else if (sell) {
+      const met = a.current >= a.reserve;
+      tone = met ? 'good' : 'bad';
+      html = `<div class="au-c-name">${leaderName}</div><div class="au-c-amt">${fmt(a.current)}</div><div class="au-c-status">${met ? 'Reserve met!' : 'Reserve not met'}</div>`;
+    } else {
+      const winning = a.leader === 'player';
+      tone = winning ? 'good' : 'bad';
+      html = `<div class="au-c-name">${leaderName}</div><div class="au-c-amt">${fmt(a.current)}</div><div class="au-c-status">${winning ? 'Winning!' : 'Losing!'}</div>`;
+    }
+  } else {   // ended
+    frac = 0;
+    const res = a.result || {};
+    tone = res.outcome === 'won' || res.outcome === 'sold' ? 'good' : 'bad';
+    html = `<div class="au-c-flash">${res.outcome === 'won' ? 'YOURS!' : res.outcome === 'sold' ? 'SOLD' : res.outcome === 'nosale' ? 'NO SALE' : 'SOLD'}</div>
+            ${a.bids.length ? `<div class="au-c-amt">${fmt(a.current)}</div>` : ''}`;
+    if (res.outcome === 'lost') html = `<div class="au-c-name">${leaderName}</div><div class="au-c-amt">${fmt(a.current)}</div><div class="au-c-status">Sold</div>`;
+  }
+  if (center.dataset.html !== html) { center.innerHTML = html; center.dataset.html = html; }
+  arc.style.strokeDasharray = `${(C * frac).toFixed(2)} ${C}`;
+  arc.setAttribute('class', 'au-arc au-arc-' + tone);
+
+  // Bid button
+  const bidBtn = document.getElementById('au-bid');
+  const amtEl  = document.getElementById('au-bid-amt');
+  const hint   = document.getElementById('au-bid-hint');
+  const live   = a.stage === 'live';
+  if (bidBtn && amtEl) {
+    if (sell) {
+      const can = live && a.bids.length && a.current >= a.reserve;
+      bidBtn.disabled = !can;
+      amtEl.innerHTML = a.bids.length ? `Accept ${fmt(a.current)}` : 'Awaiting bids';
+      const lbl = document.getElementById('au-bid-label');
+      if (lbl) lbl.textContent = a.bids.length && a.current < a.reserve ? `RESERVE ${formatCurrency(a.reserve)}` : 'HAMMER';
+    } else {
+      const amount = auctionPlayerBid(a);
+      const afford = amount * (1 + auctionBuyerPremium()) <= state.cash;
+      bidBtn.disabled = !live || a.leader === 'player' || !afford;
+      amtEl.innerHTML = fmt(a.step * a.mult);
+      if (hint && live) {
+        hint.textContent = a.leader === 'player' ? "You're the high bidder — hold your nerve."
+          : !afford ? 'Not enough cash for the next bid.'
+          : `Next bid ${formatCurrency(amount)} · press Space`;
+      }
+      const minus = document.getElementById('au-minus'), plus = document.getElementById('au-plus');
+      if (minus) minus.disabled = a.mult <= 1 || !live;
+      if (plus)  plus.disabled  = a.mult >= 10 || !live;
+    }
+  }
+  // Bid log
+  if (a._logDirty) {
+    a._logDirty = false;
+    const logEl = document.getElementById('au-log');
+    if (logEl) {
+      logEl.innerHTML = `<div class="au-log-welcome">Welcome to ${AUCTION_HOUSE_NAME}</div>` +
+        a.bids.map(b => `<div class="au-log-row ${b.id === 'player' ? 'au-log-you' : ''}"><span>${b.name}</span><span>${fmt(b.amount)}</span></div>`).join('');
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+  }
+}
+
+// ============================================================
 // RENDER — Car Lot (formerly Garage)
 // ============================================================
 function renderCarLot() {
@@ -5730,6 +6614,7 @@ function renderCarLot() {
               ${condBadge(car.condition)}
               ${titleBadge(car.titleStatus)}
               ${isCertifiedCar(car) ? '<span class="badge badge-green" title="Certified Pre-Owned: +18% sale chance">✔ CERTIFIED</span>' : ''}
+              ${car.provenance ? `<span class="badge badge-yellow" title="${car.provenance.blurb}">★ ${car.provenance.label}</span>` : ''}
               ${(car.legalDiscovered && (car.legalStatus || 'clean') !== 'clean') ? `<span class="badge ${car.legalStatus === 'stolen' ? 'badge-red' : 'badge-orange'}">${car.legalStatus === 'stolen' ? '🚨 STOLEN' : '⚠️ NO TITLE'}</span>` : ''}
               ${(car.vinDiscovered && (car.vinStatus || 'normal') === 'scratched') ? `<span class="badge badge-yellow">🔦 SCRATCHED VIN</span>` : ''}
               ${(car.crashDamageDiscovered && (car.crashDamageSeverity || 'none') !== 'none') ? `<span class="badge ${car.crashDamageSeverity === 'severe' ? 'badge-red' : car.crashDamageSeverity === 'moderate' ? 'badge-orange' : 'badge-yellow'}">🔨 ${car.crashDamageSeverity.charAt(0).toUpperCase() + car.crashDamageSeverity.slice(1)} Crash</span>` : ''}
@@ -5753,7 +6638,7 @@ function renderCarLot() {
           <div class="detail-row"><span>Mileage</span><span>${car.mileage.toLocaleString()} mi</span></div>
           <div class="detail-row"><span>Purchased For</span><span>${formatCurrency(car.purchasePrice)}</span></div>
           <div class="detail-row"><span>Market Value</span><span class="text-green">${formatCurrency(car.marketValue)}</span></div>
-          <div class="detail-row"><span>Source</span><span>${car.source === 'factory' ? `${uiIcon('factory')} Factory` : `${uiIcon('car')} Used Market`}</span></div>
+          <div class="detail-row"><span>Source</span><span>${carSourceLabel(car)}</span></div>
           ${car.isForSale ? `<div class="detail-row"><span>Days on Lot</span><span>${car.daysInLot}</span></div>` : ''}
           ${car.isForSale ? `<div class="detail-row"><span>Sale Chance</span><span>${saleChance}</span></div>` : ''}
         </div>
@@ -5772,6 +6657,13 @@ function renderCarLot() {
             ${car.isForSale ? `${uiIcon('upload')} Unlist` : `${uiIcon('tag')} Mark for Sale`}
           </button>
           ${leaseActionButtons.join('')}
+        </div>
+        <div class="car-actions" style="margin-top:6px">
+          <button class="btn btn-secondary btn-full" onclick="openConsignAuction('${car.id}')"
+            ${inService || isLeased || (car.auctionCooldownUntil || 0) > state.day ? 'disabled' : ''}
+            title="${(car.auctionCooldownUntil || 0) > state.day ? `The house will re-list this car in ${car.auctionCooldownUntil - state.day} day(s)` : 'Put this car in front of the room at the Auction House'}">
+            ${uiIcon('gavel')} Sell at Auction
+          </button>
         </div>
         ${showroomBtn ? `<div class="car-actions" style="margin-top:6px">${showroomBtn}</div>` : ''}
       </div>`;
@@ -7045,7 +7937,7 @@ function renderShowroom() {
         <div class="detail-row"><span>Category</span><span>${car.category}</span></div>
         <div class="detail-row"><span>Mileage</span><span>${car.mileage.toLocaleString()} mi</span></div>
         <div class="detail-row"><span>Value</span><span class="text-green">${formatCurrency(car.marketValue)}</span></div>
-        <div class="detail-row"><span>Source</span><span>${car.source === 'factory' ? `${uiIcon('factory')} Factory` : `${uiIcon('car')} Used Market`}</span></div>
+        <div class="detail-row"><span>Source</span><span>${carSourceLabel(car)}</span></div>
       </div>
       <div class="pedestal-plaque">On permanent display</div>
       <button class="btn btn-secondary btn-full" onclick="moveToLot('${car.id}')"
@@ -9806,7 +10698,10 @@ function cheatClearLoan() {
 
 function cheatRefreshUsedMarket() {
   state.usedMarketOffers = generateUsedMarket();
-  _cheatApply('🔄 Used Market refreshed.');
+  ensureAuctionState();
+  state.auctions.lots = [];
+  processAuctions();
+  _cheatApply('🔄 Used Market and Auction House refreshed.');
 }
 
 function cheatToggleGameOver() {
@@ -9888,6 +10783,8 @@ function init() {
     renderCarLot, renderLeasing, renderServiceGarage, renderForSale, renderUsedMarket, renderFinance, renderAchievements,
     renderInsurance,
     renderReceipts, viewReceipt, closeReceiptModal, switchFinanceSubTab,
+    switchUsedMarketSubTab, inspectAuctionLot, openAuctionLot, openConsignAuction, startAuction,
+    auctionPlayerBidClick, auctionSetMult, auctionSetReserve, closeAuction,
     renderShowroom, buyShowroomTier, moveToShowroom, moveToLot,
     menuToggleDark, menuToggleSfx, menuToggleTutorials, menuSetDifficulty,
     returnToMenu,
@@ -9941,6 +10838,7 @@ function init() {
   document.addEventListener('keydown', e => {
     const tag = document.activeElement?.tagName?.toLowerCase();
     if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+    if (liveAuction) return;   // the auction hall owns the keyboard while it's open
     // N key — advance to next day
     if (e.key === 'n' || e.key === 'N') {
       const gameShell = document.getElementById('home-screen');
