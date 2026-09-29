@@ -1717,7 +1717,7 @@ let factorySelection = { make: null, model: null };
 /** Where a car came from, as a labelled icon: Factory, Auction House or Used Market. */
 function carSourceLabel(car) {
   if (car.source === 'factory') return `${uiIcon('factory')} Factory`;
-  if (car.source === 'auction') return `${uiIcon('gavel')} Auction House${car.provenance ? ' · ' + car.provenance.label : ''}`;
+  if (car.source === 'auction') return `${uiIcon('gavel')} Auction House`;
   return `${uiIcon('car')} Used Market`;
 }
 
