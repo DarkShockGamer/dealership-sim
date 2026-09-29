@@ -2823,3 +2823,309 @@ body.reduce-motion #day-sweep-overlay { display: none !important; }
   .showroom-hall { padding: 20px 14px; }
   .finance-subnav { flex-wrap: wrap; }
 }
+
+/* ============================================================
+   Auction House — v1.15.0
+   Used Market → Auctions page, plus the live bidding hall
+   (gray console, countdown ring and bid log modelled on the
+   Car Mechanic Simulator auction screen).
+   ============================================================ */
+.subnav-count {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 6px;
+  margin-left: 2px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .18);
+  font-size: .72rem;
+  line-height: 18px;
+  text-align: center;
+}
+.au-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 22px 0 10px;
+  font-size: 1.05rem;
+}
+.au-section-sub { font-size: .84rem; margin: -4px 0 12px; max-width: 780px; }
+.auction-lot-card {
+  border-top: 3px solid var(--accent-achievement);
+  background-image: radial-gradient(ellipse 80% 40% at 50% 0%, rgba(255, 211, 93, .07), transparent 70%);
+}
+.consign-card .car-details { margin-bottom: 8px; }
+.au-est-text { color: #ffe23a; font-weight: 700; }
+.au-provenance {
+  margin: 2px 0 8px;
+  font-size: .8rem;
+  font-style: italic;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+.au-history {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 14px;
+}
+.au-history-row {
+  display: flex;
+  gap: 14px;
+  padding: 7px 0;
+  font-size: .85rem;
+  border-bottom: 1px solid var(--border);
+}
+.au-history-row:last-child { border-bottom: none; }
+.au-history-row > span:first-child { min-width: 54px; }
+
+/* ── Live hall ─────────────────────────────────────────── */
+.auction-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(3, 8, 18, .82);
+  backdrop-filter: blur(4px);
+  animation: fadeIn .18s ease;
+  overflow-y: auto;
+}
+.au-shell {
+  position: relative;
+  width: min(940px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 211, 93, .28);
+  background: linear-gradient(180deg, rgba(14, 40, 70, .98), rgba(7, 22, 40, .98));
+  box-shadow: var(--shadow-lg), 0 0 60px rgba(255, 211, 93, .07);
+  animation: modalPopIn .28s cubic-bezier(.34, 1.56, .64, 1) both;
+}
+.au-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.au-house {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  font-size: .82rem;
+  color: var(--accent-achievement);
+}
+.au-live-pill {
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .12em;
+  color: #ff5b5b;
+  animation: auPulse 1.1s ease-in-out infinite;
+}
+@keyframes auPulse { 50% { opacity: .35; } }
+.au-close {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: 700;
+  font-size: .82rem;
+  cursor: pointer;
+}
+.au-close:hover { border-color: rgba(170, 206, 255, .5); }
+.au-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+  gap: 20px;
+  padding: 18px;
+}
+.au-lot-panel { min-width: 0; }
+.au-lot-kicker {
+  font-size: .7rem;
+  font-weight: 800;
+  letter-spacing: .16em;
+  color: var(--text-muted);
+}
+.au-lot-name {
+  margin: 2px 0 10px;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  line-height: 1.15;
+}
+.au-lot-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+
+/* The gray console */
+.au-console {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 22px 18px 18px;
+  border-radius: 14px;
+  color: #fff;
+  background: linear-gradient(180deg, #c4c4c4 0%, #a5a5a5 45%, #6b6b6b 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5), 0 10px 30px rgba(0, 0, 0, .4);
+  font-family: var(--font-display);
+  min-width: 0;
+}
+.au-console .au-cur { color: #ffd500; font-weight: 800; }
+.au-ring-wrap { position: relative; width: 220px; height: 220px; flex: none; }
+.au-ring { width: 100%; height: 100%; display: block; }
+.au-ring-bg { fill: none; stroke: #fff; stroke-width: 20; }
+.au-arc {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 20;
+  stroke-dasharray: 0 604;
+  transition: stroke .2s;
+}
+.au-arc-good { stroke: #5cc21c; }
+.au-arc-bad  { stroke: #ff0000; }
+.au-arc-neutral { stroke: #fff; }
+.au-center {
+  position: absolute;
+  inset: 26px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, .55);
+  background: linear-gradient(180deg, #9d9d9d, #8f8f8f);
+  box-shadow: inset 0 3px 8px rgba(0, 0, 0, .45);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 0 6px;
+  text-align: center;
+  cursor: default;
+  font-family: inherit;
+  overflow: hidden;
+}
+button.au-center[onclick] { cursor: pointer; }
+button.au-center[onclick]:hover { background: linear-gradient(180deg, #a8a8a8, #999); }
+.au-start { font-size: 1.5rem; font-weight: 700; text-shadow: 0 1px 2px rgba(0, 0, 0, .5); }
+.au-c-name   { font-size: 1.05rem; text-shadow: 0 1px 2px rgba(0, 0, 0, .5); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.au-c-amt    { font-size: 1.28rem; font-weight: 600; line-height: 1.1; text-shadow: 0 1px 2px rgba(0, 0, 0, .5); }
+.au-c-status { font-size: 1.05rem; text-shadow: 0 1px 2px rgba(0, 0, 0, .5); }
+.au-c-flash  { font-size: 1.08rem; font-weight: 700; letter-spacing: .02em; text-shadow: 0 1px 2px rgba(0, 0, 0, .5); }
+.au-center .au-c-amt { margin-top: 2px; }
+
+.au-bidwrap {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  width: 100%;
+  margin-top: 22px;
+}
+.au-bidbox {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 6px 10px;
+  border: none;
+  background: #4c4c4c;
+  color: #fff;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background .12s, transform .06s;
+}
+.au-bidbox small { display: block; font-size: 1rem; letter-spacing: .02em; }
+.au-bidbox b { display: block; font-size: 1.9rem; font-weight: 600; line-height: 1.05; }
+.au-bidbox:not(:disabled):hover { background: #5b5b5b; }
+.au-bidbox:not(:disabled):active { background: #3b3b3b; transform: scale(.985); }
+.au-bidbox:disabled { background: #737373; color: rgba(255, 255, 255, .7); cursor: not-allowed; }
+.au-hammer:not(:disabled) { background: #3f7d16; }
+.au-hammer:not(:disabled):hover { background: #4a9219; }
+.au-step-btn {
+  width: 34px;
+  border: none;
+  background: #5a5a5a;
+  color: #fff;
+  font-size: 1.4rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.au-step-btn:hover:not(:disabled) { background: #6c6c6c; }
+.au-step-btn:disabled { opacity: .4; cursor: not-allowed; }
+.au-bid-hint { min-height: 1.1em; margin-top: 8px; font-size: .8rem; color: #2b2b2b; text-align: center; }
+.au-estimate { margin-top: 8px; font-size: 1.02rem; color: #ffe93a; font-weight: 500; }
+.au-log {
+  width: 100%;
+  height: 176px;
+  margin-top: 12px;
+  padding: 8px 12px;
+  overflow-y: auto;
+  background: rgba(255, 255, 255, .38);
+  color: #4a4a4a;
+  font-size: 1rem;
+}
+.au-log-welcome { margin-bottom: 2px; }
+.au-log-row { display: flex; justify-content: space-between; gap: 10px; }
+.au-log-row .au-cur { color: #4a4a4a; }
+.au-log-you { color: #1c5a00; font-weight: 700; }
+.au-log-you .au-cur { color: #1c5a00; }
+
+.au-reserve-box { width: 100%; margin-top: 20px; }
+.au-reserve-box label { display: block; margin-bottom: 4px; font-size: 1rem; }
+.au-reserve-box input {
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: #4c4c4c;
+  color: #fff;
+  font-size: 1.4rem;
+  font-family: inherit;
+}
+.au-reserve-quick { display: flex; gap: 6px; margin-top: 6px; }
+.au-reserve-quick button {
+  flex: 1;
+  padding: 5px 0;
+  border: none;
+  background: #5a5a5a;
+  color: #fff;
+  font-family: inherit;
+  cursor: pointer;
+}
+.au-reserve-quick button:hover { background: #6c6c6c; }
+
+/* Result card */
+.au-result {
+  margin: 0 18px 18px;
+  padding: 16px 18px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.au-result-won, .au-result-sold { border-color: rgba(92, 194, 28, .55); }
+.au-result-lost, .au-result-nosale { border-color: rgba(255, 91, 91, .5); }
+.au-result-title {
+  margin-bottom: 8px;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: .04em;
+}
+.au-result-won .au-result-title, .au-result-sold .au-result-title { color: #7ddc3b; }
+.au-result-lost .au-result-title, .au-result-nosale .au-result-title { color: #ff7b7b; }
+.au-result-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: .9rem; border-bottom: 1px dashed var(--border); }
+.au-result-note { margin: 10px 0 12px; font-size: .86rem; color: var(--text-muted); }
+
+@media (max-width: 760px) {
+  .au-body { grid-template-columns: 1fr; }
+  .au-lot-name { font-size: 1.25rem; }
+  .au-log { height: 140px; }
+}
+
+/* Auction lot cards: give the car name room, let badges wrap underneath */
+.auction-lot-card .car-card-header,
+.consign-card .car-card-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+.auction-lot-card .badge-stack,
+.consign-card .badge-stack { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-start; }
