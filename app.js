@@ -18,6 +18,7 @@ const PATCH_NOTES = [
     version: '1.16.0',
     date: 'September 2026',
     notes: [
+      { type: 'feature', text: "Added a favicon: a little blue car with a dollar-sign badge shows on the browser tab, bookmarks and when saved to a phone home screen." },
       { type: 'feature', text: "The Upgrades page is now a skill tree. Each category is its own compact branch of small tiles connected by lines showing what unlocks what. Click a tile to read what it does, see its requirements, and buy it from the detail panel. Tiles are colour coded: green is owned, glowing is affordable, dim is locked, and a coloured dot shows the game stage. Multi-level upgrades show pips for each level. The whole tree fits far more on screen, so there's much less scrolling." },
       { type: 'fix', text: "Trade-in profit is no longer double counted. A car you took in on trade used to have a $0 cost, so reselling it showed a huge profit even though its value had already been counted as income on the car you traded it for. Trade-in cars now cost what you credited the customer for them, so each deal's profit is shown fairly. Trade-in cars already on your lot in existing saves get a cost equal to their current value. Past sales in your history are left as they were." },
       { type: 'fix', text: "Auction House: you can now click the big circle in the middle of the bidding ring to place a bid (or to hammer the sale when selling), as well as using the Bid button or Space. The circle still starts the auction too." },
