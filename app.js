@@ -11255,7 +11255,7 @@ function init() {
     renderInsurance,
     renderReceipts, viewReceipt, closeReceiptModal, switchFinanceSubTab,
     switchUsedMarketSubTab, inspectAuctionLot, openAuctionLot, openConsignAuction, startAuction,
-    auctionPlayerBidClick, auctionSetMult, auctionSetReserve, closeAuction,
+    auctionCenterClick, auctionPlayerBidClick, auctionSetMult, auctionSetReserve, closeAuction,
     renderShowroom, buyShowroomTier, moveToShowroom, moveToLot,
     menuToggleDark, menuToggleSfx, menuToggleTutorials, menuSetDifficulty,
     returnToMenu,
