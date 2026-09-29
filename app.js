@@ -2166,6 +2166,12 @@ function loadState(slot) {
       loaded.auctions = (loaded.auctions && Array.isArray(loaded.auctions.lots)) ? loaded.auctions : { lots: [] };
       // A lot you'd already walked into when the page closed is forfeited — no refresh-to-reroll.
       loaded.auctions.lots = loaded.auctions.lots.filter(l => !l.started);
+      // Repair any market index that went NaN/null so car values can't be poisoned.
+      if (loaded.marketIndices) {
+        for (const k of Object.keys(loaded.marketIndices)) {
+          if (!Number.isFinite(loaded.marketIndices[k]) || loaded.marketIndices[k] <= 0) loaded.marketIndices[k] = 1.0;
+        }
+      }
       loaded.auctionLog      = loaded.auctionLog      || [];
       loaded.auctionsWon     = loaded.auctionsWon     ?? 0;
       loaded.auctionsSold    = loaded.auctionsSold    ?? 0;
@@ -2419,7 +2425,8 @@ function buildCar(entry, condition, source, inspected = false) {
   // Apply crash damage value penalty to market value
   const crashPenalty = 1 - CRASH_DAMAGE_VALUE_PENALTY[crashDamageSeverity];
   // Apply current market index to base market value
-  const marketIdx   = (state.marketIndices || {})[entry.category] ?? 1.0;
+  const rawIdx      = (state.marketIndices || {})[entry.category];
+  const marketIdx   = Number.isFinite(rawIdx) && rawIdx > 0 ? rawIdx : 1.0;
   const marketValue = Math.round(
     entry.marketValue * CONDITION_VALUE[condition] * TITLE_VALUE_MULT[titleStatus]
     * (1 - mileage / 700000) * marketIdx * crashPenalty
@@ -5734,7 +5741,7 @@ function auctionInspectCost(car) {
 }
 /** Picks the "nice" bid increment (1–2% of value) closest to the ideal on a log scale. */
 function auctionStepFor(value) {
-  const raw = Math.max(50, value * 0.018);
+  const raw = Math.max(50, Number.isFinite(value) ? value * 0.018 : 50);
   let best = AUCTION_STEPS[0], bestDist = Infinity;
   for (const s of AUCTION_STEPS) {
     const d = Math.abs(Math.log(s / raw));
@@ -5812,6 +5819,26 @@ function generateAuctionLot(excludeKeys = []) {
   };
 }
 
+/** Fixes a lot whose numbers went missing or NaN (e.g. from a corrupted market index in an old save). */
+function repairAuctionLot(lot) {
+  const ok = v => Number.isFinite(v) && v > 0;
+  const car = lot.car;
+  if (!car) return false;
+  let fixed = false;
+  if (!ok(car.marketValue)) {
+    const entry = CAR_CATALOG.find(e => e.make === car.make && e.model === car.model && (e.trim || '') === (car.trim || ''));
+    const base = entry ? entry.marketValue : 500000;
+    car.marketValue = Math.round(base * (CONDITION_VALUE[car.condition] || 0.9) * (1 - (car.mileage || 0) / 700000));
+    fixed = true;
+  }
+  if (!ok(lot.estimate)) { lot.estimate = Math.round(car.marketValue * randomFloat(0.92, 1.08)); fixed = true; }
+  if (!ok(lot.step))     { lot.step = auctionStepFor(lot.estimate); fixed = true; }
+  if (!ok(lot.startPrice)) { lot.startPrice = Math.max(lot.step, Math.round(lot.estimate * 0.30 / lot.step) * lot.step); fixed = true; }
+  if (!ok(car.repairCost) && car.repairCost !== 0) { car.repairCost = (car.hiddenIssues || []).reduce((sum, i) => sum + (i.cost || 0), 0); fixed = true; }
+  if (!(lot.botCount >= 2)) { lot.botCount = 3; fixed = true; }
+  return fixed;
+}
+
 /** Daily rotation: closes stale lots and tops the floor back up. */
 function processAuctions(announce = false) {
   ensureAuctionState();
@@ -5824,6 +5851,7 @@ function processAuctions(announce = false) {
     }
   }
   state.auctions.lots = lots.filter(l => l.expiresDay >= state.day && !l.started);
+  state.auctions.lots.forEach(repairAuctionLot);
   const live = state.auctions.lots;
   const maxLots = auctionMaxLots();
   const keys = live.map(auctionLotKey);
@@ -5863,6 +5891,7 @@ function renderAuctionHouse() {
   if (!el) return;
   ensureAuctionState();
   if (state.auctions.lots.length < 2) processAuctions();
+  state.auctions.lots.forEach(repairAuctionLot);
   const lots      = state.auctions.lots;
   const prem      = auctionBuyerPremium();
   const comm      = auctionCommission();
@@ -5959,6 +5988,7 @@ function openAuctionLot(lotId) {
   ensureAuctionState();
   const lot = state.auctions.lots.find(l => l.id === lotId);
   if (!lot) return;
+  repairAuctionLot(lot);
   liveAuction = {
     mode: 'buy', stage: 'ready', lotId: lot.id, car: lot.car,
     estimate: lot.estimate, appraised: !!lot.appraised,
@@ -5977,7 +6007,7 @@ function openConsignAuction(carId) {
   if (car.inServiceUntilDay) { showToast('That car is in service — wait until it is finished.', 'error'); return; }
   if (car.leaseStatus === 'active' && car.activeLease) { showToast('Leased cars cannot be auctioned.', 'error'); return; }
   if ((car.auctionCooldownUntil || 0) > state.day) { showToast(`The house won't re-list this car for ${car.auctionCooldownUntil - state.day} more day(s).`, 'error'); return; }
-  const value = Math.max(1000, car.marketValue);
+  const value = Number.isFinite(car.marketValue) ? Math.max(1000, car.marketValue) : 1000;
   const step  = auctionStepFor(value);
   // Interest is deterministic per car per day so closing and reopening can't re-roll the room.
   const botCount = clamp(
@@ -6003,7 +6033,7 @@ function makeAuctionBots(a, trueValue) {
     : hype;
   return names.map((name, i) => {
     const avg = (Math.random() + Math.random()) / 2;              // bell-ish curve
-    const max = Math.round(trueValue * (0.68 + 0.56 * avg + rarityBoost));
+    const max = Math.round((Number.isFinite(trueValue) ? trueValue : a.estimate) * (0.68 + 0.56 * avg + rarityBoost));
     return { id: 'bot' + i, name, max, eager: randomFloat(0.8, 1.5), nextAt: null };
   });
 }
@@ -6011,6 +6041,9 @@ function makeAuctionBots(a, trueValue) {
 function startAuction() {
   const a = liveAuction;
   if (!a || a.stage !== 'ready') return;
+  if (![a.step, a.startPrice, a.estimate].every(v => Number.isFinite(v) && v > 0)) {
+    showToast('This lot has invalid pricing — leave and re-enter it.', 'error'); return;
+  }
   if (a.mode === 'buy') {
     const lot = state.auctions.lots.find(l => l.id === a.lotId);
     if (!lot) { closeAuction(); return; }
