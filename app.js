@@ -18,6 +18,7 @@ const PATCH_NOTES = [
     version: '1.16.0',
     date: 'September 2026',
     notes: [
+      { type: 'feature', text: "The Upgrades page is now a skill tree. Each category is its own compact branch of small tiles connected by lines showing what unlocks what. Click a tile to read what it does, see its requirements, and buy it from the detail panel. Tiles are colour coded: green is owned, glowing is affordable, dim is locked, and a coloured dot shows the game stage. Multi-level upgrades show pips for each level. The whole tree fits far more on screen, so there's much less scrolling." },
       { type: 'fix', text: "Trade-in profit is no longer double counted. A car you took in on trade used to have a $0 cost, so reselling it showed a huge profit even though its value had already been counted as income on the car you traded it for. Trade-in cars now cost what you credited the customer for them, so each deal's profit is shown fairly. Trade-in cars already on your lot in existing saves get a cost equal to their current value. Past sales in your history are left as they were." },
       { type: 'fix', text: "Auction House: you can now click the big circle in the middle of the bidding ring to place a bid (or to hammer the sale when selling), as well as using the Bid button or Space. The circle still starts the auction too." },
       { type: 'feature', text: "Achievements are now shared across your whole game on this browser. Unlock one in any save slot and it stays unlocked in every slot and every new game. Achievements you already earned in existing saves are merged in automatically the first time you load this version." },
@@ -7745,49 +7746,174 @@ function renderForSale() {
 }
 
 // ============================================================
-// RENDER — Upgrades
+// RENDER — Upgrades (skill tree)
 // ============================================================
+// Prerequisites per upgrade id (drawn as lines when the prerequisite is in the same branch,
+// listed in the detail panel either way). Layout is derived from these.
+const UPGRADE_TREE_NEEDS = {
+  garage3: ['garage2'], garage4: ['garage3'], garage5: ['garage4'], garage6: ['garage5'], garage7: ['garage6'],
+  overheadReduction: ['garage2'],
+  auctionAccess: ['tradeNetwork'], exoticConsignment: ['auctionAccess', 'luxuryLounge'],
+  certifiedProgram: ['serviceBay', 'inspectionTool'],
+  privateClientNetwork: ['luxuryLounge'], collectorNetwork: ['privateClientNetwork'],
+  frameDamageTools: ['inspectionTool'],
+  performanceShop: ['serviceBay'], reconditioningWorkshop: ['serviceBay'],
+  factoryAllocation: ['expressDelivery'], exoticLicense: ['factoryAllocation'], hypercarCharter: ['exoticLicense'],
+  crmSuite: ['staffOffice'], aiPricing: ['crmSuite'],
+  creditLineBoost1: ['financeOffice'], creditLineBoost2: ['creditLineBoost1'], creditLineBoost3: ['creditLineBoost2'],
+  creditLineBoost4: ['creditLineBoost3'], creditLineBoost5: ['creditLineBoost4'],
+  fleetLeasing: ['leaseManagement'],
+  titleRecovery: ['dmvDatabaseAccess'],
+  security2: ['security1'], security3: ['security2'], security4: ['security3'],
+  serviceCapacity1: ['serviceBay'], serviceCapacity2: ['serviceCapacity1'], serviceCapacity3: ['serviceCapacity2'],
+};
+const UPGRADE_TREE_COL_OVERRIDE = { certifiedProgram: 1 };
+const UPGRADE_STAGE_COLORS = { 1: '#2ed59f', 2: '#61b6ff', 3: '#b47bff', 4: '#ff9f43' };
+let _skillSel = null;
+
+/** Work out grid column/row for every upgrade in one category branch. */
+function layoutSkillBranch(list) {
+  const ids = new Set(list.map(u => u.id));
+  const pos = {};
+  const taken = new Set();
+  const free = (c, r) => !taken.has(c + ':' + r);
+  for (const u of list) {
+    const parents = (UPGRADE_TREE_NEEDS[u.id] || []).filter(id => ids.has(id) && pos[id]);
+    let col = UPGRADE_TREE_COL_OVERRIDE[u.id] ?? (parents.length ? Math.max(...parents.map(p => pos[p].col)) + 1 : 0);
+    let row = parents.length ? pos[parents[0]].row : 0;
+    while (!free(col, row)) row++;
+    pos[u.id] = { col, row, parents };
+    taken.add(col + ':' + row);
+  }
+  return pos;
+}
+
+function skillNodeState(upg) {
+  const st = getUpgradeStatus(upg);
+  let cls = 'skt-need-cash';
+  if (st.owned) cls = 'skt-owned';
+  else if (st.lock) cls = 'skt-locked';
+  else if (state.cash >= st.cost) cls = 'skt-can-buy';
+  return { st, cls };
+}
+
+function selectSkillNode(id) {
+  _skillSel = (_skillSel === id) ? null : id;
+  renderUpgrades();
+}
+
+function skillDetailHtml() {
+  const upg = UPGRADES_CONFIG.find(u => u.id === _skillSel);
+  if (!upg) {
+    return `<div class="skt-detail-empty">${uiIcon('arrowUp')}<p><strong>Pick an upgrade</strong> from the tree to see what it does and buy it.</p>
+      <p class="text-muted">Green = owned · glowing = you can afford it · dim = locked. Lines show what unlocks what.</p></div>`;
+  }
+  const { st } = skillNodeState(upg);
+  const stage = UPGRADE_STAGES[upg.stage || 1];
+  const iconKey = _P[upg.icon] ? upg.icon : (UPGRADE_ICON_MAP[upg.icon] || 'gear');
+  const canAfford = state.cash >= st.cost;
+  const needs = (UPGRADE_TREE_NEEDS[upg.id] || []).map(id => {
+    const p = UPGRADES_CONFIG.find(x => x.id === id);
+    if (!p) return '';
+    const ok = getUpgradeStatus(p).owned;
+    return `<li class="${ok ? 'text-green' : 'text-red'}">${ok ? '✓' : '✗'} ${p.levelNames ? p.levelNames[0].split(' — ')[0] : p.name}</li>`;
+  }).join('');
+  let btn;
+  if (st.owned) btn = `<button class="btn btn-primary btn-full" disabled>${uiIcon('check')} ${st.max > 1 ? 'Max Level' : 'Purchased'}</button>`;
+  else if (st.lock) btn = `<button class="btn btn-primary btn-full" disabled>${uiIcon('lock')} ${st.lock}</button>`;
+  else if (!canAfford) btn = `<button class="btn btn-primary btn-full" disabled>${uiIcon('warning')} Need ${formatCurrencyCompact(st.cost - state.cash)} more</button>`;
+  else btn = `<button class="btn btn-primary btn-full" onclick="buyUpgrade('${upg.id}')">Buy — ${formatCurrency(st.cost)}</button>`;
+  return `
+    <div class="skt-detail-head">
+      <div class="skt-detail-icon">${uiIconLg(iconKey)}</div>
+      <div><h4>${st.name}${st.max > 1 ? ` <small>(${st.level}/${st.max})</small>` : ''}</h4>
+        <span class="badge ${stage.cls}">${stage.label}</span></div>
+    </div>
+    <p class="upgrade-desc">${upg.desc}</p>
+    ${needs ? `<ul class="skt-needs"><li class="skt-needs-title">Requires</li>${needs}</ul>` : ''}
+    ${st.lock && !st.owned ? `<p class="skt-lock-note text-red">${uiIcon('lock')} ${st.lock}</p>` : ''}
+    <p class="upgrade-cost ${st.owned ? 'text-green' : ''}">${st.owned ? 'Owned' : formatCurrency(st.cost)}</p>
+    ${btn}`;
+}
+
 function renderUpgrades() {
   const grouped = {};
   UPGRADES_CONFIG.forEach(u => (grouped[u.category] = grouped[u.category] || []).push(u));
   const cats = UPGRADE_CATEGORY_ORDER.filter(c => grouped[c])
     .concat(Object.keys(grouped).filter(c => !UPGRADE_CATEGORY_ORDER.includes(c)));
 
-  let html = `<div class="tab-info">${uiIcon('arrowUp')} Upgrades are tagged by the stage of the game they are built for. Locked upgrades show what they need — usually a bigger lot or a prerequisite upgrade.</div>`;
-  for (const cat of cats) {
-    html += `<div class="category-section"><h3>${cat}</h3><div class="card-grid">`;
-    for (const upg of grouped[cat]) {
-      const st        = getUpgradeStatus(upg);
-      const canAfford = state.cash >= st.cost;
-      const stage     = UPGRADE_STAGES[upg.stage || 1];
-      const stackInfo = st.max > 1 ? ` (${st.level}/${st.max})` : '';
-      const iconKey   = _P[upg.icon] ? upg.icon : (UPGRADE_ICON_MAP[upg.icon] || 'gear');
+  const branches = cats.map(cat => {
+    const list = grouped[cat];
+    const pos = layoutSkillBranch(list);
+    const cols = Math.max(...Object.values(pos).map(p => p.col)) + 1;
+    const rows = Math.max(...Object.values(pos).map(p => p.row)) + 1;
+    const ownedCount = list.filter(u => getUpgradeStatus(u).owned).length;
+    const nodes = list.map(upg => {
+      const { st, cls } = skillNodeState(upg);
+      const p = pos[upg.id];
+      const iconKey = _P[upg.icon] ? upg.icon : (UPGRADE_ICON_MAP[upg.icon] || 'gear');
+      const shortName = (st.name || '').split(' — ')[0].replace(/ (I|II|III|IV|V)$/, '');
+      const pips = st.max > 1 ? `<span class="skt-pips">${Array.from({ length: st.max }, (_, i) => `<i class="${i < st.level ? 'on' : ''}"></i>`).join('')}</span>` : '';
+      const price = st.owned ? (st.max > 1 ? 'MAX' : '✓') : formatCurrencyCompact(st.cost);
+      const parents = p.parents.join(',');
+      return `<button type="button" class="skt-node ${cls} ${_skillSel === upg.id ? 'skt-selected' : ''}"
+          data-id="${upg.id}" data-parents="${parents}" style="grid-column:${p.col + 1};grid-row:${p.row + 1}"
+          onclick="selectSkillNode('${upg.id}')" title="${st.name}">
+          <span class="skt-stage" style="background:${UPGRADE_STAGE_COLORS[upg.stage || 1]}"></span>
+          <span class="skt-ico">${uiIcon(iconKey)}</span>
+          <span class="skt-name">${shortName}</span>
+          ${pips}
+          <span class="skt-price">${st.lock && !st.owned ? uiIcon('lock') : ''}${price}</span>
+        </button>`;
+    }).join('');
+    return `<div class="skt-branch">
+        <div class="skt-branch-head"><span>${cat}</span><span class="skt-count">${ownedCount}/${list.length}</span></div>
+        <div class="skt-grid" style="grid-template-columns:repeat(${cols}, var(--skt-w)); grid-template-rows:repeat(${rows}, auto)">
+          <svg class="skt-lines" aria-hidden="true"></svg>${nodes}
+        </div>
+      </div>`;
+  }).join('');
 
-      let btn;
-      if (st.owned) {
-        btn = `<button class="btn btn-primary btn-full" disabled>${uiIcon('check')} ${st.max > 1 ? 'Max Level' : 'Purchased'}</button>`;
-      } else if (st.lock) {
-        btn = `<button class="btn btn-primary btn-full" disabled title="${st.lock}">${uiIcon('lock')} ${st.lock}</button>`;
-      } else if (!canAfford) {
-        btn = `<button class="btn btn-primary btn-full" disabled title="Need ${formatCurrency(st.cost - state.cash)} more">${uiIcon('warning')} Need ${formatCurrencyCompact(st.cost - state.cash)}</button>`;
-      } else {
-        btn = `<button class="btn btn-primary btn-full" onclick="buyUpgrade('${upg.id}')">Buy — ${formatCurrencyCompact(st.cost)}</button>`;
-      }
-
-      html += `
-        <div class="car-card upgrade-card ${st.owned || st.lock ? 'disabled-card' : ''}">
-          <div class="upgrade-icon">${uiIconLg(iconKey)}</div>
-          <h4>${st.name}${stackInfo}</h4>
-          <span class="badge ${stage.cls}">${stage.label}</span>
-          <p class="upgrade-desc">${upg.desc}</p>
-          <p class="upgrade-cost ${st.owned ? 'text-green' : ''}">${st.owned ? 'Owned' : formatCurrency(st.cost)}</p>
-          ${btn}
-        </div>`;
-    }
-    html += `</div></div>`;
-  }
-  document.getElementById('tab-upgrades').innerHTML = html;
+  document.getElementById('tab-upgrades').innerHTML = `
+    <div class="skt-top">
+      <div class="tab-info">${uiIcon('arrowUp')} Upgrade tree — click a node for details. Lines connect each upgrade to what unlocks it.</div>
+      <div class="skt-legend">
+        ${Object.entries(UPGRADE_STAGES).map(([k, v]) => `<span><i style="background:${UPGRADE_STAGE_COLORS[k]}"></i>${v.label}</span>`).join('')}
+      </div>
+    </div>
+    <div class="skt-layout">
+      <div class="skt-trees">${branches}</div>
+      <aside class="skt-detail" id="skt-detail">${skillDetailHtml()}</aside>
+    </div>`;
+  requestAnimationFrame(drawSkillLines);
 }
+
+/** Draw connector lines between prerequisite nodes inside each branch. */
+function drawSkillLines() {
+  document.querySelectorAll('#tab-upgrades .skt-grid').forEach(grid => {
+    const svg = grid.querySelector('.skt-lines');
+    if (!svg || !grid.offsetParent) return;
+    const nodes = {};
+    grid.querySelectorAll('.skt-node').forEach(n => { nodes[n.dataset.id] = n; });
+    svg.setAttribute('width', grid.offsetWidth);
+    svg.setAttribute('height', grid.offsetHeight);
+    let d = '';
+    for (const id in nodes) {
+      const child = nodes[id];
+      (child.dataset.parents || '').split(',').filter(Boolean).forEach(pid => {
+        const par = nodes[pid];
+        if (!par) return;
+        const x1 = par.offsetLeft + par.offsetWidth, y1 = par.offsetTop + par.offsetHeight / 2;
+        const x2 = child.offsetLeft, y2 = child.offsetTop + child.offsetHeight / 2;
+        const mx = (x1 + x2) / 2;
+        const on = par.classList.contains('skt-owned');
+        d += `<path d="M${x1} ${y1} H${mx} V${y2} H${x2}" class="${on ? 'on' : ''}"/>`;
+      });
+    }
+    svg.innerHTML = d;
+  });
+}
+window.addEventListener('resize', () => { if (document.getElementById('tab-upgrades')?.querySelector('.skt-grid')) drawSkillLines(); });
 
 // ============================================================
 // RENDER — Staff
@@ -11116,7 +11242,7 @@ function init() {
     acceptCustomerOffer, rejectCustomerOffer, counterCustomerOffer, applyStaffSuggestion,
     markForSale, updateListPrice, setListPriceMultiplier, markAllForSale, unlistAllCars, bulkSetListing,
     makeLeaseAvailable, stopOfferingLease, viewLeaseDetails, toggleShowLeasedCars, setCarLotSort, toggleLotSortMenu, chooseLotSort, switchTab,
-    buyUpgrade, detailCar, carWash, basicRepair, partsUpgrade,
+    buyUpgrade, selectSkillNode, detailCar, carWash, basicRepair, partsUpgrade,
     drawLoan, payDownLoan,
     selectInsurance, cancelInsurance,
     confirmNewGame, exportSave, hireStaff, dismissCandidate,
