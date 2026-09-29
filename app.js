@@ -11,9 +11,18 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.15.0';
+const GAME_VERSION = '1.15.1';
 
 const PATCH_NOTES = [
+  {
+    version: '1.15.1',
+    date: 'September 2026',
+    notes: [
+      { type: 'fix', text: "Used Market sellers can no longer pay you to take a car. Badly damaged cars used to be able to list with a negative asking price; the lowest a used car can be listed for is now $0. Existing negative listings in your save are corrected." },
+      { type: 'fix', text: "Trade-in requests are fixed. A customer's trade-in car is now always worth less than the price of the car they're buying, and customers never ask you to pay them cash to take their car — they only ever add cash on top, or nothing. You also can't counter a trade-in with a negative cash amount. Any older requests that broke these rules are removed or corrected when you load your save." },
+      { type: 'fix', text: "Auction House: fixed lots showing $NaN for the opening bid, bid increment and estimate. Broken market values are repaired automatically." },
+    ],
+  },
   {
     version: '1.15.0',
     date: 'September 2026',
@@ -2173,6 +2182,7 @@ function loadState(slot) {
         }
       }
       loaded.auctionLog      = loaded.auctionLog      || [];
+      state = loaded; sanitizeDealRules();   // fix any negative/over-value deals from before v1.15.1
       loaded.auctionsWon     = loaded.auctionsWon     ?? 0;
       loaded.auctionsSold    = loaded.auctionsSold    ?? 0;
       loaded.auctionBestWin  = loaded.auctionBestWin  ?? 0;
@@ -2515,11 +2525,12 @@ function generateUsedMarket() {
     const car       = buildCar(entry, condition, 'used', false);
     const ownerAwareOfIssues = Math.random() < 0.4;
     const effectiveMV = ownerAwareOfIssues ? car.marketValue - car.repairCost * 0.5 : car.marketValue;
-    const askingPrice    = Math.round(effectiveMV * pickAskingPriceMultiplier());
+    // Sellers never pay you to take a car: the lowest possible asking price is $0.
+    const askingPrice    = Math.max(0, Math.round(effectiveMV * pickAskingPriceMultiplier()));
     // Hidden floor — seller won't accept below this. Keeps a real negotiation
     // window under the asking price without making the asking price itself
     // a de-facto discount.
-    const minAcceptPrice = Math.round(askingPrice * randomFloat(0.85, 0.95));
+    const minAcceptPrice = Math.max(0, Math.round(askingPrice * randomFloat(0.85, 0.95)));
     car.purchasePrice  = askingPrice;
     car.askingPrice    = askingPrice;
     car.minAcceptPrice = minAcceptPrice;
@@ -2549,12 +2560,21 @@ function generateTradeInRequests() {
     if (askRatio > 1.5 && Math.random() > 0.15) continue;
     if (askRatio > 1.2 && Math.random() > 0.45) continue;
 
-    const entry       = pickCatalogEntryForUsed();
-    const condition   = pickCondition([0.05, 0.25, 0.40, 0.30]);
-    const customerCar = buildCar(entry, condition, 'used', false);
+    // The customer's car must be worth LESS than the price of the car they're buying —
+    // nobody trades in something more valuable than what they're getting. Try a few
+    // different cars; if none fit (e.g. a cheap listing), no request comes in.
+    const maxTradeValue = Math.floor(targetCar.listPrice * 0.9);
+    let customerCar = null, customerCarValue = 0;
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const entry     = pickCatalogEntryForUsed();
+      const condition = pickCondition([0.05, 0.25, 0.40, 0.30]);
+      const candidate = buildCar(entry, condition, 'used', false);
+      // Their car's value at ~55–80% market (they inflate a bit)
+      const value     = Math.round(candidate.marketValue * randomFloat(0.55, 0.80));
+      if (value > 0 && value <= maxTradeValue) { customerCar = candidate; customerCarValue = value; break; }
+    }
+    if (!customerCar) continue;
     customerCar.purchasePrice = 0;
-    // Their car's value at ~55–80% market (they inflate a bit)
-    const customerCarValue = Math.round(customerCar.marketValue * randomFloat(0.55, 0.80));
 
     // === Anchor total offer to market value, not list price ===
     // The higher the askRatio, the lower the total customer is willing to pay.
@@ -2574,13 +2594,15 @@ function generateTradeInRequests() {
       buyerTotalWillingToPay = Math.round(targetCar.marketValue * randomFloat(0.94, 1.06));
     }
 
-    // cashDelta: positive = customer adds cash, negative = customer wants you to pay extra.
+    // cashDelta: cash the customer adds on top of their car. Never negative — customers
+    // don't ask you to pay them to take their trade-in.
     const rawDelta = buyerTotalWillingToPay - customerCarValue;
     // Cap extra cash to 30% of market value (prevents insane top-ups for overpriced cars).
     const maxExtraCash = Math.round(targetCar.marketValue * 0.30);
     // Cap the amount the customer asks us to pay to 20% of market value.
     const minDelta = -Math.round(targetCar.marketValue * 0.20);
-    const cashDelta = clamp(rawDelta, minDelta, maxExtraCash);
+    // Also never let car + cash exceed the listed price of the car they're buying.
+    const cashDelta = clamp(rawDelta, 0, Math.max(0, Math.min(maxExtraCash, targetCar.listPrice - customerCarValue)));
 
     newRequests.push({
       id: generateId(),
@@ -4255,7 +4277,7 @@ function resolveTradeInCounters() {
     } else {
       // NPC counters back — moves partially toward player's offer (true back-and-forth)
       const moveBias = randomFloat(0.15, 0.30);
-      const newNpcDelta = Math.round(req.cashDelta + (req.counterCashDelta - req.cashDelta) * moveBias);
+      const newNpcDelta = Math.max(0, Math.round(req.cashDelta + (req.counterCashDelta - req.cashDelta) * moveBias));
       req.cashDelta = newNpcDelta;
       req.counterCashDelta = null;
       req.state = 'pending';
@@ -4267,8 +4289,29 @@ function resolveTradeInCounters() {
   state.tradeInRequests = state.tradeInRequests.filter(r => !toRemove.has(r.id));
 }
 
+/** Cleans up trade-in requests and used listings that broke the pricing rules (older saves):
+ *  no negative prices, no customer paying with a car worth more than the car they're buying,
+ *  and customers never asking you to pay them. */
+function sanitizeDealRules() {
+  for (const o of state.usedMarketOffers || []) {
+    if (!(o.askingPrice >= 0)) o.askingPrice = 0;
+    if (!(o.minAcceptPrice >= 0)) o.minAcceptPrice = 0;
+    if (o.sellerCounter != null && !(o.sellerCounter >= 0)) o.sellerCounter = 0;
+    if (o.purchasePrice != null && !(o.purchasePrice >= 0)) o.purchasePrice = 0;
+  }
+  state.tradeInRequests = (state.tradeInRequests || []).filter(req => {
+    const target = state.garage.find(c => c.id === req.targetCarId);
+    if (!target) return true;   // orphaned requests are cleaned up elsewhere
+    if (req.customerCarValue > target.listPrice) return false;   // worth more than what they're buying — drop it
+    if (!(req.cashDelta >= 0)) req.cashDelta = 0;
+    if (req.counterCashDelta != null && !(req.counterCashDelta >= 0)) req.counterCashDelta = 0;
+    return true;
+  });
+}
+
 /** Expire stale offers and requests. */
 function expireOffers() {
+  sanitizeDealRules();
   // Expire pending offers past their expiry day; keep countered items until they resolve next day
   state.customerOffers  = state.customerOffers.filter(
     o => o.state === 'countered' || o.expiresDay >= state.day
@@ -4548,7 +4591,7 @@ function submitUsedOffer(offerId, rawAmount) {
     offer.patience--;
     const moveBias      = randomFloat(0.15, 0.28);
     const newCounter    = Math.round(currentAsk - (currentAsk - amount) * moveBias);
-    offer.sellerCounter = Math.max(offer.minAcceptPrice, newCounter);
+    offer.sellerCounter = Math.max(0, offer.minAcceptPrice, newCounter);
     offer.negotiationState = 'countered';
     saveState();
     renderUsedMarket();
@@ -4658,6 +4701,7 @@ function counterTradeInRequest(requestId, rawDelta) {
   if (!req) return;
   const delta = Math.round(parseFloat(rawDelta));
   if (isNaN(delta)) { showToast('Enter a valid cash amount.', 'error'); return; }
+  if (delta < 0) { showToast('You can\'t pay a customer to take their car — the cash amount must be $0 or more.', 'error'); return; }
   // Prevent countering such that the customer's total payment exceeds the car's asking price.
   const targetCar = state.garage.find(c => c.id === req.targetCarId);
   if (targetCar) {
