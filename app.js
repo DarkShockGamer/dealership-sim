@@ -18,6 +18,7 @@ const PATCH_NOTES = [
     version: '1.16.0',
     date: 'September 2026',
     notes: [
+      { type: 'fix', text: "Auction House: you can now click the big circle in the middle of the bidding ring to place a bid (or to hammer the sale when selling), as well as using the Bid button or Space. The circle still starts the auction too." },
       { type: 'feature', text: "Achievements are now shared across your whole game on this browser. Unlock one in any save slot and it stays unlocked in every slot and every new game. Achievements you already earned in existing saves are merged in automatically the first time you load this version." },
       { type: 'feature', text: "64 new achievements, bringing the total to 125. New goals cover sales milestones, cash and profit targets, longer runs, category specialists, staff, upgrades, the Showroom, auctions, trade-ins, leases, credit score, hard mode and more." },
       { type: 'fix', text: "Fixed \"Not Today\": stolen cars you identified and turned down only counted if you clicked Decline. Walking away from a negotiation, letting the listing rotate off the Used Market, or rejecting or ignoring a stolen trade-in car now count as well. Each stolen car counts once." },
@@ -6422,6 +6423,14 @@ function placeAuctionBid(a, id, name, amount) {
   }
 }
 
+/** The big centre circle: starts the auction, then acts as the bid (or hammer) button while live. */
+function auctionCenterClick() {
+  const a = liveAuction;
+  if (!a) return;
+  if (a.stage === 'ready') startAuction();
+  else if (a.stage === 'live') auctionPlayerBidClick();
+}
+
 function auctionPlayerBidClick() {
   const a = liveAuction;
   if (!a || a.stage !== 'live') return;
@@ -6680,7 +6689,7 @@ function auctionConsoleHtml(a) {
           <circle class="au-ring-bg" cx="110" cy="110" r="96"/>
           <circle class="au-arc" id="au-arc" cx="110" cy="110" r="96" transform="rotate(-90 110 110)"/>
         </svg>
-        <button class="au-center" id="au-center" ${ready ? `onclick="startAuction()"` : 'tabindex="-1"'}>
+        <button class="au-center" id="au-center" onclick="auctionCenterClick()" ${ready ? '' : 'tabindex="-1"'} aria-label="${ready ? 'Start the auction' : (sell ? 'Accept the current bid' : 'Place a bid')}">
           ${ready ? '<span class="au-start">Start</span>' : ''}
         </button>
       </div>
@@ -6795,7 +6804,7 @@ function updateAuctionHud() {
       if (hint && live) {
         hint.textContent = a.leader === 'player' ? "You're the high bidder — hold your nerve."
           : !afford ? 'Not enough cash for the next bid.'
-          : `Next bid ${formatCurrency(amount)} · press Space`;
+          : `Next bid ${formatCurrency(amount)} · click the circle or press Space`;
       }
       const minus = document.getElementById('au-minus'), plus = document.getElementById('au-plus');
       if (minus) minus.disabled = a.mult <= 1 || !live;
