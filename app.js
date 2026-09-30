@@ -11,9 +11,21 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.17.0';
+const GAME_VERSION = '1.18.0';
 
 const PATCH_NOTES = [
+  {
+    version: '1.18.0',
+    date: 'September 2026',
+    notes: [
+      { type: 'feature', text: "Staff rework: your staff now buy, fix and sell cars on their own. Each staffer scouts for a deal, buys the car with your cash, repairs it if needed and sells it. The car sits on your Car Lot the whole time with the staffer's name on it, and the Staff page shows every live deal with animated icons and progress bars. Each staffer can run as many deals at once as their Speed stat." },
+      { type: 'feature', text: "Staff ranks: Rookie, Salesperson, Senior Dealer, Lead Dealer and Master Dealer, based on average skill. A higher rank means cheaper buys, higher sale prices, a bigger spending budget and faster turnaround. Every completed flip sharpens a skill, so staff get promoted over time, and each promotion raises their wage by 8%. Each staffer's card now tracks their flips, total profit and best flip." },
+      { type: 'balance', text: "Staff safety limits: staff never spend the last $5,000 of your cash, need 2 free Car Lot slots before buying, and avoid stolen or bad-VIN cars, lemons and heavily crashed cars. Only Senior Dealers and above will buy salvage-title cars. A new Pause/Resume button stops staff from starting new deals." },
+      { type: 'feature', text: "You can now fire staff. Each hired staffer has a Fire button (click twice to confirm) that costs 2 days of their wages as severance. Any car they were working on stays on your lot as a normal car." },
+      { type: 'fix', text: "Removed the 'Staff: List All Cars' button from the Car Lot. It did nothing useful." },
+      { type: 'feature', text: "Three Auction Houses: the Auctions page now opens on a house picker styled like the Insurance page. Choose Ironside Salvage Auctions (salvage-title wrecks and project cars), Main Street Auto Auction (everyday clean-title cars) or Kessler & Vale (the original ultra-rare hypercars and icons). Each house runs its own rotating lots, with cheaper inspections at the first two. Existing lots are kept as Kessler & Vale lots." },
+    ],
+  },
   {
     version: '1.17.0',
     date: 'September 2026',
