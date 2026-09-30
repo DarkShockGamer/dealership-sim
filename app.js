@@ -11,9 +11,16 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.18.0';
+const GAME_VERSION = '1.18.1';
 
 const PATCH_NOTES = [
+  {
+    version: '1.18.1',
+    date: 'September 2026',
+    notes: [
+      { type: 'feature', text: "New Brightness slider in Settings > Display. Drag it from 50% to 150% to dim or brighten the whole game (menus included) to suit your screen. Your choice is saved on this browser, and a Reset button snaps it back to 100%." },
+    ],
+  },
   {
     version: '1.18.0',
     date: 'September 2026',
@@ -8966,6 +8973,17 @@ function renderSettings() {
             <span class="toggle-thumb"></span>
           </button>
         </div>
+        <div class="setting-row" style="margin-top:10px">
+          <div>
+            <div class="setting-label">Brightness</div>
+            <div class="setting-desc" id="brightness-pct">${Math.round(getBrightness() * 100)}%</div>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <input type="range" min="0.5" max="1.5" step="0.01" value="${getBrightness()}"
+              oninput="setBrightness(this.value)" aria-label="Brightness" style="width:150px">
+            <button class="btn btn-secondary" onclick="resetBrightness()" aria-label="Reset brightness to 100%">Reset</button>
+          </div>
+        </div>
       </div>
 
       <div class="dash-card settings-card">
@@ -9383,6 +9401,7 @@ function checkAndShowPatchNotes() {
 let settings = {
   darkMode: false,
   reduceMotion: false,
+  brightness: 1,
   difficulty: 'normal',
   sfxMuted: false,
   sfxVolume: 0.22,
@@ -9564,6 +9583,7 @@ function loadSettings() {
   if (settings.carLotSortBy === undefined) settings.carLotSortBy = 'default';
   applyDarkMode();
   applyReduceMotion();
+  applyBrightness();
   // Live-update if the OS-level preference changes while the game is open
   // (e.g. the player flips it in their system settings mid-session).
   try {
@@ -9583,6 +9603,33 @@ function toggleDarkMode() {
   settings.darkMode = !settings.darkMode;
   applyDarkMode();
   saveSettings();
+  renderSettings();
+  playSfx('toggle');
+}
+
+/** Brightness (0.5–1.5). Applied as a CSS filter on the root element so it covers the
+ *  whole game, including the main menu. At exactly 100% the filter is removed entirely. */
+function getBrightness() {
+  const b = parseFloat(settings.brightness);
+  return isNaN(b) ? 1 : clamp(b, 0.5, 1.5);
+}
+
+function applyBrightness() {
+  const b = getBrightness();
+  document.documentElement.style.filter = Math.abs(b - 1) < 0.005 ? '' : `brightness(${b})`;
+}
+
+function setBrightness(raw) {
+  const v = parseFloat(raw);
+  settings.brightness = isNaN(v) ? 1 : clamp(v, 0.5, 1.5);
+  applyBrightness();
+  saveSettings();
+  const el = document.getElementById('brightness-pct');
+  if (el) el.textContent = Math.round(getBrightness() * 100) + '%';
+}
+
+function resetBrightness() {
+  setBrightness(1);
   renderSettings();
   playSfx('toggle');
 }
