@@ -2399,7 +2399,7 @@ function loadState(slot) {
         // v1.15.0: The Auction House — rare lots to bid on, and your own cars to consign.
         loaded.notifications = loaded.notifications || [];
         loaded.notifications.unshift({
-          message: '🔨 Save upgraded to v18 — new Auctions page under Used Market! Bid on extremely rare cars, or put your own cars under the hammer.',
+          message: '🔨 Save upgraded to v18 — new Auctions page under Used Market! Choose from three auction houses — salvage, everyday cars, or ultra-rare — or put your own cars under the hammer.',
           type: 'info',
           day: loaded.day ?? 1,
         });
@@ -6070,12 +6070,56 @@ const AUCTION_PROVENANCE = [
   { id: 'barnFind',  label: 'Barn Find',            mult: 0.96, blurb: 'Sat undisturbed for decades. Untouched, unrestored, and unpredictable.' },
 ];
 
+// ── Three auction houses (pick one from the Auctions page, like choosing an insurer) ──
+const AUCTION_HOUSES = [
+  {
+    id: 'salvage', name: 'Ironside Salvage Auctions', logoA: 'Ironside ', logoB: 'Salvage', icon: 'wrench',
+    tagline: 'Wrecks, rebuilds & project cars — bring a toolbox',
+    brandStart: '#5a3a1a', brandEnd: '#2e1d0d', brandAccent: '#ff9a3c',
+    perks: [
+      { icon: 'warning', title: 'Salvage-title stock', desc: 'Every lot carries a branded salvage title.' },
+      { icon: 'percent', title: 'Deep discounts', desc: 'Openings start well below clean-title value.' },
+      { icon: 'wrench',  title: 'Repair risk', desc: 'Mostly Fair/Poor cars with plenty of hidden issues.', badge: 'RISKY' },
+    ],
+    finePrint: 'Salvage titles sell for less and scare off retail buyers. Inspect before you bid.',
+    interest: 'Moderate', lotsWord: 'salvage lot',
+  },
+  {
+    id: 'basic', name: 'Main Street Auto Auction', logoA: 'Main Street ', logoB: 'Auto', icon: 'car',
+    tagline: 'Everyday cars, clean titles, steady margins',
+    brandStart: '#1e4f8a', brandEnd: '#12304f', brandAccent: '#4fb0ff',
+    perks: [
+      { icon: 'check', title: 'Clean-title daily drivers', desc: 'Sedans, SUVs, trucks and commuters — nothing rare.' },
+      { icon: 'tag',   title: 'Wholesale pricing', desc: 'Bidders here are trade buyers, so deals are real but thin.' },
+      { icon: 'clipboard', title: 'Low inspection cost', desc: 'Pre-sale appraisals are cheap on everyday cars.', badge: 'CHEAP' },
+    ],
+    finePrint: 'Plenty of competition from trade buyers keeps margins slim. Volume is the game.',
+    interest: 'Steady', lotsWord: 'lot',
+  },
+  {
+    id: 'rare', name: AUCTION_HOUSE_NAME, logoA: 'Kessler ', logoB: '& Vale', icon: 'gavel',
+    tagline: 'Hypercars, coachbuilt one-offs & retired icons',
+    brandStart: '#6b4e0f', brandEnd: '#2a2008', brandAccent: '#ffd35d',
+    perks: [
+      { icon: 'star', title: 'Ultra-rare only', desc: 'Seven-figure hypercars and out-of-production legends.' },
+      { icon: 'trophy', title: 'Provenance', desc: 'Concours winners, race-proven chassis and more.', badge: 'ELITE' },
+      { icon: 'search', title: 'Fuzzy estimates', desc: 'Pay for an inspection to reveal the true appraisal.' },
+    ],
+    finePrint: 'Huge sums, huge swings. A wrong bid can cost more than a month of profit.',
+    interest: 'Frenzy', lotsWord: 'extremely rare lot',
+  },
+];
+const getAuctionHouse = id => AUCTION_HOUSES.find(h => h.id === id) || AUCTION_HOUSES[2];
+let auctionHouseSel = null;         // null = house picker, otherwise 'salvage' | 'basic' | 'rare'
+function selectAuctionHouse(id) { auctionHouseSel = id; playSfx('click'); renderUsedMarket(); }
+
 let usedMarketSubTab = 'catalog';   // 'catalog' | 'auctions'
 let liveAuction = null;             // the auction currently on the floor, or null
 let _auctionPool = null;
 let _auctionRaf = 0;
 
 function switchUsedMarketSubTab(name) {
+  if (name === 'auctions' && usedMarketSubTab !== 'auctions') auctionHouseSel = null;   // always land on the house picker
   usedMarketSubTab = name;
   renderUsedMarket();
 }
@@ -6083,10 +6127,11 @@ function switchUsedMarketSubTab(name) {
 // ── Fees, steps & small helpers ──────────────────────────────
 function auctionBuyerPremium()  { return state.upgrades.auctionAccess ? AUCTION_MEMBER_PREMIUM : AUCTION_BUYER_PREMIUM; }
 function auctionCommission()    { return state.upgrades.auctionAccess ? AUCTION_MEMBER_COMMISSION : AUCTION_SELLER_COMMISSION; }
-function auctionMaxLots()       { return 3 + (state.upgrades.auctionAccess ? 1 : 0); }
+function auctionMaxLots(house = 'rare') { return (house === 'rare' ? 3 : 4) + (state.upgrades.auctionAccess ? 1 : 0); }
 function auctionListingFee(v)   { return clamp(Math.round(v * 0.005 / 50) * 50, 150, 25000); }
 function auctionInspectCost(car) {
-  const base = clamp(Math.round(car.marketValue * 0.004 / 50) * 50, 1500, 20000);
+  const minCost = (car.auctionHouse && car.auctionHouse !== 'rare') ? 150 : 1500;
+  const base = clamp(Math.round(car.marketValue * 0.004 / 50) * 50, minCost, 20000);
   return state.upgrades.inspectionTool ? Math.round(base / 2) : base;
 }
 /** Picks the "nice" bid increment (1–2% of value) closest to the ideal on a log scale. */
@@ -6109,6 +6154,7 @@ function auctionHash(str) {
 function ensureAuctionState() {
   if (!state.auctions || !Array.isArray(state.auctions.lots)) state.auctions = { lots: [] };
   if (!Array.isArray(state.auctionLog)) state.auctionLog = [];
+  for (const l of state.auctions.lots) { if (!l.house) l.house = 'rare'; if (l.car && !l.car.auctionHouse) l.car.auctionHouse = l.house; }
   state.auctionsWon    = state.auctionsWon    || 0;
   state.auctionsSold   = state.auctionsSold   || 0;
   state.auctionBestWin = state.auctionBestWin || 0;
@@ -6120,52 +6166,75 @@ function logAuctionResult(text, type = 'info') {
 }
 
 // ── Lot generation ───────────────────────────────────────────
-/** Extremely rare only: seven-figure hypercars, coachbuilt one-offs, and retired icons. */
-function getAuctionPool() {
-  if (!_auctionPool) {
-    _auctionPool = CAR_CATALOG.filter(e => e.marketValue >= 500000 && (e.usedWeight ?? 1) <= 0.1);
+/** Per-house catalogue pools. Rare = seven-figure icons; Basic = everyday non-rare cars; Salvage = cheap-to-mid cars. */
+const _auctionPools = {};
+function getAuctionPool(house = 'rare') {
+  if (!_auctionPools[house]) {
+    if (house === 'rare')        _auctionPools[house] = CAR_CATALOG.filter(e => e.marketValue >= 500000 && (e.usedWeight ?? 1) <= 0.1);
+    else if (house === 'basic')  _auctionPools[house] = CAR_CATALOG.filter(e => e.marketValue < 60000 && !e.discontinued && (e.usedWeight ?? 1) >= 0.5);
+    else                         _auctionPools[house] = CAR_CATALOG.filter(e => e.marketValue < 90000 && (e.usedWeight ?? 1) >= 0.3);
+    if (!_auctionPools[house].length) _auctionPools[house] = CAR_CATALOG.filter(e => e.marketValue < 60000);
   }
-  return _auctionPool;
+  return _auctionPools[house];
 }
 const auctionLotKey = lot => `${lot.car.make}|${lot.car.model}|${lot.car.trim}`;
 
-function pickAuctionEntry(excludeKeys) {
-  const pool = getAuctionPool().filter(e => !excludeKeys.includes(`${e.make}|${e.model}|${e.trim || ''}`));
-  const src = pool.length ? pool : getAuctionPool();
+function pickAuctionEntry(excludeKeys, house = 'rare') {
+  const full = getAuctionPool(house);
+  const pool = full.filter(e => !excludeKeys.includes(`${e.make}|${e.model}|${e.trim || ''}`));
+  const src = pool.length ? pool : full;
   // Cheaper "rare" cars turn up more often than the eight-figure unicorns.
-  const weighted = src.map(e => ({ e, w: 1 / Math.sqrt(e.marketValue / 500000) }));
-  const total = weighted.reduce((s, it) => s + it.w, 0);
+  const weighted = src.map(e => ({ e, w: house === 'rare' ? 1 / Math.sqrt(e.marketValue / 500000) : (e.usedWeight ?? 1) }));
+  const total = weighted.reduce((sum, it) => sum + it.w, 0);
   let roll = Math.random() * total;
   for (const it of weighted) { roll -= it.w; if (roll <= 0) return it.e; }
   return randomFrom(src);
 }
 
-function generateAuctionLot(excludeKeys = []) {
-  const entry = pickAuctionEntry(excludeKeys);
+function generateAuctionLot(excludeKeys = [], house = 'rare') {
+  const entry = pickAuctionEntry(excludeKeys, house);
+  const condWeights = house === 'salvage' ? [0.0, 0.12, 0.48, 0.40] : house === 'basic' ? [0.10, 0.40, 0.38, 0.12] : [0.28, 0.42, 0.22, 0.08];
   let car = null;
   for (let i = 0; i < 8; i++) {
-    car = buildCar(entry, pickCondition([0.28, 0.42, 0.22, 0.08]), 'used', false);
-    if (car.titleStatus === 'clean') break;
+    car = buildCar(entry, pickCondition(condWeights), 'used', false);
+    if (house === 'salvage' || car.titleStatus === 'clean') break;
   }
-  // The house vets every consignment: clean title, verified VIN, no stolen stock.
-  car.titleStatus = 'clean';
+  // The house vets every consignment: verified VIN, no stolen stock.
   car.legalStatus = 'clean';   car.legalDiscovered = true;
   car.vinStatus   = 'normal';  car.vinDiscovered   = true;
   car.source      = 'auction';
-  if (Math.random() >= 0.45) {
+  car.auctionHouse = house;
+  if (house === 'salvage') {
+    // Salvage yard: every lot is branded. Re-price from the old title multiplier to the salvage one.
+    const oldMult = TITLE_VALUE_MULT[car.titleStatus] || 1;
+    car.marketValue = Math.round(car.marketValue / oldMult * TITLE_VALUE_MULT.salvage);
+    car.titleStatus = 'salvage';
+    // Salvage cars are wrecks: make sure there is real repair work waiting.
+    if (!car.hiddenIssues.length && Math.random() < 0.6) {
+      const cost = Math.max(400, Math.round(car.marketValue * randomFloat(0.06, 0.16) / 50) * 50);
+      car.hiddenIssues.push({ name: randomFrom(['Bent suspension arm', 'Flood-damaged wiring', 'Cracked radiator support', 'Failing transmission']), cost });
+      car.repairCost = car.hiddenIssues.reduce((sum, i) => sum + (i.cost || 0), 0);
+    }
+  } else {
+    car.titleStatus = 'clean';
+  }
+  if (house === 'rare' && Math.random() >= 0.45) {
     const prov = randomFrom(AUCTION_PROVENANCE);
     car.marketValue = Math.round(car.marketValue * prov.mult);
     car.provenance  = { id: prov.id, label: prov.label, blurb: prov.blurb };
   }
   // The catalogue estimate is honest, but fuzzy — an inspection pins the real number down.
-  const estimate = Math.round(car.marketValue * randomFloat(0.90, 1.10));
+  const fuzz     = house === 'rare' ? [0.90, 1.10] : [0.92, 1.08];
+  const estimate = Math.round(car.marketValue * randomFloat(fuzz[0], fuzz[1]));
   const step     = auctionStepFor(estimate);
-  const startPrice = Math.max(step, Math.round(estimate * randomFloat(0.24, 0.38) / step) * step);
+  const openFrac = house === 'rare' ? [0.24, 0.38] : house === 'salvage' ? [0.22, 0.36] : [0.42, 0.60];
+  const startPrice = Math.max(step, Math.round(estimate * randomFloat(openFrac[0], openFrac[1]) / step) * step);
   const r = Math.random();
   const botCount = r < 0.15 ? 2 : r < 0.45 ? 3 : r < 0.75 ? 4 : r < 0.92 ? 5 : 6;
+  const life = house === 'rare' ? randomInt(3, 6) : randomInt(2, 5);
   return {
-    id: generateId(), car, estimate, appraised: false, step, startPrice, botCount,
-    postedDay: state.day, expiresDay: state.day + randomInt(3, 6), started: false,
+    id: generateId(), house, car, estimate, appraised: false, step, startPrice, botCount,
+    postedDay: state.day, expiresDay: state.day + life, started: false,
   };
 }
 
@@ -6189,7 +6258,7 @@ function repairAuctionLot(lot) {
   return fixed;
 }
 
-/** Daily rotation: closes stale lots and tops the floor back up. */
+/** Daily rotation: closes stale lots and tops each house's floor back up. */
 function processAuctions(announce = false) {
   ensureAuctionState();
   const lots = state.auctions.lots;
@@ -6202,15 +6271,18 @@ function processAuctions(announce = false) {
   }
   state.auctions.lots = lots.filter(l => l.expiresDay >= state.day && !l.started);
   state.auctions.lots.forEach(repairAuctionLot);
-  const live = state.auctions.lots;
-  const maxLots = auctionMaxLots();
-  const keys = live.map(auctionLotKey);
-  while (live.length < 2 || (live.length < maxLots && Math.random() < 0.30)) {
-    const lot = generateAuctionLot(keys);
-    live.push(lot);
-    keys.push(auctionLotKey(lot));
-    if (announce) {
-      addNote(`🔨 New at ${AUCTION_HOUSE_NAME}: ${formatCarDisplayName(lot.car)} (est. ${formatCurrency(lot.estimate)}).`, 'info');
+  for (const h of AUCTION_HOUSES) {
+    const live = state.auctions.lots;
+    const maxLots = auctionMaxLots(h.id);
+    const keys = live.filter(l => l.house === h.id).map(auctionLotKey);
+    const count = () => live.filter(l => l.house === h.id).length;
+    while (count() < 2 || (count() < maxLots && Math.random() < 0.30)) {
+      const lot = generateAuctionLot(keys, h.id);
+      live.push(lot);
+      keys.push(auctionLotKey(lot));
+      if (announce && h.id === 'rare') {
+        addNote(`🔨 New at ${h.name}: ${formatCarDisplayName(lot.car)} (est. ${formatCurrency(lot.estimate)}).`, 'info');
+      }
     }
   }
 }
@@ -6236,13 +6308,54 @@ function inspectAuctionLot(lotId) {
 }
 
 // ── Auction House page (Used Market → Auctions) ─────────────
+function renderAuctionPicker() {
+  const el = document.getElementById('usedmarket-subpanel');
+  if (!el) return;
+  ensureAuctionState();
+  const cards = AUCTION_HOUSES.map(h => {
+    const n = state.auctions.lots.filter(l => l.house === h.id).length;
+    const perksHtml = h.perks.map(p => `
+      <div class="ins-perk ${p.badge ? 'ins-perk--signature' : ''}">
+        <span class="ins-perk-icon">${uiIcon(p.icon)}</span>
+        <div class="ins-perk-text">
+          <div class="ins-perk-title">${p.title}</div>
+          <div class="ins-perk-desc">${p.desc}</div>
+        </div>
+        ${p.badge ? `<span class="ins-badge">${p.badge}</span>` : ''}
+      </div>`).join('');
+    return `
+      <div class="ins-card au-house-card" style="--brand-start:${h.brandStart};--brand-end:${h.brandEnd};--brand-accent:${h.brandAccent}">
+        <div class="ins-card-header">
+          <div class="ins-logo">${uiIcon(h.icon)} <span class="ins-logo-word"><span class="ins-logo-a">${h.logoA}</span><span class="ins-logo-b">${h.logoB}</span></span></div>
+          <div class="ins-tagline">${h.tagline}</div>
+        </div>
+        <div class="ins-perks">${perksHtml}</div>
+        <div class="ins-stats">
+          <div class="ins-stat-box"><div class="ins-stat-label">Lots on floor</div><div class="ins-stat-value green">${n}</div><div class="ins-stat-note">Rotates every few days</div></div>
+          <div class="ins-stat-box"><div class="ins-stat-label">Room</div><div class="ins-stat-value">${h.interest}</div><div class="ins-stat-note">Typical bidder activity</div></div>
+        </div>
+        <div class="ins-fine-print">${uiIcon('warning')} ${h.finePrint}</div>
+        <div class="ins-card-footer">
+          <button class="btn btn-primary" onclick="selectAuctionHouse('${h.id}')">${uiIcon('gavel')} Enter ${h.name}</button>
+        </div>
+      </div>`;
+  }).join('');
+  el.innerHTML = `
+    <div class="tab-info">
+      ${uiIcon('gavel')} Choose an auction house. Each one runs its own floor, with different stock, risk and margins. Buyer's premium <strong>${(auctionBuyerPremium() * 100).toFixed(0)}%</strong> · Seller's commission <strong>${(auctionCommission() * 100).toFixed(0)}%</strong> at every house.
+    </div>
+    <div class="ins-card-grid">${cards}</div>`;
+}
+
 function renderAuctionHouse() {
+  if (!auctionHouseSel) { renderAuctionPicker(); return; }
   const el = document.getElementById('usedmarket-subpanel');
   if (!el) return;
   ensureAuctionState();
   if (state.auctions.lots.length < 2) processAuctions();
   state.auctions.lots.forEach(repairAuctionLot);
-  const lots      = state.auctions.lots;
+  const house     = getAuctionHouse(auctionHouseSel);
+  const lots      = state.auctions.lots.filter(l => l.house === house.id);
   const prem      = auctionBuyerPremium();
   const comm      = auctionCommission();
   const lotFull   = state.garage.length + state.deliveries.length >= state.garageSlots;
@@ -6265,6 +6378,7 @@ function renderAuctionHouse() {
           <div><span class="car-name">${formatCarDisplayName(car)}</span></div>
           <div class="badge-stack">
             ${condBadge(car.condition)}
+            ${car.titleStatus && car.titleStatus !== 'clean' ? titleBadge(car.titleStatus) : ''}
             ${car.discontinued ? `<span class="badge badge-purple" title="Out of production — built ${car.productionStart}–${car.productionEnd}">🏛️ Discontinued</span>` : ''}
             ${car.provenance ? `<span class="badge badge-yellow" title="${car.provenance.blurb}">★ ${car.provenance.label}</span>` : ''}
             <span class="badge ${auctionInterestClass(lot.botCount)}" title="How many serious paddles are expected in the room">${uiIcon('person')} ${auctionInterestLabel(lot.botCount)} interest</span>
@@ -6314,13 +6428,17 @@ function renderAuctionHouse() {
     : `<p class="text-muted" style="font-size:.85rem">No auctions yet. The first gavel is waiting.</p>`;
 
   el.innerHTML = `
+    <div class="ins-status-strip au-house-strip" style="--brand-accent:${house.brandAccent}">
+      ${uiIcon(house.icon)} At <strong>${house.name}</strong>
+      <button class="ins-status-cancel" onclick="selectAuctionHouse(null)">← Change house</button>
+    </div>
     <div class="tab-info">
-      ${uiIcon('gavel')} <strong>${AUCTION_HOUSE_NAME}</strong> — ${lots.length} extremely rare lot${lots.length !== 1 ? 's' : ''} up for bid. Lots rotate every few days.
+      ${uiIcon('gavel')} <strong>${house.name}</strong> — ${lots.length} ${house.lotsWord}${lots.length !== 1 ? 's' : ''} up for bid. Lots rotate every few days.
       Buyer's premium <strong>${(prem * 100).toFixed(0)}%</strong> · Seller's commission <strong>${(comm * 100).toFixed(0)}%</strong> ·
       Car Lot: ${state.garage.length}/${state.garageSlots} slots.
       ${state.upgrades.auctionAccess ? `<br>${uiIcon('tag')} Wholesale Auction Membership active — reduced house fees and an extra lot on the floor.` : ''}
     </div>
-    <h3 class="au-section-title">${uiIcon('star')} Featured Lots</h3>
+    <h3 class="au-section-title">${uiIcon(house.icon)} ${house.id === 'rare' ? 'Featured Lots' : house.id === 'salvage' ? 'Salvage Lots' : 'Today\'s Lots'}</h3>
     <div class="card-grid">${lotCards}</div>
     <h3 class="au-section-title">${uiIcon('tag')} Consign Your Cars</h3>
     <p class="text-muted au-section-sub">Put any car from your Car Lot in front of the room. Set a reserve, pay the listing fee, and watch the bids climb — if the hammer falls under your reserve, the car comes home unsold.</p>
@@ -6682,10 +6800,11 @@ function auctionLeftPanelHtml(a) {
     : `<span class="text-muted">${uiIcon('search')} Not inspected</span>`;
   return `
     <div class="au-lot-panel">
-      <div class="au-lot-kicker">${sell ? 'YOUR CONSIGNMENT' : 'LOT'}</div>
+      <div class="au-lot-kicker">${sell ? 'YOUR CONSIGNMENT' : 'LOT · ' + getAuctionHouse(car.auctionHouse).name.toUpperCase()}</div>
       <h2 class="au-lot-name">${formatCarDisplayName(car)}</h2>
       <div class="au-lot-badges">
         ${condBadge(car.condition)}
+        ${car.titleStatus && car.titleStatus !== 'clean' ? titleBadge(car.titleStatus) : ''}
         ${car.discontinued ? '<span class="badge badge-purple">🏛️ Discontinued</span>' : ''}
         ${car.provenance ? `<span class="badge badge-yellow">★ ${car.provenance.label}</span>` : ''}
         <span class="badge ${auctionInterestClass(a.botCount)}">${uiIcon('person')} ${auctionInterestLabel(a.botCount)} interest</span>
@@ -6695,7 +6814,7 @@ function auctionLeftPanelHtml(a) {
         <div class="detail-row"><span>Category</span><span>${car.category}</span></div>
         <div class="detail-row"><span>Mileage</span><span>${car.mileage.toLocaleString()} mi</span></div>
         <div class="detail-row"><span>Condition</span><span>${CONDITION_NAMES[car.condition] || car.condition}</span></div>
-        <div class="detail-row"><span>Title</span><span>Clean · verified by the house</span></div>
+        <div class="detail-row"><span>Title</span><span>${car.titleStatus && car.titleStatus !== 'clean' ? (TITLE_LABELS[car.titleStatus] || car.titleStatus) + ' · VIN verified' : 'Clean · verified by the house'}</span></div>
         ${sell ? `<div class="detail-row"><span>You paid</span><span>${formatCurrency(car.purchasePrice)}</span></div>` : ''}
         <div class="detail-row"><span>Opening bid</span><span>${formatCurrency(a.startPrice)}</span></div>
         <div class="detail-row"><span>Bid increment</span><span>${formatCurrency(a.step)}</span></div>
@@ -11325,7 +11444,7 @@ function init() {
     renderCarLot, renderLeasing, renderServiceGarage, renderForSale, renderUsedMarket, renderFinance, renderAchievements,
     renderInsurance,
     renderReceipts, viewReceipt, closeReceiptModal, switchFinanceSubTab,
-    switchUsedMarketSubTab, inspectAuctionLot, openAuctionLot, openConsignAuction, startAuction,
+    switchUsedMarketSubTab, selectAuctionHouse, inspectAuctionLot, openAuctionLot, openConsignAuction, startAuction,
     auctionCenterClick, auctionPlayerBidClick, auctionSetMult, auctionSetReserve, closeAuction,
     renderShowroom, buyShowroomTier, moveToShowroom, moveToLot,
     menuToggleDark, menuToggleSfx, menuToggleTutorials, menuSetDifficulty,
