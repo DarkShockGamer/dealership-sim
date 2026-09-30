@@ -159,6 +159,22 @@
 @keyframes bootGlow { 0% { opacity: 0; } 40% { opacity: 1; } 100% { opacity: .6; } }
 
 /* ── Reduced motion: skip straight to a settled logo, no motion ── */
+#boot-screen.boot-reduced.boot-exit { animation-duration: .25s !important; }
+#boot-screen.boot-reduced .boot-bg,
+#boot-screen.boot-reduced .boot-streak,
+#boot-screen.boot-reduced .boot-flash,
+#boot-screen.boot-reduced .boot-logo .bl,
+#boot-screen.boot-reduced .boot-underline,
+#boot-screen.boot-reduced .boot-tagline,
+#boot-screen.boot-reduced .boot-wordmark::after {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+  filter: none !important;
+}
+#boot-screen.boot-reduced .boot-underline { width: min(280px, 60vw) !important; }
+#boot-screen.boot-reduced .boot-streak,
+#boot-screen.boot-reduced .boot-flash { opacity: 0 !important; }
 @media (prefers-reduced-motion: reduce) {
   #boot-screen.boot-exit { animation-duration: .25s !important; }
   .boot-bg, .boot-streak, .boot-flash, .boot-logo .bl,
