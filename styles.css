@@ -3211,3 +3211,9 @@ button.au-center[onclick]:hover { background: linear-gradient(180deg, #a8a8a8, #
   .skt-branch { --skt-w: 78px; }
 }
 body.dark .skt-node { background: rgba(255, 255, 255, .05); }
+
+/* ── Auction house picker (mirrors the insurance cards) ─────────── */
+.au-house-card { cursor: default; }
+.au-house-card .ins-card-header { border-bottom: 2px solid var(--brand-accent); }
+.au-house-card:hover { border-color: var(--brand-accent); box-shadow: 0 0 0 2px var(--brand-accent), var(--shadow); }
+.au-house-strip { border-color: var(--brand-accent); }
