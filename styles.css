@@ -2621,6 +2621,20 @@ body.reduce-motion #day-sweep-label {
 body.reduce-motion .toast { opacity: 1; transform: none; }
 body.reduce-motion #day-sweep-overlay { display: none !important; }
 
+/* v1.18.2 — catch-all. The in-game toggle used to cover only the elements listed above,
+   so staff icons, the main menu, credits, auction pulses, tab fades and smooth scrolling
+   kept moving. Everything is now cut, and elements that start hidden and rely on an
+   animation to appear are forced to their visible resting state. */
+html:has(body.reduce-motion) { scroll-behavior: auto !important; }
+body.reduce-motion *,
+body.reduce-motion *::before,
+body.reduce-motion *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+body.reduce-motion .credits-role-block { opacity: 1 !important; transform: none !important; }
+
 /* ============================================================
    Finance sub-tabs (Overview / Receipts) — v1.14.0
    ============================================================ */
