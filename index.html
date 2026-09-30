@@ -66,6 +66,11 @@
       var boot = document.getElementById('boot-screen');
       if (!boot) return;
       var reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+      // v1.18.2: also honour the in-game Reduce Motion setting (saved by app.js).
+      try {
+        var saved = JSON.parse(localStorage.getItem('dealerSim_settings') || '{}');
+        if (saved && saved.reduceMotion) { reduced = true; boot.classList.add('boot-reduced'); }
+      } catch (_) {}
 
       // If a game is already in progress (tracked the same way app.js tracks
       // it — see SESSION_KEY in app.js), a refresh should drop the player
@@ -280,7 +285,7 @@
       </div>
     </div>
 
-    <span class="menu-version" aria-hidden="true">v1.18.1</span>
+    <span class="menu-version" aria-hidden="true">v1.18.2</span>
   </div>
 
   <!-- Delete-slot confirmation dialog -->
