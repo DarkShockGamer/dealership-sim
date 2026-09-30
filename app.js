@@ -11,9 +11,16 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.18.1';
+const GAME_VERSION = '1.18.2';
 
 const PATCH_NOTES = [
+  {
+    version: '1.18.2',
+    date: 'September 2026',
+    notes: [
+      { type: 'fix', text: "Fixed the Reduce Motion setting not doing enough. It only covered a short list of effects, so staff icons and progress bars, the main menu, credits, auction pulses, tab fades and smooth scrolling kept animating. Turning it on now stops all animation and transitions across the game, and it also skips the intro logo animation on the next launch." },
+    ],
+  },
   {
     version: '1.18.1',
     date: 'September 2026',
