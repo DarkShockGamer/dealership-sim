@@ -547,6 +547,8 @@ const DEFAULT_STATE = {
   staff: [],
   staffCandidates: [],
   staffActivity: [],
+  staffTrading: true,      // staff buy, fix and flip cars on their own
+  staffProfitTotal: 0,
   upgrades: {
     garageLevel: 1,
     marketing: 0,
@@ -2080,6 +2082,8 @@ function loadState(slot) {
       if (!loaded.staff) loaded.staff = [];
       if (!loaded.staffCandidates) loaded.staffCandidates = [];
       if (!loaded.staffActivity) loaded.staffActivity = [];
+      if (loaded.staffTrading === undefined) loaded.staffTrading = true;
+      loaded.staffProfitTotal = loaded.staffProfitTotal ?? 0;
       // Migrate upgrade keys
       if (!loaded.upgrades) loaded.upgrades = {};
       // v1.6.0: any upgrade field this save predates (new upgrades, older saves) gets its default,
@@ -3739,26 +3743,226 @@ function applyStaffTradeInSuggestion(requestId) {
   }
 }
 
-/** Staff lists all eligible (unlisted, not in service, not leased) cars at market price. */
-function staffListCars() {
-  if (!state.staff?.length) { showToast('No staff available to list cars.', 'error'); return; }
-  const staffer    = state.staff[0];
-  let   listedCount = 0;
-  for (const car of state.garage) {
-    if (car.isForSale || car.inServiceUntilDay || (car.leaseStatus === 'active' && car.activeLease)) continue;
-    car.isForSale  = true;
-    car.listPrice  = car.listPrice > 0 ? car.listPrice : car.marketValue;
-    listedCount++;
+// ============================================================
+// STAFF DEALS — staff buy, fix and flip cars on their own
+// Each staffer runs up to `speed` deals at once. A deal walks through
+// Scouting → (Repairing) → Selling. The car sits on your Car Lot the whole
+// time, tagged with the staffer's name. Better rank = cheaper buys,
+// higher sale prices, bigger budget and faster turnaround.
+// ============================================================
+const STAFF_RANKS = [
+  { name: 'Rookie',        min: 0,  cap: 20000,  icon: '🧑', color: '#9aa7b8' },
+  { name: 'Salesperson',   min: 55, cap: 35000,  icon: '🧑‍💼', color: '#4fb0ff' },
+  { name: 'Senior Dealer', min: 65, cap: 60000,  icon: '🕴️', color: '#6fe3b8' },
+  { name: 'Lead Dealer',   min: 75, cap: 95000,  icon: '🤵', color: '#ffb84d' },
+  { name: 'Master Dealer', min: 85, cap: 140000, icon: '👑', color: '#ffd35d' },
+];
+const STAFF_CASH_RESERVE = 5000;   // staff never spend the last of your cash
+const STAFF_SEVERANCE_DAYS = 2;    // firing costs this many days of wages
+let _staffFireArmed = null;
+
+function staffSkill(st) { return ((st.negotiation || 0) + (st.selling || 0)) / 2; }
+function getStaffRankIdx(st) {
+  const sk = staffSkill(st);
+  let idx = 0;
+  STAFF_RANKS.forEach((r, i) => { if (sk >= r.min) idx = i; });
+  return idx;
+}
+const getStaffRank = st => STAFF_RANKS[getStaffRankIdx(st)];
+const staffBuyMult  = st => clamp(0.83 - ((st.negotiation || 45) - 45) * 0.0022, 0.70, 0.83);
+const staffSellMult = st => clamp(1.02 + ((st.selling || 45) - 45) * 0.0016, 1.02, 1.11);
+function ensureStaffFields(st) {
+  if (!Array.isArray(st.jobs)) st.jobs = [];
+  st.flips = st.flips || 0;
+  st.profit = st.profit || 0;
+  st.bestFlip = st.bestFlip || 0;
+  return st;
+}
+function staffJobForCar(car) {
+  if (!car?.staffFlip) return null;
+  const st = (state.staff || []).find(x => x.id === car.staffFlip.staffId);
+  return st ? (st.jobs || []).find(j => j.carId === car.id) || null : null;
+}
+function staffJobText(st, job) {
+  const car = job.carId ? state.garage.find(c => c.id === job.carId) : null;
+  const name = car ? formatCarDisplayName(car) : '';
+  if (job.stage === 'scouting')  return { icon: '🔎', cls: 'scout', text: job.note || 'Scouting listings and auctions for a deal…' };
+  if (job.stage === 'repairing') return { icon: '🔧', cls: 'repair', text: `Fixing up the ${name} in the workshop` };
+  return { icon: '🤝', cls: 'sell', text: job.note || `Showing the ${name} to buyers` };
+}
+function staffPromote(st) {
+  // Every flip sharpens the weaker skill a little; ranks are driven by average skill.
+  const before = getStaffRankIdx(st);
+  const key = (st.negotiation <= st.selling) ? 'negotiation' : 'selling';
+  if (Math.random() < 0.7) st[key] = Math.min(99, st[key] + 1);
+  else { const k2 = key === 'negotiation' ? 'selling' : 'negotiation'; st[k2] = Math.min(99, st[k2] + 1); }
+  const after = getStaffRankIdx(st);
+  if (after > before) {
+    st.wage = Math.round(st.wage * 1.08);
+    const r = STAFF_RANKS[after];
+    addStaffActivity(`🎉 ${st.name} was promoted to ${r.name}! Bigger budget and better margins (wage now ${formatCurrency(st.wage)}/day).`);
+    addNote(`🎉 ${st.name} was promoted to ${r.name}.`, 'success');
+    showToast(`🎉 ${st.name} is now a ${r.name}!`, 'success');
   }
-  if (listedCount === 0) {
-    showToast('No eligible cars to list — all are already listed or unavailable.', 'info'); return;
+}
+
+function staffTryBuy(st, job) {
+  const rank = getStaffRank(st);
+  const free = state.garageSlots - state.garage.length - state.deliveries.length;
+  if (free < 2) return { fail: 'Waiting for lot space' };
+  const budget = Math.min(rank.cap, state.cash - STAFF_CASH_RESERVE);
+  if (budget < 2500) return { fail: 'Waiting for cash' };
+  const rankIdx = getStaffRankIdx(st);
+  let best = null;
+  for (let i = 0; i < 14; i++) {
+    const entry = pickCatalogEntryForUsed();
+    if (!entry || entry.marketValue * 0.6 > budget || entry.marketValue < 3000) continue;
+    const car = buildCar(entry, pickCondition([0.10, 0.40, 0.35, 0.15]), 'used', false);
+    if (car.legalStatus !== 'clean' || car.vinStatus !== 'normal') continue;
+    if (car.titleStatus === 'lemon' || (car.titleStatus === 'salvage' && rankIdx < 2)) continue;
+    if (car.crashDamageSeverity === 'moderate' || car.crashDamageSeverity === 'severe') continue;
+    if (car.marketValue < 2500) continue;
+    const price = Math.round(car.marketValue * staffBuyMult(st) * randomFloat(0.97, 1.03));
+    if (price > budget) continue;
+    const fixable = car.hiddenIssues.filter(x => !x.isCrashDamage).reduce((sum, x) => sum + x.cost, 0);
+    const repairs = Math.round(fixable * (1 - 0.25 - (st.selling / 100) * 0.35));
+    const score = (car.marketValue * staffSellMult(st) - price - repairs) / price;
+    if (score < 0.05) continue;
+    if (!best || score > best.score) best = { car, price, repairs, score };
   }
-  addStaffActivity(`🏷️ ${staffer.name} listed ${listedCount} car(s) for sale at market price.`);
-  addNote(`🏷️ ${staffer.name} listed ${listedCount} car(s) for sale.`, 'info');
+  if (!best) return { fail: 'No good deals found today' };
+  const { car, price, repairs } = best;
+  state.cash -= price;
+  car.purchasePrice = price;
+  car.daysInLot = 0;
+  car.legalDiscovered = true;
+  car.vinDiscovered = true;
+  car.staffFlip = { staffId: st.id, staffName: st.name, jobId: job.id };
+  state.garage.push(car);
+  job.carId = car.id;
+  job.buyPrice = price;
+  job.repairCost = repairs;
+  job.repairSpent = 0;
+  const label = formatCarDisplayName(car);
+  addStaffActivity(`🤝 ${st.name} negotiated and bought a ${label} for ${formatCurrency(price)} (market value ${formatCurrency(car.marketValue)}).`);
+  addNote(`🤝 ${st.name} bought a ${label} for ${formatCurrency(price)}.`, 'info');
+  return { ok: true, label, price };
+}
+
+function staffStartSelling(st, job) {
+  const rank = getStaffRankIdx(st);
+  job.stage = 'selling';
+  job.total = job.left = rank >= 3 ? 2 : 3;
+  job.note = null;
+}
+
+function staffSettleSale(st, job, car) {
+  const salePrice = Math.round(car.marketValue * staffSellMult(st) * randomFloat(0.97, 1.04));
+  const fee = Math.round(salePrice * TRANSACTION_FEE);
+  const dealerFees = computeDealerFees();
+  const profit = salePrice - fee - car.purchasePrice - (job.repairSpent || 0) + dealerFees.total;
+  state.cash += salePrice - fee + dealerFees.total;
+  const buyer = randomFrom(CUSTOMER_NAMES);
+  recordSaleStats(car, profit);
+  state.salesHistory.unshift({
+    ...car, soldDay: state.day, salePrice, fee, profit, dealerFees,
+    buyerName: buyer, agreementNo: generateId().toUpperCase(),
+    note: `Flipped by ${st.name}`,
+  });
+  state.garage = state.garage.filter(c => c.id !== car.id);
+  state.customerOffers  = state.customerOffers.filter(o => o.carId !== car.id);
+  state.tradeInRequests = state.tradeInRequests.filter(r => r.targetCarId !== car.id);
+  st.flips++; st.profit += profit; st.bestFlip = Math.max(st.bestFlip, profit);
+  state.staffProfitTotal = (state.staffProfitTotal || 0) + profit;
+  const label = formatCarDisplayName(car);
+  addStaffActivity(`💰 ${st.name} sold the ${label} to ${buyer} for ${formatCurrency(salePrice)} — profit ${profit >= 0 ? '+' : '−'}${formatCurrency(Math.abs(profit))}.`);
+  addNote(`💰 ${st.name} flipped a ${label}: ${profit >= 0 ? '+' : '−'}${formatCurrency(Math.abs(profit))}.`, profit >= 0 ? 'success' : 'warning');
+  staffPromote(st);
+  return profit;
+}
+
+/** Daily tick: every staff deal moves one step forward. */
+function processStaffFlips() {
+  const res = { sold: 0, bought: 0, net: 0 };
+  if (!state.staff?.length) return res;
+  for (const st of state.staff) {
+    ensureStaffFields(st);
+    const rankIdx = getStaffRankIdx(st);
+    for (const job of [...st.jobs]) {
+      const car = job.carId ? state.garage.find(c => c.id === job.carId) : null;
+      // The car disappeared or was taken over by the player — close the deal quietly.
+      if (job.carId && (!car || (car.leaseStatus === 'active' && car.activeLease))) {
+        if (car) delete car.staffFlip;
+        st.jobs = st.jobs.filter(j => j.id !== job.id);
+        addStaffActivity(`⚠️ ${st.name}'s deal fell through — the car is no longer available.`);
+        continue;
+      }
+      if (car && car.inServiceUntilDay) { job.note = 'Waiting for the workshop'; continue; }
+      job.left--;
+      if (job.left > 0) continue;
+      if (job.stage === 'scouting') {
+        const r = staffTryBuy(st, job);
+        if (!r.ok) { job.left = 1; job.note = r.fail; continue; }
+        res.bought++;
+        job.note = null;
+        if (job.repairCost > 0) { job.stage = 'repairing'; job.total = job.left = job.repairCost > 3000 ? 2 : 1; }
+        else staffStartSelling(st, job);
+      } else if (job.stage === 'repairing') {
+        if (state.cash < job.repairCost) { job.left = 1; job.note = 'Waiting for cash'; continue; }
+        state.cash -= job.repairCost;
+        job.repairSpent = job.repairCost;
+        car.hiddenIssues = car.hiddenIssues.filter(x => x.isCrashDamage);
+        car.repairCost = 0;
+        car.inspected = true;
+        car.repairCount = (car.repairCount || 0) + 1;
+        addStaffActivity(`🔧 ${st.name} finished repairs on the ${formatCarDisplayName(car)} (${formatCurrency(job.repairCost)}).`);
+        staffStartSelling(st, job);
+      } else if (job.stage === 'selling') {
+        const profit = staffSettleSale(st, job, car);
+        res.sold++; res.net += profit;
+        st.jobs = st.jobs.filter(j => j.id !== job.id);
+      }
+    }
+    // Free hands pick up the next deal.
+    if (state.staffTrading !== false) {
+      while (st.jobs.length < st.speed) {
+        st.jobs.push({ id: generateId(), stage: 'scouting', total: rankIdx >= 3 ? 1 : 2, left: rankIdx >= 3 ? 1 : 2, carId: null, note: null });
+      }
+    }
+  }
+  return res;
+}
+
+function toggleStaffTrading() {
+  state.staffTrading = state.staffTrading === false;
+  addStaffActivity(state.staffTrading ? '▶️ Staff deals resumed.' : '⏸️ Staff deals paused — current deals will finish, no new ones start.');
   saveState();
-  renderCarLot();
-  renderForSale();
-  showToast(`${staffer.name} listed ${listedCount} car(s) for sale!`, 'success');
+  renderStaff();
+}
+
+function fireStaff(staffId) {
+  const st = (state.staff || []).find(x => x.id === staffId);
+  if (!st) return;
+  if (_staffFireArmed !== staffId) {
+    _staffFireArmed = staffId;
+    playSfx('warning');
+    renderStaff();
+    setTimeout(() => { if (_staffFireArmed === staffId) { _staffFireArmed = null; renderStaff(); } }, 5000);
+    return;
+  }
+  _staffFireArmed = null;
+  const severance = st.wage * STAFF_SEVERANCE_DAYS;
+  if (state.cash < severance) { showToast(`You need ${formatCurrency(severance)} for severance to let ${st.name} go.`, 'error'); renderStaff(); return; }
+  state.cash -= severance;
+  // Any car they were working on stays on your lot as a normal car.
+  for (const car of state.garage) { if (car.staffFlip?.staffId === st.id) delete car.staffFlip; }
+  state.staff = state.staff.filter(x => x.id !== st.id);
+  addStaffActivity(`🚪 You let ${st.name} go (severance ${formatCurrency(severance)}).`);
+  addNote(`🚪 ${st.name} was let go. Severance: ${formatCurrency(severance)}.`, 'info');
+  ensureStaffCandidates();
+  saveState();
+  renderAll();
+  showToast(`${st.name} has been let go.`, 'info');
 }
 
 // ============================================================
@@ -4678,6 +4882,7 @@ function nextDay() {
   state.customerOffers = [...state.customerOffers, ...newOffers];
   processStaffMode2Recommendations();
   processStaffTradeInSuggestions();
+  const staffRes = processStaffFlips();
   ensureStaffCandidates();
   runAchievementChecks();
   saveState();
@@ -4686,7 +4891,8 @@ function nextDay() {
   const tradeAlert = newTIR.length   ? ` ${newTIR.length} trade-in request(s)!` : '';
   const leaseIncome = computeLeaseIncomePerDay();
   const leaseAlert = leaseIncome > 0 ? ` Active lease income/day: ${formatCurrency(leaseIncome)}.` : '';
-  showToast(`Day ${state.day} — new used cars available!${offerAlert}${tradeAlert}${leaseAlert}`, 'info', 'day');
+  const staffAlert = staffRes.sold ? ` Staff flipped ${staffRes.sold} car(s): ${staffRes.net >= 0 ? '+' : '−'}${formatCurrency(Math.abs(staffRes.net))}.` : '';
+  showToast(`Day ${state.day} — new used cars available!${offerAlert}${tradeAlert}${leaseAlert}${staffAlert}`, 'info', 'day');
   _holdDayPopups = false;
   // Let the "Day N" card finish before releasing anything that piled up
   // (theft alerts, lease crash/return reports, insurance payouts, the
@@ -5124,6 +5330,7 @@ function hireStaff(candidateId) {
   if (!candidate) return;
   const maxStaff = state.upgrades.crmSuite ? STAFF_MAX_WITH_CRM : STAFF_MAX_BASE;
   if (state.staff.length >= maxStaff) { showToast(`Staff cap reached (${maxStaff}).`, 'error'); return; }
+  ensureStaffFields(candidate);
   state.staff.push(candidate);
   state.staffCandidates = state.staffCandidates.filter(c => c.id !== candidateId);
   addStaffActivity(`✅ Hired ${candidate.name} (Neg ${candidate.negotiation}, Sell ${candidate.selling}, Wage ${formatCurrency(candidate.wage)}/day).`);
@@ -7123,6 +7330,7 @@ function renderCarLot() {
               ${needsMaint ? `<span class="badge badge-orange" title="Pinned to top: needs maintenance">${uiIcon('wrench')} NEEDS MAINTENANCE</span>` : ''}
               ${condBadge(car.condition)}
               ${titleBadge(car.titleStatus)}
+              ${car.staffFlip ? `<span class="badge badge-purple" title="${car.staffFlip.staffName} bought this car and is flipping it">🧑‍💼 ${car.staffFlip.staffName}'s flip</span>` : ''}
               ${isCertifiedCar(car) ? '<span class="badge badge-green" title="Certified Pre-Owned: +18% sale chance">✔ CERTIFIED</span>' : ''}
               ${car.provenance ? `<span class="badge badge-yellow" title="${car.provenance.blurb}">★ ${car.provenance.label}</span>` : ''}
               ${(car.legalDiscovered && (car.legalStatus || 'clean') !== 'clean') ? `<span class="badge ${car.legalStatus === 'stolen' ? 'badge-red' : 'badge-orange'}">${car.legalStatus === 'stolen' ? '🚨 STOLEN' : '⚠️ NO TITLE'}</span>` : ''}
@@ -7132,6 +7340,7 @@ function renderCarLot() {
               ${isLeased ? `<span class="badge badge-blue">LEASED (${leaseDaysLeft}d left)</span>` : ''}
             </div>
           </div>
+        ${car.staffFlip ? (() => { const j = staffJobForCar(car); const t = j ? staffJobText({}, j) : null; return t ? `<div class="staff-lot-banner"><span class="staff-emoji ${t.cls}">${t.icon}</span> ${car.staffFlip.staffName}: ${t.text} <span class="text-muted">(${j.left}d)</span></div>` : ''; })() : ''}
         ${inService ? `<div class="service-banner">${uiIcon('wrench')} IN SERVICE — Ready Day ${car.inServiceUntilDay} (${car.pendingService?.type === 'repair' ? 'Basic Repair' : 'Parts Upgrade'})</div>` : ''}
         ${car.isForSale ? `<div class="for-sale-banner">${uiIcon('tag')} LISTED FOR SALE</div>` : ''}
         ${isLeased ? `<div class="service-banner">${uiIcon('document')} LEASE ACTIVE — ${leaseDaysLeft} day(s) remaining</div>` : ''}
@@ -7213,10 +7422,6 @@ function renderCarLot() {
       <div class="bulk-row">
         <button class="btn btn-sm btn-secondary" onclick="markAllForSale()">List All Ready Cars</button>
         <button class="btn btn-sm btn-warning" onclick="unlistAllCars()">Unlist All</button>
-      </div>` : ''}
-    ${state.staff?.length ? `
-      <div class="bulk-row">
-        <button class="btn btn-sm btn-secondary" onclick="staffListCars()">${uiIcon('person')} Staff: List All Cars</button>
       </div>` : ''}
     <div class="card-grid">${cards}</div>`;
 }
@@ -8108,13 +8313,59 @@ function renderStaff() {
 
   ensureStaffCandidates();
   const maxStaff = state.upgrades.crmSuite ? STAFF_MAX_WITH_CRM : STAFF_MAX_BASE;
-  const staffCards = (state.staff || []).map(s => `
-    <div class="car-card upgrade-card">
-      <div class="upgrade-icon">${uiIconLg('person')}</div>
-      <h4>${s.name}</h4>
-      <p class="upgrade-desc">Negotiation ${s.negotiation} · Selling ${s.selling} · Speed ${s.speed}/day</p>
-      <p class="upgrade-cost text-red">${formatCurrency(s.wage)}/day wage</p>
-    </div>`).join('') || '<p class="text-muted">No staff hired yet.</p>';
+  (state.staff || []).forEach(ensureStaffFields);
+  const trading = state.staffTrading !== false;
+  const staffCards = (state.staff || []).map(s => {
+    const ri = getStaffRankIdx(s), rank = STAFF_RANKS[ri], next = STAFF_RANKS[ri + 1];
+    const sk = staffSkill(s);
+    const rankPct = next ? clamp(((sk - rank.min) / (next.min - rank.min)) * 100, 0, 100) : 100;
+    const slots = [];
+    for (let i = 0; i < s.speed; i++) {
+      const job = s.jobs[i];
+      if (!job) {
+        slots.push(`<div class="staff-job idle"><span class="staff-emoji idle">${trading ? '☕' : '⏸️'}</span><div class="staff-job-body"><div class="staff-job-text">${trading ? 'Between deals — starts a new one tomorrow' : 'Deals paused'}</div></div></div>`);
+        continue;
+      }
+      const t = staffJobText(s, job);
+      const pct = job.total ? clamp(((job.total - job.left) / job.total) * 100, 6, 100) : 6;
+      const car = job.carId ? state.garage.find(c => c.id === job.carId) : null;
+      const money = car ? `<span class="text-muted">Paid ${formatCurrency(job.buyPrice)} · worth ${formatCurrency(car.marketValue)}</span>` : '';
+      slots.push(`
+        <div class="staff-job ${t.cls}">
+          <span class="staff-emoji ${t.cls}">${t.icon}</span>
+          <div class="staff-job-body">
+            <div class="staff-job-text">${t.text}</div>
+            ${money}
+            <div class="staff-bar"><div class="staff-bar-fill" style="width:${pct}%"></div></div>
+          </div>
+          <span class="staff-job-days">${job.left}d</span>
+        </div>`);
+    }
+    const armed = _staffFireArmed === s.id;
+    return `
+    <div class="car-card staff-card" style="--rank-color:${rank.color}">
+      <div class="staff-card-head">
+        <span class="staff-avatar">${rank.icon}</span>
+        <div>
+          <h4>${s.name}</h4>
+          <span class="badge staff-rank-badge">${rank.name}</span>
+        </div>
+        <div class="staff-wage text-red">${formatCurrency(s.wage)}/day</div>
+      </div>
+      <div class="staff-stats">
+        <span>Negotiation <strong>${s.negotiation}</strong></span>
+        <span>Selling <strong>${s.selling}</strong></span>
+        <span>Deals at once <strong>${s.speed}</strong></span>
+        <span>Budget <strong>${formatCurrency(rank.cap)}</strong></span>
+      </div>
+      <div class="staff-rankbar" title="${next ? `Progress to ${next.name}` : 'Top rank'}"><div style="width:${rankPct}%"></div></div>
+      <div class="staff-jobs">${slots.join('')}</div>
+      <div class="staff-record">Flips <strong>${s.flips}</strong> · Profit <strong class="${s.profit >= 0 ? 'text-green' : 'text-red'}">${s.profit >= 0 ? '+' : '−'}${formatCurrency(Math.abs(s.profit))}</strong> · Best <strong>${formatCurrency(s.bestFlip)}</strong></div>
+      <div class="car-actions">
+        <button class="btn btn-sm ${armed ? 'btn-warning' : 'btn-secondary'}" onclick="fireStaff('${s.id}')">${armed ? `Click again to fire (${formatCurrency(s.wage * STAFF_SEVERANCE_DAYS)} severance)` : 'Fire'}</button>
+      </div>
+    </div>`;
+  }).join('') || '<p class="text-muted">No staff hired yet.</p>';
   const candidateCards = (state.staffCandidates || []).map(s => `
     <div class="car-card upgrade-card">
       <div class="upgrade-icon">${uiIconLg('fileText')}</div>
@@ -8136,8 +8387,11 @@ function renderStaff() {
     <div class="tab-info">
       ${uiIcon('person')} Staff hired: <strong>${(state.staff || []).length}/${maxStaff}</strong>
       &nbsp;|&nbsp; Total wages: <strong class="text-red">${formatCurrency(getTotalStaffWages())}/day</strong>
+      &nbsp;|&nbsp; Flip profit so far: <strong class="${(state.staffProfitTotal || 0) >= 0 ? 'text-green' : 'text-red'}">${formatCurrency(state.staffProfitTotal || 0)}</strong>
+      ${(state.staff || []).length ? `<button class="btn btn-sm ${trading ? 'btn-secondary' : 'btn-primary'}" style="margin-left:12px" onclick="toggleStaffTrading()">${trading ? '⏸ Pause staff deals' : '▶ Resume staff deals'}</button>` : ''}
     </div>
-    <div class="category-section"><h3>${uiIcon('person')} Hired Staff</h3><div class="card-grid">${staffCards}</div></div>
+    <p class="text-muted" style="font-size:.82rem;margin:-4px 0 12px">Your staff scout deals, buy cars with your cash, fix them and sell them — all on your Car Lot. Higher ranks buy cheaper, sell higher, spend bigger and are promoted as they flip. Staff keep ${formatCurrency(STAFF_CASH_RESERVE)} of your cash untouched and need 2 free lot slots.</p>
+    <div class="category-section"><h3>${uiIcon('person')} Hired Staff — Live Deals</h3><div class="card-grid">${staffCards}</div></div>
     <div class="category-section"><h3>${uiIcon('document')} Hiring Candidates</h3><div class="card-grid">${candidateCards}</div></div>
     <div class="category-section"><h3>${uiIcon('person')} Staff Activity</h3>${staffLogs}</div>`;
 }
@@ -11436,7 +11690,7 @@ function init() {
     buyUpgrade, selectSkillNode, detailCar, carWash, basicRepair, partsUpgrade,
     drawLoan, payDownLoan,
     selectInsurance, cancelInsurance,
-    confirmNewGame, exportSave, hireStaff, dismissCandidate,
+    confirmNewGame, exportSave, hireStaff, dismissCandidate, fireStaff, toggleStaffTrading,
     toggleDarkMode, setDifficulty, toggleSfxMuted, setSfxVolume, toggleTutorials,
     toggleMusicMuted, setMusicVolume, menuToggleMusic, playSfx,
     startMusic, // exposed so the boot-intro screen (index.html) can arm the soundtrack on its own first gesture
