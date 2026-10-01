@@ -1,0 +1,197 @@
+/* ============================================================
+   NIGHTMARE MODE (v1.19.0) — only active under body.nightmare
+   ============================================================ */
+.nm-chip:empty { display: none; }
+
+/* ── Red skies: override the theme tokens ─────────────────── */
+body.nightmare {
+  --bg: #1a0306; --bg-alt: #2c070c;
+  --bg-gradient-1: #7a0f18; --bg-gradient-2: #4a0910; --bg-gradient-3: #1a0306; --bg-gradient-4: #080102;
+  --surface: rgba(48, 8, 12, .86); --surface-2: rgba(36, 6, 9, .84);
+  --border: rgba(255, 110, 110, .26);
+  --text: #ffeceb; --text-muted: #e0aaa8; --text-light: #b98180;
+  --primary: #e0364a; --primary-dk: #b81f33; --info: #ff8a8a; --focus-color: #ff9c9c;
+  --success: #6fd6a0; --danger: #ff5a5a; --warning: #ffb45d;
+  --header-bg: rgba(24, 3, 6, .92); --header-text: #ffeceb;
+  --btn-primary-grad-start: #e8465a; --btn-primary-grad-hover-start: #f25a6c; --btn-primary-grad-hover-end: #c92339;
+  --card-grad-start: rgba(70, 12, 18, .92); --card-grad-end: rgba(40, 6, 10, .88);
+  --accent-upgrades: #ff6b6b; --accent-finance: #7fe0a8; --accent-insurance: #e07a9a;
+  background-attachment: fixed;
+}
+body.nightmare .header-brand { background: linear-gradient(135deg, #ffd0cc, #ff6b6b); -webkit-background-clip: text; background-clip: text; }
+body.nightmare .tab-info,
+body.dark.nightmare .tab-info { background: rgba(224, 54, 74, .18); border-color: rgba(255, 130, 130, .42); color: #ffe3e1; }
+body.nightmare .btn-primary { background: linear-gradient(180deg, var(--btn-primary-grad-start), var(--primary-dk)); border-color: rgba(255,140,140,.5); }
+body.nightmare .ach-icon-unlocked, body.nightmare .badge-blue { color: #ff9c9c; }
+body.nightmare .skt-node, body.nightmare .tab-btn { border-color: rgba(255, 110, 110, .28); }
+body.nightmare .tab-btn.active { background: linear-gradient(180deg, #d8344a, #99182a); color: #fff; }
+body.nightmare .text-blue { color: #ff9c9c; }
+
+/* Surfaces that hard-code blue in styles.css get blood-red equivalents here. */
+body.nightmare .app-main, body.nightmare .tab-panel { background: rgba(34, 5, 9, .62); }
+body.nightmare .dash-card,
+body.nightmare .car-card,
+body.nightmare .upgrade-card { background: linear-gradient(180deg, rgba(72, 12, 20, .9), rgba(36, 6, 10, .86)); border-color: rgba(255, 110, 110, .26); }
+body.nightmare .dash-card, body.nightmare .car-card, body.nightmare .kpi-tile { border-top-color: #e0364a; }
+body.nightmare .kpi-tile { background: linear-gradient(160deg, rgba(160, 30, 40, .28), rgba(40, 6, 10, .78)); }
+body.nightmare .kpi-cash .kpi-icon-wrap, body.nightmare .kpi-day .kpi-icon-wrap,
+body.nightmare .kpi-rep .kpi-icon-wrap, body.nightmare .kpi-profit .kpi-icon-wrap { background: rgba(255, 110, 110, .2); color: #ffc0bc; }
+body.nightmare .stat-chip { background: rgba(190, 50, 60, .18); border-color: rgba(255, 130, 130, .32); color: #ffdcd8; }
+body.nightmare #stat-cash { background: rgba(80, 200, 140, .16); border-color: rgba(100, 220, 160, .34); color: #c4ffe2; }
+body.nightmare #stat-day, body.nightmare #stat-rep, body.nightmare #stat-garage, body.nightmare #stat-lease, body.nightmare #stat-insurance { background: rgba(190, 50, 60, .2); border-color: rgba(255, 130, 130, .34); color: #ffd9d4; }
+body.nightmare .tab-nav { background: rgba(30, 4, 8, .8); }
+body.nightmare .tab-btn:hover { background: rgba(255, 110, 110, .14); border-color: rgba(255, 140, 140, .3); }
+body.nightmare .btn-secondary { background: rgba(255, 110, 110, .14); border-color: rgba(255, 150, 150, .3); }
+body.nightmare .btn-secondary:hover:not(:disabled) { background: rgba(255, 110, 110, .26); border-color: rgba(255, 170, 170, .45); }
+body.nightmare .btn-return-menu { background: rgba(255, 110, 110, .14); border-color: rgba(255, 150, 150, .3); }
+body.nightmare .btn-next-day { background: linear-gradient(180deg, #ee4a5e, #b01c30); }
+body.nightmare .toast { background: rgba(48, 6, 12, .97); border-color: rgba(255, 130, 130, .38); }
+body.nightmare .toast-success { background: #1f6d4a; } body.nightmare .toast-warning { background: #8a5a14; } body.nightmare .toast-error { background: #a3121f; }
+body.nightmare .modal-box, body.nightmare .patch-notes-header { background: linear-gradient(180deg, rgba(62, 10, 16, .97), rgba(30, 5, 9, .96)); border-color: rgba(255, 130, 130, .34); }
+body.nightmare .badge-blue, body.nightmare .badge-gray { background: rgba(255, 120, 120, .18); color: #ffd0cc; }
+body.nightmare .tradein-half, body.nightmare .tradein-summary { background: rgba(30, 4, 8, .7); border-color: rgba(255, 130, 130, .24); }
+body.nightmare .price-input, body.nightmare input, body.nightmare select { border-color: rgba(255, 140, 140, .3); }
+body.nightmare .custom-select-option:hover, body.nightmare .custom-select-option.selected { background: rgba(255, 110, 110, .22); }
+body.nightmare .skt-node { background: rgba(60, 9, 15, .9); }
+body.nightmare .skt-detail { background: rgba(48, 8, 12, .94); border-color: rgba(255, 130, 130, .3); }
+body.nightmare .ach-icon-locked { background: rgba(255, 130, 130, .1); color: #b98180; }
+body.nightmare .ach-icon-unlocked { background: rgba(255, 110, 110, .2); color: #ff9c9c; }
+body.nightmare .tab-info { background: rgba(224, 54, 74, .18); }
+
+/* ── Overlay layers ───────────────────────────────────────── */
+#nm-overlay { position: fixed; inset: 0; z-index: 9; pointer-events: none; display: none; overflow: hidden; }
+body.nightmare #nm-overlay { display: block; }
+.nm-vignette {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at center, transparent 42%, rgba(0,0,0,.55) 100%);
+  animation: nmBeat var(--nm-beat, 6s) ease-in-out infinite;
+}
+@keyframes nmBeat { 0%,100% { opacity: .75; } 14% { opacity: 1; } 28% { opacity: .8; } 42% { opacity: 1; } 60% { opacity: .75; } }
+body[data-dread="2"] .nm-vignette, body[data-dread="3"] .nm-vignette {
+  background: radial-gradient(ellipse at center, transparent 30%, rgba(60,0,4,.7) 100%);
+}
+.nm-grain {
+  position: absolute; inset: -50%; opacity: .11; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  animation: nmGrain 1.1s steps(6) infinite;
+}
+@keyframes nmGrain { 0% { transform: translate(0,0); } 20% { transform: translate(-3%,2%); } 40% { transform: translate(2%,-3%); } 60% { transform: translate(-2%,-1%); } 80% { transform: translate(3%,3%); } 100% { transform: translate(0,0); } }
+.nm-fog {
+  position: absolute; left: -20%; width: 140%; height: 45%; opacity: .16; filter: blur(30px);
+  background: radial-gradient(ellipse at center, rgba(255,150,150,.55), transparent 70%);
+}
+.nm-fog-a { bottom: -12%; animation: nmFog 38s ease-in-out infinite alternate; }
+.nm-fog-b { top: -14%; opacity: .1; animation: nmFog 52s ease-in-out infinite alternate-reverse; }
+@keyframes nmFog { from { transform: translateX(-8%); } to { transform: translateX(8%); } }
+body[data-dread="2"] .nm-fog, body[data-dread="3"] .nm-fog { opacity: .26; }
+.nm-flicker { position: absolute; inset: 0; background: #000; opacity: 0; }
+body[data-dread="2"] .nm-flicker { animation: nmFlicker 11s linear infinite; }
+body[data-dread="3"] .nm-flicker { animation: nmFlicker 6s linear infinite; }
+@keyframes nmFlicker { 0%,90%,100% { opacity: 0; } 91% { opacity: .22; } 92% { opacity: 0; } 94% { opacity: .3; } 95% { opacity: 0; } 97% { opacity: .12; } }
+.nm-flash { position: absolute; inset: 0; background: #7a0000; opacity: 0; }
+body.nm-fx-reckoning .nm-flash { animation: nmReckon 2.6s ease-out forwards; }
+@keyframes nmReckon { 0% { opacity: .85; } 12% { opacity: 0; } 20% { opacity: .7; } 32% { opacity: 0; } 100% { opacity: 0; } }
+body.nm-fx-reckoning .app-shell { animation: nmShake .5s linear 2; }
+@keyframes nmShake { 0%,100% { transform: translate(0,0); } 25% { transform: translate(-4px,2px); } 50% { transform: translate(3px,-2px); } 75% { transform: translate(-2px,-3px); } }
+body.nm-fx-candle .nm-flash { background: #ffb347; animation: nmCandle 1.8s ease-out forwards; }
+@keyframes nmCandle { 0% { opacity: .22; } 100% { opacity: 0; } }
+
+/* Dread chip + glitching numbers */
+#stat-dread { border-color: rgba(255,120,120,.4); }
+#stat-dread.nm-tier-1 { color: #ffc2a0; }
+#stat-dread.nm-tier-2 { color: #ff8a7a; animation: nmChipPulse 2.8s ease-in-out infinite; }
+#stat-dread.nm-tier-3 { color: #ff4a4a; animation: nmChipPulse 1.4s ease-in-out infinite; }
+@keyframes nmChipPulse { 50% { box-shadow: 0 0 14px rgba(255,60,60,.7); } }
+.nm-glitch { animation: nmGlitch .55s steps(2) 1; }
+@keyframes nmGlitch {
+  0% { transform: translateX(0); text-shadow: none; }
+  20% { transform: translateX(-3px); text-shadow: 2px 0 #ff3030, -2px 0 #30a0ff; }
+  40% { transform: translateX(3px) skewX(-8deg); filter: blur(.6px); }
+  60% { transform: translateX(-2px); text-shadow: -2px 0 #ff3030; }
+  100% { transform: none; text-shadow: none; filter: none; }
+}
+
+/* Watching eyes */
+#nm-eyes-layer { position: fixed; inset: 0; z-index: 10; pointer-events: none; }
+.nm-eyes {
+  position: absolute; display: flex; gap: 14px; padding: 12px; background: none; border: 0;
+  transform: translate(-50%,-50%) scale(var(--s,1)); opacity: 0; transition: opacity 1.4s ease; pointer-events: auto; cursor: crosshair;
+}
+.nm-eyes.open { opacity: .85; }
+.nm-eyes i {
+  display: block; width: 16px; height: 7px; border-radius: 50%; background: #ff2a2a;
+  box-shadow: 0 0 10px 3px rgba(255,40,40,.65); transition: transform .12s;
+}
+.nm-eyes.blink i { transform: scaleY(.08); }
+.nm-eyes.startled { opacity: 0; transition-duration: .25s; }
+
+/* ── Dashboard panel ──────────────────────────────────────── */
+.nm-panel { grid-column: 1 / -1; border-color: rgba(255,100,100,.4); box-shadow: 0 0 28px rgba(160,10,25,.35) inset; margin-bottom: 14px; }
+.nm-tier-label { font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin-left: 8px; padding: 2px 9px; border-radius: 999px; background: rgba(255,70,70,.18); color: #ffb0a8; }
+.nm-tier-3 .nm-tier-label { background: #a3121f; color: #fff; animation: nmChipPulse 1.4s ease-in-out infinite; }
+.nm-panel-grid { display: grid; grid-template-columns: minmax(0,1.3fr) minmax(0,1fr); gap: 18px; }
+.nm-dread-bar { position: relative; height: 26px; border-radius: 13px; background: rgba(0,0,0,.45); border: 1px solid rgba(255,110,110,.35); overflow: hidden; margin: 6px 0 10px; }
+.nm-dread-fill { height: 100%; background: linear-gradient(90deg, #7a1420, #e0364a 60%, #ff7a5a); transition: width .6s ease; box-shadow: 0 0 12px rgba(255,70,70,.6); }
+.nm-dread-num { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: .78rem; font-weight: 800; letter-spacing: .04em; text-shadow: 0 1px 3px #000; }
+.nm-drift { margin: 2px 0 8px; font-size: .8rem; color: var(--text-muted); }
+.nm-drift-row { display: flex; justify-content: space-between; padding: 1px 0 1px 14px; }
+.nm-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.nm-rules { list-style: none; font-size: .82rem; color: var(--text-muted); display: grid; gap: 7px; align-content: start; }
+.nm-rules li { padding-left: 16px; position: relative; }
+.nm-rules li::before { content: '†'; position: absolute; left: 0; color: #ff6b6b; }
+.nm-visitor { margin-top: 14px; padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,.35); background: rgba(240,230,230,.07); animation: nmChipPulse 3s ease-in-out infinite; }
+.nm-visitor-head { font-size: 1rem; }
+.nm-visitor-sub { font-size: .75rem; color: var(--text-muted); margin-left: 6px; }
+.nm-visitor p { margin: 6px 0; font-size: .88rem; }
+.nm-ash-warn { margin-top: 10px; font-size: .82rem; color: #ffb27a; }
+@media (max-width: 760px) { .nm-panel-grid { grid-template-columns: 1fr; } }
+
+/* ── Cursed cars ──────────────────────────────────────────── */
+.badge-curse { background: rgba(150,20,40,.35); color: #ffb3b8; border: 1px solid rgba(255,100,110,.5); }
+.curse-banner { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 8px 10px; margin: 6px 0; border-radius: 10px; font-size: .8rem; background: rgba(120,10,30,.35); border: 1px solid rgba(255,90,100,.4); }
+.curse-exorcise-btn { padding: 4px 10px; font-size: .78rem; }
+.nm-tell { font-size: .78rem; font-style: italic; margin: 6px 0; padding: 6px 9px; border-left: 3px solid #e0364a; color: #ffcfcc; background: rgba(120,10,30,.18); border-radius: 0 8px 8px 0; }
+body.nightmare .notif-whisper { color: #ffb0ac; font-style: italic; opacity: .9; }
+
+/* ── Nightmare modals ─────────────────────────────────────── */
+.nm-modal-overlay { position: fixed; inset: 0; z-index: 10050; display: flex; align-items: center; justify-content: center; padding: 18px; background: rgba(10,0,2,.82); backdrop-filter: blur(3px); animation: nmIn .5s ease; }
+@keyframes nmIn { from { opacity: 0; } }
+.nm-modal-box { width: min(480px, 100%); padding: 22px 24px; border-radius: 16px; background: linear-gradient(180deg, #3b0a10, #1d0407); border: 1px solid rgba(255,100,100,.45); color: #ffeceb; box-shadow: 0 0 60px rgba(180,10,30,.45); }
+.nm-modal-box.nm-modal-pale { background: linear-gradient(180deg, #2c2224, #140c0e); border-color: rgba(255,255,255,.4); box-shadow: 0 0 50px rgba(255,255,255,.12); }
+.nm-modal-title { font-size: 1.4rem; margin-bottom: 10px; letter-spacing: .02em; }
+.nm-modal-body p { margin: 8px 0; line-height: 1.5; }
+.nm-modal-warn { font-size: .86rem; color: #ffb27a; }
+.nm-modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; flex-wrap: wrap; }
+
+/* ── Day sweep: creeping subtitle ─────────────────────────── */
+#day-sweep-overlay { flex-direction: column; gap: 10px; }
+#day-sweep-sub { font-family: var(--font-display); font-style: italic; letter-spacing: .06em; font-size: 1.05rem; color: #ff9c9c; opacity: 0; text-shadow: 0 2px 14px #000; }
+#day-sweep-overlay.active #day-sweep-sub { animation: daySweepLabel .95s ease .12s forwards; }
+body.nightmare #day-sweep-overlay { background: radial-gradient(ellipse at center, rgba(40,0,4,.88), rgba(0,0,0,.96)); }
+body.nightmare #day-sweep-label { color: #ffd6d2; }
+
+/* ── Difficulty picker + game over ────────────────────────── */
+.diff-picker-box.is-nightmare { border-color: rgba(255,80,90,.65); background: linear-gradient(180deg, #3b0a10, #12030a); box-shadow: 0 0 60px rgba(200,20,40,.5); }
+.diff-picker-box.is-nightmare .diff-picker-option { color: #ff5a6a; text-shadow: 0 0 18px rgba(255,40,60,.8); animation: nmChipPulse 2.4s ease-in-out infinite; }
+.diff-picker-box.is-nightmare .diff-picker-title { color: #ffb0ac; }
+#game-over-screen.nm-over { background: radial-gradient(ellipse at center, #3b0a10, #050001); }
+#game-over-screen.nm-over .game-over-title { color: #ff4a58; text-shadow: 0 0 30px rgba(255,40,60,.7); letter-spacing: .12em; }
+
+/* ── Reduced motion ───────────────────────────────────────── */
+body.reduce-motion .nm-grain, body.reduce-motion .nm-fog, body.reduce-motion .nm-vignette, body.reduce-motion .nm-flicker,
+body.reduce-motion .nm-glitch, body.reduce-motion #stat-dread, body.reduce-motion .nm-visitor, body.reduce-motion .nm-flash,
+body.reduce-motion.nm-fx-reckoning .app-shell { animation: none !important; }
+body.reduce-motion .nm-eyes { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  .nm-grain, .nm-fog, .nm-vignette, .nm-flicker, .nm-glitch, #stat-dread, .nm-visitor, .nm-flash { animation: none !important; }
+}
+
+/* Picker polish */
+.diff-picker-box.is-nightmare .diff-picker-desc { color: #e8b6b2; }
+.diff-picker-box.is-nightmare .diff-picker-arrow { color: #ff8a8a; border-color: rgba(255,120,120,.4); }
+.diff-picker-box.is-nightmare #diff-picker-confirm { background: linear-gradient(180deg, #ee4a5e, #a3121f); border-color: rgba(255,140,140,.5); }
+.diff-picker-box.is-nightmare .btn-secondary { background: rgba(255,110,110,.14); }
+
+/* keep the gold achievement toast gold, and the Menu button readable */
+body.nightmare .toast.toast-achievement { background: linear-gradient(120deg, #6b4c0f, #d6ad3f 42%, #fff3c6 50%, #d6ad3f 58%, #6b4c0f); background-size: 220% 100%; color: #2a1c00; border-color: rgba(255, 227, 140, .6); }
+body.nightmare .btn-return-menu { color: #ffd6d2; }
