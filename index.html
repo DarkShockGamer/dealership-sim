@@ -66,7 +66,7 @@
       var boot = document.getElementById('boot-screen');
       if (!boot) return;
       var reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-      // v1.18.2: also honour the in-game Reduce Motion setting (saved by app.js).
+      // v1.18.3: also honour the in-game Reduce Motion setting (saved by app.js).
       try {
         var saved = JSON.parse(localStorage.getItem('dealerSim_settings') || '{}');
         if (saved && saved.reduceMotion) { reduced = true; boot.classList.add('boot-reduced'); }
@@ -285,7 +285,7 @@
       </div>
     </div>
 
-    <span class="menu-version" aria-hidden="true">v1.18.2</span>
+    <span class="menu-version" aria-hidden="true">v1.18.3</span>
   </div>
 
   <!-- Delete-slot confirmation dialog -->
