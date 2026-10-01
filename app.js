@@ -11,9 +11,16 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.18.4';
+const GAME_VERSION = '1.18.5';
 
 const PATCH_NOTES = [
+  {
+    version: '1.18.5',
+    date: 'September 2026',
+    notes: [
+      { type: 'balance', text: "Car Wash is now a one-time job per car instead of something you could repeat every few days. The +4% value bump and the +10% sale-chance boost now last for as long as you own the car, and the Wash button turns into a permanent 'Washed' marker. Cars that were mid-boost or already washed in an existing save count as washed." },
+    ],
+  },
   {
     version: '1.18.4',
     date: 'September 2026',
@@ -1460,9 +1467,8 @@ const THEFT_MAX_CHANCE_PER_DAY = 0.00017;
 const WORKSHOP_REPAIR_DISCOUNT = 0.15;
 const CERTIFIED_SALE_BONUS = 1.18;
 const WASH_COST = 125;             // requires the Wash Station upgrade
-const WASH_VALUE_BOOST = 0.04;     // +4% market value, every wash
-const WASH_SALE_CHANCE_BONUS = 1.10; // +10% sale chance while boost is active
-const WASH_BOOST_DAYS = 3;
+const WASH_VALUE_BOOST = 0.04;     // +4% market value, one time per car
+const WASH_SALE_CHANCE_BONUS = 1.10; // +10% sale chance, permanent once the car is washed (one wash per car)
 
 // Prerequisite helpers — each returns null when satisfied, or a short label when not.
 // Lock text shown on a button must stay short (buttons don't wrap gracefully), so requireAll
@@ -1607,7 +1613,7 @@ const UPGRADES_CONFIG = [
   // ── Reconditioning ────────────────────────────────────────
   {
     id: 'washStation', key: 'washStation', name: 'Wash Station', icon: 'droplet', category: 'Reconditioning', stage: 1, cost: 4000,
-    desc: 'Unlocks car washes — a cheap value bump and a temporary sale-chance boost.',
+    desc: 'Unlocks car washes — a cheap, one-time wash per car for a permanent value bump and sale-chance boost.',
   },
   {
     id: 'detailing', key: 'detailing', name: 'Detailing Bay', icon: 'sparkles', category: 'Reconditioning', stage: 1, cost: 12000,
@@ -2512,6 +2518,12 @@ function migrateCar(car) {
   if (car.pendingService     === undefined) car.pendingService     = null;
   if (car.reconditionLog     === undefined) car.reconditionLog     = [];
   if (car.washBoostDays      === undefined) car.washBoostDays      = 0;
+  // One wash per car, permanent boost. Older saves: count a car as washed if it
+  // was mid-boost or its recon log shows a wash.
+  if (car.washed === undefined) {
+    car.washed = car.washBoostDays > 0 ||
+      (Array.isArray(car.reconditionLog) && car.reconditionLog.some(r => r && r.type === 'Car Wash'));
+  }
   if (car.leaseStatus        === undefined) car.leaseStatus        = 'none';
   if (!LEASE_STATUSES.includes(car.leaseStatus)) car.leaseStatus   = 'none';
   if (car.activeLease        === undefined) car.activeLease        = null;
@@ -2746,6 +2758,7 @@ function buildCar(entry, condition, source, inspected = false) {
     pendingService: null,
     reconditionLog: [],
     washBoostDays: 0,
+    washed: false,
     leaseStatus: 'none',
     activeLease: null,
     hasBeenDetailed: false,
@@ -3025,7 +3038,7 @@ function computeSaleChance(car) {
   const repBoostFactor     = 1 + 0.15 * state.upgrades.reputationBoosts;
   const repFactor          = state.reputation;
   const demandFactor       = car.demandFactor || 1;
-  const washBonus          = car.washBoostDays > 0 ? WASH_SALE_CHANCE_BONUS : 1.0;
+  const washBonus          = car.washed ? WASH_SALE_CHANCE_BONUS : 1.0;
   const titleFactor        = TITLE_BUYER_MULT[car.titleStatus] || 1.0;
   const photoStudioFactor  = state.upgrades.photoStudio ? 1.10 : 1.0;
   const certifiedFactor    = isCertifiedCar(car) ? CERTIFIED_SALE_BONUS : 1.0;
@@ -4084,8 +4097,6 @@ function processService() {
     if (car.pendingService && car.inServiceUntilDay !== null && car.inServiceUntilDay <= state.day) {
       finishCarService(car);
     }
-    // Decay wash boost
-    if (car.washBoostDays > 0) car.washBoostDays--;
   }
 }
 
@@ -5553,12 +5564,12 @@ function carWash(carId) {
   if (car.leaseStatus === 'active' && car.activeLease) { showToast('No recon actions allowed while lease is active.', 'error'); return; }
   const cost = WASH_COST;
   if (state.cash < cost) { showToast(`Car wash costs ${formatCurrency(cost)} — not enough cash!`, 'error'); return; }
-  if (car.washBoostDays > 0) { showToast('Car was recently washed — wait for the boost to fade.', 'error'); return; }
+  if (car.washed) { showToast('This car has already been washed — the boost is permanent.', 'error'); return; }
   state.cash     -= cost;
   car.marketValue = Math.round(car.marketValue * (1 + WASH_VALUE_BOOST));
-  car.washBoostDays = WASH_BOOST_DAYS;
+  car.washed = true;
   car.reconditionLog.push({ type: 'Car Wash', day: state.day });
-  addNote(`🚿 Washed ${car.year} ${car.make} ${car.model} — looks great! +${Math.round(WASH_VALUE_BOOST * 100)}% value, boosted sale chance for ${WASH_BOOST_DAYS} days.`, 'success');
+  addNote(`🚿 Washed ${car.year} ${car.make} ${car.model} — looks great! +${Math.round(WASH_VALUE_BOOST * 100)}% value, permanently boosted sale chance.`, 'success');
   saveState();
   renderAll();
   flashCarCard(carId);
@@ -7300,11 +7311,11 @@ function renderCarLot() {
       // Car Wash
       const canWash = Number(state.cash) >= WASH_COST;
       if (state.upgrades.washStation) {
-        if (car.washBoostDays <= 0) {
+        if (!car.washed) {
           reconHtml += `<button class="btn btn-sm btn-secondary recon-btn" onclick="carWash('${car.id}')"
-            ${canWash ? '' : 'disabled'} title="Instant: +${Math.round(WASH_VALUE_BOOST * 100)}% value, boosted sale chance ${WASH_BOOST_DAYS} days">${uiIcon('droplet')} Wash (${formatCurrency(WASH_COST)})</button>`;
+            ${canWash ? '' : 'disabled'} title="Instant: +${Math.round(WASH_VALUE_BOOST * 100)}% value, permanent sale-chance boost (one wash per car)">${uiIcon('droplet')} Wash (${formatCurrency(WASH_COST)})</button>`;
         } else {
-          reconHtml += `<button class="btn btn-sm btn-secondary recon-btn" disabled title="Wash boost active for ${car.washBoostDays} more day(s)">${uiIcon('droplet')} Washed (${car.washBoostDays}d)</button>`;
+          reconHtml += `<button class="btn btn-sm btn-secondary recon-btn" disabled title="Already washed — the value and sale-chance boost is permanent">${uiIcon('droplet')} Washed</button>`;
         }
       } else {
         reconHtml += `<button class="btn btn-sm btn-secondary recon-btn" disabled title="Requires the Wash Station upgrade">${uiIcon('droplet')} Wash (Locked)</button>`;
@@ -7385,7 +7396,7 @@ function renderCarLot() {
         ${inService ? `<div class="service-banner">${uiIcon('wrench')} IN SERVICE — Ready Day ${car.inServiceUntilDay} (${car.pendingService?.type === 'repair' ? 'Basic Repair' : 'Parts Upgrade'})</div>` : ''}
         ${car.isForSale ? `<div class="for-sale-banner">${uiIcon('tag')} LISTED FOR SALE</div>` : ''}
         ${isLeased ? `<div class="service-banner">${uiIcon('document')} LEASE ACTIVE — ${leaseDaysLeft} day(s) remaining</div>` : ''}
-        ${car.washBoostDays > 0 ? `<div class="wash-banner">${uiIcon('droplet')} Wash boost active (${car.washBoostDays} days left)</div>` : ''}
+        ${car.washed ? `<div class="wash-banner">${uiIcon('droplet')} Washed — permanent boost</div>` : ''}
         ${(car.legalDiscovered && (car.legalStatus || 'clean') === 'stolen') ? `<div class="police-alert">🚨 <strong>STOLEN VEHICLE</strong> — Do NOT list for sale. Police may impound and fine you.</div>` : ''}
         ${(car.legalDiscovered && (car.legalStatus || 'clean') === 'noTitle') ? `<div class="legal-warning">⚠️ <strong>No Valid Title</strong> — Selling without title risks a police fine.</div>` : ''}
         ${(car.vinDiscovered && (car.vinStatus || 'normal') === 'scratched') ? `<div class="legal-warning">🔦 <strong>Scratched/Altered VIN</strong> — Increases police detection risk when selling.</div>` : ''}
@@ -8106,7 +8117,7 @@ function renderForSale() {
         </div>
         ${car.source === 'tradein' ? `<div class="tradein-source-banner">${uiIcon('refresh')} Accepted trade-in vehicle${car.purchasePrice > 0 ? ` — credited at ${formatCurrency(car.purchasePrice)}` : ''}</div>` : ''}
         ${hasOffer ? `<div class="offer-banner">${uiIcon('inbox')} Customer offer waiting (see above)</div>` : ''}
-        ${car.washBoostDays > 0 ? `<div class="wash-banner">${uiIcon('droplet')} Wash boost active (${car.washBoostDays} days)</div>` : ''}
+        ${car.washed ? `<div class="wash-banner">${uiIcon('droplet')} Washed — permanent boost</div>` : ''}
         <div class="car-details">
           <div class="detail-row"><span>Purchased For</span><span>${formatCurrency(car.purchasePrice)}</span></div>
           <div class="detail-row"><span>Market Value</span><span class="text-green">${formatCurrency(car.marketValue)}</span></div>
