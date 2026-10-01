@@ -11,9 +11,16 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.18.7';
+const GAME_VERSION = '1.18.8';
 
 const PATCH_NOTES = [
+  {
+    version: '1.18.8',
+    date: 'September 2026',
+    notes: [
+      { type: 'fix', text: "Change log: Chore entries (and the older Parts and Repair entries) now have proper colored labels instead of showing as plain unstyled text." },
+    ],
+  },
   {
     version: '1.18.7',
     date: 'September 2026',
@@ -9410,7 +9417,7 @@ function closeInsuranceEventModal() {
 /** Render the patch notes content and show the popup modal. */
 function showPatchNotesModal() {
   const latest = PATCH_NOTES[0];
-  const TYPE_LABEL = { feature: '✨ New', balance: '⚖️ Balance', fix: '🔧 Fix' };
+  const TYPE_LABEL = { feature: '✨ New', balance: '⚖️ Balance', fix: '🔧 Fix', chore: '🧹 Chore', parts: '⚙️ Parts', repair: '🛠️ Repair' };
   const content = PATCH_NOTES.map(pn => `
     <div class="pn-version-block">
       <div class="pn-version-header">
@@ -9441,7 +9448,7 @@ function closePatchNotesModal() {
 /** Render the compact patch notes panel on the home screen (collapsible). */
 function renderMenuPatchNotes() {
   const latest = PATCH_NOTES[0];
-  const TYPE_LABEL = { feature: '✨ New', balance: '⚖️ Balance', fix: '🔧 Fix' };
+  const TYPE_LABEL = { feature: '✨ New', balance: '⚖️ Balance', fix: '🔧 Fix', chore: '🧹 Chore', parts: '⚙️ Parts', repair: '🛠️ Repair' };
   const content = PATCH_NOTES.map(pn => `
     <div class="pn-version-block">
       <div class="pn-version-header">
