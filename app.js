@@ -11,9 +11,16 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.18.3';
+const GAME_VERSION = '1.18.4';
 
 const PATCH_NOTES = [
+  {
+    version: '1.18.4',
+    date: 'September 2026',
+    notes: [
+      { type: 'fix', text: "Added the Reduce Motion switch and Brightness slider to the main menu Settings screen (Display), so they can be changed before loading a save. They stay in sync with the in-game Settings tab." },
+    ],
+  },
   {
     version: '1.18.3',
     date: 'September 2026',
@@ -9639,8 +9646,11 @@ function setBrightness(raw) {
   settings.brightness = isNaN(v) ? 1 : clamp(v, 0.5, 1.5);
   applyBrightness();
   saveSettings();
-  const el = document.getElementById('brightness-pct');
-  if (el) el.textContent = Math.round(getBrightness() * 100) + '%';
+  const pctText = Math.round(getBrightness() * 100) + '%';
+  ['brightness-pct', 'menu-brightness-pct'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = pctText;
+  });
 }
 
 function resetBrightness() {
@@ -10849,6 +10859,11 @@ function syncMenuSettings() {
     if (pct) pct.textContent = Math.round(value * 100) + '%';
   };
   setToggle('menu-toggle-dark',      settings.darkMode);
+  setToggle('menu-toggle-motion',    settings.reduceMotion);
+  const br = document.getElementById('menu-brightness-range');
+  if (br) br.value = getBrightness();
+  const brPct = document.getElementById('menu-brightness-pct');
+  if (brPct) brPct.textContent = Math.round(getBrightness() * 100) + '%';
   setToggle('menu-toggle-sfx',       !settings.sfxMuted);
   setToggle('menu-toggle-music',     !settings.musicMuted);
   setToggle('menu-toggle-tutorials', settings.tutorialsEnabled);
@@ -10861,6 +10876,22 @@ function menuToggleDark() {
   settings.darkMode = !settings.darkMode;
   applyDarkMode();
   saveSettings();
+  syncMenuSettings();
+  playSfx('toggle');
+}
+
+/** Toggle Reduce Motion from the home-screen settings panel. */
+function menuToggleReduceMotion() {
+  settings.reduceMotion = !settings.reduceMotion;
+  applyReduceMotion();
+  saveSettings();
+  syncMenuSettings();
+  playSfx('toggle');
+}
+
+/** Reset brightness to 100% from the home-screen settings panel. */
+function menuResetBrightness() {
+  setBrightness(1);
   syncMenuSettings();
   playSfx('toggle');
 }
@@ -11775,7 +11806,7 @@ function init() {
     switchUsedMarketSubTab, selectAuctionHouse, inspectAuctionLot, openAuctionLot, openConsignAuction, startAuction,
     auctionCenterClick, auctionPlayerBidClick, auctionSetMult, auctionSetReserve, closeAuction,
     renderShowroom, buyShowroomTier, moveToShowroom, moveToLot,
-    menuToggleDark, menuToggleSfx, menuToggleTutorials, menuSetDifficulty,
+    menuToggleDark, menuToggleReduceMotion, menuResetBrightness, menuToggleSfx, menuToggleTutorials, menuSetDifficulty,
     returnToMenu,
     showPatchNotesModal, closePatchNotesModal,
     tutorialNext, tutorialSkip, tutorialDisable,
