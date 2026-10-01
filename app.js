@@ -11,9 +11,23 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.18.8';
+const GAME_VERSION = '1.19.0';
 
 const PATCH_NOTES = [
+  {
+    version: '1.19.0',
+    date: 'October 2026',
+    notes: [
+      { type: 'feature', text: "New difficulty: NIGHTMARE. Pick it when creating a save slot. The whole game turns red — fog, film grain, a pulsing vignette, and now and then, something watching from the edge of the screen. Overhead is double, staff are paid 25% extra for night shifts, loans are 24% APR with 2% minimum principal, buyers are pickier, and bankruptcy ends the run for good." },
+      { type: 'feature', text: "Dread: a new 0–100 meter on Nightmare. It creeps up every night and is pushed back by sales (−4 each), candles, and Wards. Cursed cars, empty tills and overdue debts push it forward. As it climbs the dark gets louder — more fog, flickering numbers, a heartbeat in the soundtrack. Hit 100 and a Reckoning takes cash and your best car; the third Reckoning is final." },
+      { type: 'feature', text: "Cursed cars: some used-market listings on Nightmare are suspiciously cheap. Inspect them to confirm the curse. Owned cursed cars add Dread, haunt the lot (breakdowns, odometers that move on their own, the occasional vanishing), and are harder to sell — or pay to exorcise them." },
+      { type: 'feature', text: "The Pale Customer: now and then a stranger offers far above market value for one of your cars. The money might be ash by morning. +18 Dread if you take it." },
+      { type: 'feature', text: "Wards: three Nightmare-only upgrades — Salt Lines, Floodlight Array and Lot Chapel — that push the night back for good. Plus ten Nightmare-only omens in the market-event pool, and \"Night N\" replaces \"Day N\" with a creeping line of text between nights." },
+      { type: 'feature', text: "New soundtrack for Nightmare: \"Lullaby for an Empty Lot\". A slow dark-ambient piece — breathing sub drone, drifting pad chords, a slightly out-of-tune music box, low wind and distant whispers, with a very soft heartbeat that only appears as Dread rises. Unsettling but calm. All synthesized in the browser, like the rest of the music. UI sounds also drop in pitch on Nightmare." },
+      { type: 'feature', text: "28 new achievements, including Nightmare-only goals (nights survived, sales, candles, exorcisms, Pale Customer deals, Reckonings, Wards) and two secrets. Unlock all of the others for Lucid Dreamer." },
+      { type: 'fix', text: "Game Over screen: \"New Game\" now starts a fresh run on the same difficulty you just lost on (it always restarted on Hard before)." },
+    ],
+  },
   {
     version: '1.18.8',
     date: 'September 2026',
@@ -592,12 +606,22 @@ const PATCH_NOTES = [
   },
 ];
 
+// Nightmare mode counters (see the NIGHTMARE MODE section further down). Lives here so DEFAULT_STATE can use it.
+const NIGHTMARE_DEFAULTS = {
+  dread: 20, peakDread: 20, lowestDread: 20,
+  reckonings: 0, candlesLit: 0, candleDay: 0,
+  exorcisms: 0, cursedBought: 0, cursedSold: 0, hauntings: 0, carsTaken: 0,
+  visitorsAccepted: 0, visitorsDeclined: 0, ashCount: 0, ashDue: 0, ashDay: 0,
+  eventsSeen: 0, salesToday: 0, totalSales: 0, eyesClicked: 0, visitor: null,
+};
+
 // ============================================================
 // DEFAULT STATE
 // ============================================================
 const DEFAULT_STATE = {
   saveVersion: 18,
   difficulty: 'normal',
+  nightmare: { ...NIGHTMARE_DEFAULTS },   // v1.19.0 — only used on Nightmare difficulty
   cash: 25000,
   day: 1,
   reputation: 1.0,
@@ -665,6 +689,10 @@ const DEFAULT_STATE = {
     fleetLeasing: false,
     // v1.14.0 — The Showroom
     showroomTier: 0,
+    // v1.19.0 — Nightmare Wards (Nightmare difficulty only)
+    wardSalt: false,
+    wardLights: false,
+    wardChapel: false,
   },
   salesHistory: [],
   notifications: [],
@@ -924,6 +952,7 @@ const LOAN_TERMS = {
   easy:   { limit: 60000, apr: 0,    minPrincipalRate: 0 },
   normal: { limit: 60000, apr: 0.12, minPrincipalRate: 0 },
   hard:   { limit: 45000, apr: 0.18, minPrincipalRate: 0.01 },
+  nightmare: { limit: 30000, apr: 0.24, minPrincipalRate: 0.02 },
 };
 const LEASE_STATUSES = ['none', 'available', 'active'];
 const LEASE_TERM_DAYS = [60, 120, 180];
@@ -967,6 +996,7 @@ const LEASE_RATE_BY_SEGMENT = {
   // Sports and Luxury intentionally higher: they attract premium lessees and carry more risk.
   normal: { Economy: 0.130, Sedan: 0.120, SUV: 0.120, Truck: 0.120, Sports: 0.150, Luxury: 0.140 },
   hard:   { Economy: 0.110, Sedan: 0.100, SUV: 0.100, Truck: 0.100, Sports: 0.120, Luxury: 0.120 },
+  nightmare: { Economy: 0.095, Sedan: 0.085, SUV: 0.085, Truck: 0.085, Sports: 0.105, Luxury: 0.105 },
 };
 const LEASE_MILES_PER_DAY = {
   Economy: [55, 110],
@@ -986,7 +1016,7 @@ const DELINQUENCY_BANKRUPTCY_LEVEL = 3;
 const CREDIT_SCORE_MIN   = 300;
 const CREDIT_SCORE_MAX   = 850;
 const CREDIT_SCORE_START = 700;
-const CREDIT_SCORE_DROP  = { normal: 12, hard: 20 }; // points lost per day cash ends negative
+const CREDIT_SCORE_DROP  = { normal: 12, hard: 20, nightmare: 30 }; // points lost per day cash ends negative
 const CREDIT_SCORE_RECOVERY_PER_DAY = 3;             // points regained per day cash stays non-negative
 const CREDIT_SCORE_BANKRUPTCY_DROP  = 120;           // severe one-time hit on bankruptcy
 // SVG icon helper — returns a 28×28 SVG icon (stroke-based, matches blue theme)
@@ -1014,6 +1044,11 @@ function uiSvgLg(pathD, ariaLabel) {
     class="ui-icon-lg" ${ariaAttrs}>${pathD}</svg>`;
 }
 const _P = {
+  eye:          '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/>',
+  moon:         '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
+  skull:        '<path d="M12 2a8 8 0 0 0-8 8c0 2.8 1.4 5.2 3.5 6.6V20a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1v-3.4A8 8 0 0 0 12 2z"/><circle cx="9" cy="11" r="1.6"/><circle cx="15" cy="11" r="1.6"/><path d="M10 17v2M14 17v2"/>',
+  candle:       '<path d="M12 2c1.2 1.6 2 2.8 2 4a2 2 0 0 1-4 0c0-1.2.8-2.4 2-4z"/><rect x="9" y="9" width="6" height="12" rx="1"/><path d="M12 9v2"/>',
+  ghost:        '<path d="M5 22V11a7 7 0 0 1 14 0v11l-3-2-2 2-2-2-2 2-2-2-3 2z"/><circle cx="9.5" cy="11" r="1"/><circle cx="14.5" cy="11" r="1"/>',
   car:          '<rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>',
   chartBar:     '<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>',
   factory:      '<rect x="2" y="6" width="20" height="16" rx="1"/><path d="M2 12h20"/><path d="M7 2v4"/><path d="M12 2v4"/><path d="M17 2v4"/>',
@@ -1113,7 +1148,24 @@ const ACH_ICONS = {
   creditcard: achSvg('<rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>'),
   layers:     achSvg('<polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>'),
   key:        achSvg('<path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>'),
+  eye:        achSvg('<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/>'),
+  moon:       achSvg('<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>'),
+  skull:      achSvg('<path d="M12 2a8 8 0 0 0-8 8c0 2.8 1.4 5.2 3.5 6.6V20a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1v-3.4A8 8 0 0 0 12 2z"/><circle cx="9" cy="11" r="1.6"/><circle cx="15" cy="11" r="1.6"/><path d="M10 17v2M14 17v2"/>'),
+  candle:     achSvg('<path d="M12 2c1.2 1.6 2 2.8 2 4a2 2 0 0 1-4 0c0-1.2.8-2.4 2-4z"/><rect x="9" y="9" width="6" height="12" rx="1"/><path d="M12 9v2"/>'),
+  ghost:      achSvg('<path d="M5 22V11a7 7 0 0 1 14 0v11l-3-2-2 2-2-2-2 2-2-2-3 2z"/><circle cx="9.5" cy="11" r="1"/><circle cx="14.5" cy="11" r="1"/>'),
 };
+
+// Nightmare-mode achievement helpers (achievements are browser-wide, so every Nightmare goal
+// is explicitly gated on the CURRENT save being a Nightmare save).
+const nmOnly = s => s.difficulty === 'nightmare';
+const nmCount = (s, key) => (s.nightmare && s.nightmare[key]) || 0;
+const nmProg = (s, value, target) => nmOnly(s) ? Math.min(value, target) + '/' + target : 'Nightmare only';
+const NIGHTMARE_ACH_IDS = [
+  'nm_night_7', 'nm_night_30', 'nm_night_100', 'nm_night_200', 'nm_first_sale', 'nm_sales_25', 'nm_sales_100',
+  'nm_cash_250k', 'nm_million', 'nm_candle_1', 'nm_candle_25', 'nm_exorcist', 'nm_exorcist_5', 'nm_cursed_sale',
+  'nm_haunted_10', 'nm_pale_deal', 'nm_pale_refuse', 'nm_ash', 'nm_reckoning', 'nm_calm', 'nm_edge',
+  'nm_omens_10', 'nm_taken_3', 'nm_wards', 'nm_debt', 'nm_secret_eyes', 'nm_secret_666', 'nm_lucid',
+];
 const ACHIEVEMENT_DEFS = [
   { id: 'first_sale',          icon: ACH_ICONS.tag,        name: 'First Deal Done',        desc: 'Complete your first car sale.',
     check: s => (s.salesHistory || []).length >= 1, progress: s => Math.min(1, (s.salesHistory||[]).length) },
@@ -1405,6 +1457,63 @@ const ACHIEVEMENT_DEFS = [
   { id: 'hard_million', icon: ACH_ICONS.flame, name: "Hard Mode Mogul", desc: "Hold $1,000,000 in cash on Hard mode.",
     check: s => s.difficulty === 'hard' && (s.cash||0) >= 1000000,
     progress: s => s.difficulty === 'hard' ? formatCurrency(Math.min(s.cash||0,1000000)) + '/$1M' : 'Hard mode only' },
+  // ── Nightmare mode ────────────────────────────────────────
+  { id: 'nm_night_7', icon: ACH_ICONS.moon, name: "Don't Fall Asleep", desc: 'Survive 7 nights on Nightmare.',
+    check: s => nmOnly(s) && (s.day||1) >= 7, progress: s => nmProg(s, s.day||1, 7) },
+  { id: 'nm_night_30', icon: ACH_ICONS.moon, name: 'The Long Dark', desc: 'Reach Night 30 on Nightmare.',
+    check: s => nmOnly(s) && (s.day||1) >= 30, progress: s => nmProg(s, s.day||1, 30) },
+  { id: 'nm_night_100', icon: ACH_ICONS.eye, name: 'Insomniac', desc: 'Reach Night 100 on Nightmare. Sleep is a rumour.',
+    check: s => nmOnly(s) && (s.day||1) >= 100, progress: s => nmProg(s, s.day||1, 100) },
+  { id: 'nm_night_200', icon: ACH_ICONS.star, name: 'First Light', desc: 'Reach Night 200 on Nightmare. Is that... the sun?',
+    check: s => nmOnly(s) && (s.day||1) >= 200, progress: s => nmProg(s, s.day||1, 200) },
+  { id: 'nm_first_sale', icon: ACH_ICONS.tag, name: 'Business After Dark', desc: 'Sell your first car on Nightmare.',
+    check: s => nmOnly(s) && nmCount(s, 'totalSales') >= 1 },
+  { id: 'nm_sales_25', icon: ACH_ICONS.trophy, name: 'Sold in the Dark', desc: 'Sell 25 cars on a Nightmare save.',
+    check: s => nmOnly(s) && nmCount(s, 'totalSales') >= 25, progress: s => nmProg(s, nmCount(s, 'totalSales'), 25) },
+  { id: 'nm_sales_100', icon: ACH_ICONS.award, name: 'Haunted Showroom', desc: 'Sell 100 cars on a Nightmare save. Nobody remembers the buyers.',
+    check: s => nmOnly(s) && nmCount(s, 'totalSales') >= 100, progress: s => nmProg(s, nmCount(s, 'totalSales'), 100) },
+  { id: 'nm_cash_250k', icon: ACH_ICONS.dollar, name: 'Blood Money', desc: 'Hold $250,000 in cash on Nightmare.',
+    check: s => nmOnly(s) && (s.cash||0) >= 250000,
+    progress: s => nmOnly(s) ? formatCurrency(Math.min(s.cash||0,250000)) + '/$250k' : 'Nightmare only' },
+  { id: 'nm_million', icon: ACH_ICONS.flame, name: 'Nightmare Mogul', desc: 'Hold $1,000,000 in cash on Nightmare.',
+    check: s => nmOnly(s) && (s.cash||0) >= 1000000,
+    progress: s => nmOnly(s) ? formatCurrency(Math.min(s.cash||0,1000000)) + '/$1M' : 'Nightmare only' },
+  { id: 'nm_candle_1', icon: ACH_ICONS.candle, name: 'Light in the Dark', desc: 'Light your first candle.',
+    check: s => nmOnly(s) && nmCount(s, 'candlesLit') >= 1 },
+  { id: 'nm_candle_25', icon: ACH_ICONS.candle, name: 'Candlelight Vigil', desc: 'Light 25 candles on a Nightmare save.',
+    check: s => nmOnly(s) && nmCount(s, 'candlesLit') >= 25, progress: s => nmProg(s, nmCount(s, 'candlesLit'), 25) },
+  { id: 'nm_exorcist', icon: ACH_ICONS.ghost, name: 'The Power Compels You', desc: 'Exorcise a cursed car.',
+    check: s => nmOnly(s) && nmCount(s, 'exorcisms') >= 1 },
+  { id: 'nm_exorcist_5', icon: ACH_ICONS.shield, name: 'Professional Exorcist', desc: 'Exorcise 5 cursed cars.',
+    check: s => nmOnly(s) && nmCount(s, 'exorcisms') >= 5, progress: s => nmProg(s, nmCount(s, 'exorcisms'), 5) },
+  { id: 'nm_cursed_sale', icon: ACH_ICONS.alert, name: 'Hot Potato', desc: 'Sell a cursed car without exorcising it first. Somebody else\'s problem now.',
+    check: s => nmOnly(s) && nmCount(s, 'cursedSold') >= 1 },
+  { id: 'nm_haunted_10', icon: ACH_ICONS.ghost, name: 'Poltergeist Tenant', desc: 'Be haunted by your cursed cars 10 times.',
+    check: s => nmOnly(s) && nmCount(s, 'hauntings') >= 10, progress: s => nmProg(s, nmCount(s, 'hauntings'), 10) },
+  { id: 'nm_pale_deal', icon: ACH_ICONS.handshake, name: 'Deal with the Devil', desc: "Accept the Pale Customer's offer.",
+    check: s => nmOnly(s) && nmCount(s, 'visitorsAccepted') >= 1 },
+  { id: 'nm_pale_refuse', icon: ACH_ICONS.lock, name: 'Not Today, Stranger', desc: 'Send the Pale Customer away 3 times.',
+    check: s => nmOnly(s) && nmCount(s, 'visitorsDeclined') >= 3, progress: s => nmProg(s, nmCount(s, 'visitorsDeclined'), 3) },
+  { id: 'nm_ash', icon: ACH_ICONS.flame, name: 'Ashes to Ashes', desc: "Watch the Pale Customer's money turn to ash.",
+    check: s => nmOnly(s) && nmCount(s, 'ashCount') >= 1 },
+  { id: 'nm_reckoning', icon: ACH_ICONS.skull, name: 'Brush with Oblivion', desc: 'Survive a Reckoning.',
+    check: s => nmOnly(s) && nmCount(s, 'reckonings') >= 1 && !s.gameOver },
+  { id: 'nm_calm', icon: ACH_ICONS.moon, name: 'Peace of Mind', desc: 'Bring Dread all the way down to 0.',
+    check: s => nmOnly(s) && s.nightmare && s.nightmare.lowestDread <= 0 },
+  { id: 'nm_edge', icon: ACH_ICONS.eye, name: 'Edge of the Abyss', desc: 'Reach 90 Dread and stare back.',
+    check: s => nmOnly(s) && nmCount(s, 'peakDread') >= 90 },
+  { id: 'nm_omens_10', icon: ACH_ICONS.alert, name: 'Fog of War', desc: 'Live through 10 Nightmare omens.',
+    check: s => nmOnly(s) && nmCount(s, 'eventsSeen') >= 10, progress: s => nmProg(s, nmCount(s, 'eventsSeen'), 10) },
+  { id: 'nm_taken_3', icon: ACH_ICONS.key, name: 'Something Took It', desc: 'Lose 3 cars to the dark.',
+    check: s => nmOnly(s) && nmCount(s, 'carsTaken') >= 3, progress: s => nmProg(s, nmCount(s, 'carsTaken'), 3) },
+  { id: 'nm_wards', icon: ACH_ICONS.shield, name: 'Warded', desc: 'Buy every Ward: Salt Lines, Floodlight Array and Lot Chapel.',
+    check: s => nmOnly(s) && !!(s.upgrades && s.upgrades.wardSalt && s.upgrades.wardLights && s.upgrades.wardChapel) },
+  { id: 'nm_debt', icon: ACH_ICONS.creditcard, name: "The Collector's Nightmare", desc: 'Pay down $50,000 of credit line balance on Nightmare.',
+    check: s => nmOnly(s) && (s.totalLoanPaidDown||0) >= 50000,
+    progress: s => nmOnly(s) ? formatCurrency(Math.min(s.totalLoanPaidDown||0,50000)) + '/$50k' : 'Nightmare only' },
+  { id: 'nm_lucid', icon: ACH_ICONS.trophy, name: 'Lucid Dreamer', desc: 'Unlock every other Nightmare achievement. You know it is a dream. It knows you know.',
+    check: s => NIGHTMARE_ACH_IDS.every(id => id === 'nm_lucid' || (s.achievementsUnlocked||{})[id] || globalAchievements[id]),
+    progress: s => NIGHTMARE_ACH_IDS.filter(id => id !== 'nm_lucid' && ((s.achievementsUnlocked||{})[id] || globalAchievements[id])).length + '/' + (NIGHTMARE_ACH_IDS.length - 1) },
   // Secret achievements
   { id: 'secret_konami',       icon: ACH_ICONS.zap,        name: '🔒 Power User',           desc: '???',
     check: s => !!(s.konamiActivated) },
@@ -1418,6 +1527,10 @@ const ACHIEVEMENT_DEFS = [
     check: s => (s.salesHistory||[]).some(h => { const p = Math.abs(Math.round(h.profit||0)); const str = String(p); return str.length >= 3 && str === [...str].reverse().join(''); }) },
   { id: 'secret_breakeven',    icon: ACH_ICONS.repeat,     name: '🔒 Full Circle',          desc: '???',
     check: s => (s.salesHistory||[]).some(h => Math.round(h.profit||0) === 0) },
+  { id: 'nm_secret_eyes', icon: ACH_ICONS.eye, name: '🔒 It Sees You', desc: '???',
+    check: s => nmCount(s, 'eyesClicked') >= 1 },
+  { id: 'nm_secret_666', icon: ACH_ICONS.skull, name: '🔒 Number of the Beast', desc: '???',
+    check: s => nmOnly(s) && (s.salesHistory||[]).some(h => Math.round(h.salePrice||0) % 1000 === 666) },
 ];
 
 const ACHIEVEMENT_ORDER = [
@@ -1436,7 +1549,10 @@ const ACHIEVEMENT_ORDER = [
   'flash_flip', 'brand_loyalist', 'rock_bottom_rep', 'local_legend', 'full_lineup',
   'lot_lizard', 'fire_sale_friday', 'grandmas_car', 'its_got_stories', 'rookie_mistake',
   'sales_25', 'sales_250', 'sales_500', 'sales_1000', 'cash_50k', 'cash_250k', 'cash_2m', 'cash_5m', 'cash_10m', 'profit_10k', 'profit_50k', 'profit_100k', 'total_profit_100k', 'total_profit_1m', 'day_100', 'day_500', 'day_730', 'day_1000', 'rep_150', 'econ_10', 'sedan_10', 'suv_10', 'truck_10', 'sports_10', 'luxury_25', 'mint_10', 'rebuilt_sale', 'salvage_sale', 'factory_10', 'used_10', 'first_hire', 'staff_4', 'staff_8', 'garage_tier2', 'garage_tier3', 'showroom_built', 'showroom_max', 'showroom_five', 'detective_kit', 'locked_down', 'auction_five_wins', 'auction_five_sales', 'auction_quarter_mil', 'tradeins_10', 'tradeins_25', 'detail_50', 'service_50', 'leases_10', 'clean_streak_10', 'stolen_first', 'stolen_25', 'rebuilder_first', 'rebuilder_15', 'paperwork_10', 'eagle_eye_5', 'police_5', 'grand_theft_lot', 'insured_claim', 'loan_paid_100k', 'credit_800', 'credit_850', 'fire_sale_10', 'hard_day_100', 'hard_million',
-  'secret_logo', 'secret_konami', 'secret_nice', 'secret_day69', 'secret_palindrome', 'secret_breakeven',
+  'nm_night_7', 'nm_night_30', 'nm_night_100', 'nm_night_200', 'nm_first_sale', 'nm_sales_25', 'nm_sales_100', 'nm_cash_250k', 'nm_million',
+  'nm_candle_1', 'nm_candle_25', 'nm_exorcist', 'nm_exorcist_5', 'nm_cursed_sale', 'nm_haunted_10', 'nm_pale_deal', 'nm_pale_refuse', 'nm_ash',
+  'nm_reckoning', 'nm_calm', 'nm_edge', 'nm_omens_10', 'nm_taken_3', 'nm_wards', 'nm_debt', 'nm_lucid',
+  'secret_logo', 'secret_konami', 'secret_nice', 'secret_day69', 'secret_palindrome', 'secret_breakeven', 'nm_secret_eyes', 'nm_secret_666',
 ];
 
 const ACHIEVEMENT_MAP = new Map(ACHIEVEMENT_DEFS.map(ach => [ach.id, ach]));
@@ -1470,7 +1586,7 @@ const UPGRADE_STAGES = {
 const UPGRADE_CATEGORY_ORDER = [
   'Car Lot', 'Sourcing', 'Marketing', 'Luxury Clientele', 'Tools & Inspection',
   'Reconditioning', 'Factory', 'Management', 'Finance', 'Leasing',
-  'Legal & Compliance', 'Security', 'Service Garage',
+  'Legal & Compliance', 'Security', 'Service Garage', 'Wards',
 ];
 
 // Tunable upgrade constants
@@ -1786,6 +1902,28 @@ const UPGRADES_CONFIG = [
     apply: s => { s.upgrades.securityLevel = 4; },
   },
 
+  // ── Wards (Nightmare difficulty only) ─────────────────────
+  {
+    id: 'wardSalt', name: 'Salt Lines', icon: 'droplet', category: 'Wards', stage: 2, cost: 18000, nightmareOnly: true,
+    desc: 'A ring of salt around the lot. −1 Dread each night, and cursed cars haunt half as often.',
+    level: u => (u.wardSalt ? 1 : 0),
+    apply: s => { s.upgrades.wardSalt = true; },
+  },
+  {
+    id: 'wardLights', name: 'Floodlight Array', icon: 'camera', category: 'Wards', stage: 3, cost: 45000, nightmareOnly: true,
+    desc: 'The lot has never been this bright. −1 Dread each night, cursed cars cost half the Dread, and thefts drop by 40%.',
+    level: u => (u.wardLights ? 1 : 0),
+    lock: u => (u.wardSalt ? null : 'Needs Salt Lines'),
+    apply: s => { s.upgrades.wardLights = true; },
+  },
+  {
+    id: 'wardChapel', name: 'Lot Chapel', icon: 'pillar', category: 'Wards', stage: 4, cost: 120000, nightmareOnly: true,
+    desc: 'A tiny chapel at the back of the lot. −3 Dread each night, exorcisms cost half, and Reckonings take less and spare your cars.',
+    level: u => (u.wardChapel ? 1 : 0),
+    lock: u => (u.wardLights ? null : 'Needs Floodlights'),
+    apply: s => { s.upgrades.wardChapel = true; },
+  },
+
   // ── Service Garage ────────────────────────────────────────
   // Bigger departments also attract bigger jobs (see SERVICE_JOB_VALUE_MULT), so the upgrade
   // cost stays in proportion to what the shop can actually earn.
@@ -1912,7 +2050,7 @@ function applyUpgrade(upg) {
 /** Daily lot rent/utilities after difficulty and Cost Efficiency Program. */
 function getLotOverhead() {
   const base     = OVERHEAD_BY_LEVEL[state.upgrades.garageLevel] ?? 300;
-  const diffMult = state.difficulty === 'hard' ? 1.5 : state.difficulty === 'easy' ? 0 : 1.0;
+  const diffMult = state.difficulty === 'nightmare' ? 2.0 : state.difficulty === 'hard' ? 1.5 : state.difficulty === 'easy' ? 0 : 1.0;
   const cut      = clamp((state.upgrades.overheadReductions || 0) * OVERHEAD_REDUCTION_PER_LEVEL, 0, 0.6);
   return Math.max(0, Math.round(base * diffMult * (1 - cut)));
 }
@@ -2110,7 +2248,8 @@ function ensureStaffCandidates() {
 }
 
 function getTotalStaffWages() {
-  return (state.staff || []).reduce((sum, s) => sum + s.wage, 0);
+  const base = (state.staff || []).reduce((sum, s) => sum + s.wage, 0);
+  return isNightmare() ? Math.round(base * 1.25) : base;   // Nightmare: night-shift pay
 }
 
 // ============================================================
@@ -2193,6 +2332,7 @@ function loadState(slot) {
       if (!loaded.tradeInRequests) loaded.tradeInRequests = [];
       if (!loaded.customerOffers)  loaded.customerOffers  = [];
       if (!loaded.showroom) loaded.showroom = [];
+      loaded.nightmare = Object.assign({}, NIGHTMARE_DEFAULTS, loaded.nightmare || {});   // v1.19.0
       if (!loaded.staff) loaded.staff = [];
       if (!loaded.staffCandidates) loaded.staffCandidates = [];
       if (!loaded.staffActivity) loaded.staffActivity = [];
@@ -2894,7 +3034,9 @@ function generateUsedMarket() {
     const ownerAwareOfIssues = Math.random() < 0.4;
     const effectiveMV = ownerAwareOfIssues ? car.marketValue - car.repairCost * 0.5 : car.marketValue;
     // Sellers never pay you to take a car: the lowest possible asking price is $0.
-    const askingPrice    = Math.max(0, Math.round(effectiveMV * pickAskingPriceMultiplier()));
+    // Nightmare: some listings are cursed — the seller practically gives them away.
+    const cursedListing = isNightmare() && Math.random() < NIGHTMARE_CURSE_CHANCE;
+    const askingPrice    = Math.max(0, Math.round(effectiveMV * pickAskingPriceMultiplier() * (cursedListing ? randomFloat(0.50, 0.68) : 1)));
     // Hidden floor — seller won't accept below this. Keeps a real negotiation
     // window under the asking price without making the asking price itself
     // a de-facto discount.
@@ -2906,6 +3048,11 @@ function generateUsedMarket() {
     car.playerOffer    = null;
     car.sellerCounter  = null;
     car.patience       = randomInt(1, 3); // max counter rounds
+    if (isNightmare()) {
+      if (cursedListing) { car.cursed = true; car.curseRevealed = false; }
+      // Cursed cars often give themselves away… and a few perfectly normal ones just feel wrong.
+      if (cursedListing ? Math.random() < 0.6 : Math.random() < 0.05) car.nmTell = randomFrom(NIGHTMARE_TELLS);
+    }
     offers.push(car);
   }
   return offers;
@@ -3117,10 +3264,12 @@ function computeSaleChance(car) {
   const activeListings = (state.garage || []).filter(c => c.isForSale).length || 1;
   const focusFactor = activeListings <= 2 ? 1.35 : activeListings <= 4 ? 1.15 : 1.0;
 
+  // Nightmare: buyers are wary after dark, and cursed cars give them the creeps.
+  const nightmareFactor = isNightmare() ? (car.cursed ? 0.68 : 0.9) : 1;
   chance = chance * priceAtt * condFactor * categoryFactor * priceTierFactor * crashFactor
          * lotFactor * marketingFactor * repFactor
          * repBoostFactor * demandFactor * washBonus * titleFactor * photoStudioFactor * certifiedFactor
-         * focusFactor * showroomFactor;
+         * focusFactor * showroomFactor * nightmareFactor;
 
   // No guaranteed floor for overpriced cars — retries must never converge to a sale.
   const floor = askRatio > 2.0 ? 0 : askRatio > 1.5 ? 0.001 : askRatio > 1.25 ? 0.005 : 0.015;
@@ -3255,6 +3404,7 @@ function recordSaleStats(car, profit) {
   if ((crashSev === 'moderate' || crashSev === 'severe') && car.hasCrashRepair) {
     state.crashDamageRebuilds = (state.crashDamageRebuilds || 0) + 1;
   }
+  if (isNightmare()) onNightmareSale(car);
 }
 
 function getLiquidationMultiplier(car) {
@@ -3262,7 +3412,7 @@ function getLiquidationMultiplier(car) {
 }
 
 function getLeaseRate(car) {
-  const diffKey = state.difficulty === 'hard' ? 'hard' : 'normal';
+  const diffKey = state.difficulty === 'nightmare' ? 'nightmare' : state.difficulty === 'hard' ? 'hard' : 'normal';
   return LEASE_RATE_BY_SEGMENT[diffKey][car.category] ?? LEASE_RATE_BY_SEGMENT[diffKey].Sedan;
 }
 
@@ -3338,7 +3488,7 @@ function processLeases() {
     const neglectIssueCount = (car.hiddenIssues || []).length;
     const neglectCrashBonus = neglectIssueCount * LEASE_NEGLECT_CRASH_BONUS_PER_ISSUE
                              + (LEASE_NEGLECT_CONDITION_CRASH_BONUS[car.condition] || 0);
-    const crashBonus = (state.difficulty === 'hard' ? 0.0002 : 0) + neglectCrashBonus;
+    const crashBonus = (state.difficulty === 'nightmare' ? 0.0004 : state.difficulty === 'hard' ? 0.0002 : 0) + neglectCrashBonus;
     if (Math.random() < LEASE_CRASH_PROBABILITY + crashBonus) {
       // Lessee pays out all remaining lease payments immediately
       const remainingDays   = Math.max(0, lease.endDay - state.day);
@@ -3445,7 +3595,7 @@ function processLeases() {
     }
 
     const termProgress = clamp((state.day - lease.startDay) / Math.max(1, lease.termDays), 0, LEASE_TERM_PROGRESS_CAP);
-    const hardBonus = state.difficulty === 'hard' ? LEASE_ISSUE_BONUS_HARD_DIFFICULTY : 0;
+    const hardBonus = state.difficulty === 'nightmare' ? LEASE_ISSUE_BONUS_HARD_DIFFICULTY * 2 : state.difficulty === 'hard' ? LEASE_ISSUE_BONUS_HARD_DIFFICULTY : 0;
     const titleBonus = car.titleStatus === 'lemon' ? LEASE_ISSUE_BONUS_LEMON : car.titleStatus === 'salvage' ? LEASE_ISSUE_BONUS_SALVAGE : 0;
     // Existing unresolved issues compound — a neglected car breaks down faster the longer it's ignored.
     const neglectBonus = neglectIssueCount * LEASE_NEGLECT_ISSUE_BONUS_PER_ISSUE;
@@ -3581,7 +3731,7 @@ function processLoanAndDelinquency() {
   // Only the loan itself can trigger a missed-payment strike — going cash-negative
   // with no outstanding loan balance is not a loan default and should not touch
   // the delinquency ladder at all.
-  if (state.loanBalance > 0 && (state.cash < 0 || (due > 0 && state.difficulty === 'hard' && state.cash < 250))) {
+  if (state.loanBalance > 0 && (state.cash < 0 || (due > 0 && isHardPlus() && state.cash < 250))) {
     state.daysGoodStanding = 0;
     state.missedPayments = (state.missedPayments || 0) + 1;
     state.delinquencyLevel = Math.max(state.delinquencyLevel || 0, state.missedPayments);
@@ -3590,7 +3740,7 @@ function processLoanAndDelinquency() {
       showToast('⚠️ Missed payment warning.', 'warning');
     } else if (state.missedPayments === DELINQUENCY_DEFAULT_LEVEL) {
       state.loanFrozen = true;
-      state.loanApr += state.difficulty === 'hard' ? 0.08 : 0.05;
+      state.loanApr += state.difficulty === 'nightmare' ? 0.12 : state.difficulty === 'hard' ? 0.08 : 0.05;
       addNote(`🚫 Loan default: credit line frozen. APR raised to ${(state.loanApr * 100).toFixed(1)}%.`, 'error');
       showToast('🚫 Loan default. Credit line frozen.', 'error');
     } else if (state.missedPayments >= DELINQUENCY_BANKRUPTCY_LEVEL) {
@@ -3603,8 +3753,8 @@ function processLoanAndDelinquency() {
     // Begin credit recovery tracking
     state.daysGoodStanding = (state.daysGoodStanding || 0) + 1;
   } else if (state.delinquencyLevel > 0 && state.missedPayments === 0) {
-    // Credit recovery: reduce delinquency level slowly on Normal mode, not on Hard
-    if (state.difficulty !== 'hard') {
+    // Credit recovery: reduce delinquency level slowly on Normal mode, not on Hard or Nightmare
+    if (!isHardPlus()) {
       state.daysGoodStanding = (state.daysGoodStanding || 0) + 1;
       const recoveryDays = 10; // every 10 good-standing days, recover 1 level
       if (state.daysGoodStanding >= recoveryDays) {
@@ -3628,10 +3778,11 @@ function triggerBankruptcy() {
   // Bankruptcy is a major credit event on its own, on top of whatever the
   // daily cash-negative dings already did to the score.
   state.creditScore = Math.max(CREDIT_SCORE_MIN, (state.creditScore ?? CREDIT_SCORE_START) - CREDIT_SCORE_BANKRUPTCY_DROP);
-  if (state.difficulty === 'hard') {
+  if (isHardPlus()) {
     state.gameOver = true;
     state.hardBankruptcyOccurred = true;
-    addNote('💥 Bankruptcy on Hard mode. Game Over.', 'error');
+    state.gameOverCause = 'bankruptcy';
+    addNote(isNightmare() ? '💥 Bankruptcy on Nightmare. The lights go out. Game Over.' : '💥 Bankruptcy on Hard mode. Game Over.', 'error');
     saveState(); // gated by state.gameOver — deletes this slot's save rather than writing it
     clearActiveSession(); // nothing left to auto-resume into on refresh
     runAchievementChecks();
@@ -3683,16 +3834,36 @@ function showGameOverScreen() {
   const el = document.getElementById('game-over-screen');
   if (!el) return;
   playSfx('gameOver');
+  const nightmare = isNightmare();
+  const consumed = state.gameOverCause === 'consumed';
+  const titleEl = document.getElementById('game-over-title-text');
+  const subEl   = document.getElementById('game-over-subtitle');
+  if (titleEl) titleEl.textContent = nightmare ? (consumed ? 'YOU NEVER WOKE UP' : 'THE LOT GOES DARK') : 'GAME OVER';
+  if (subEl) {
+    subEl.textContent = nightmare
+      ? (consumed
+          ? 'The third Reckoning took everything. The dealership is still open. Nobody remembers who runs it.'
+          : 'Bankruptcy on Nightmare. The lights go out one by one. Somewhere, a radio plays your name.')
+      : 'Hard mode bankruptcy — your dealership has closed its doors.';
+  }
+  el.classList.toggle('nm-over', nightmare);
+  const diffRow = nightmare
+    ? '<strong class="text-red">Nightmare 💀</strong>'
+    : '<strong class="text-red">Hard 💪</strong>';
+  const nmRows = nightmare ? `
+      <div class="game-over-stat-row"><span>Reckonings</span><strong>${nm().reckonings || 0} / ${NIGHTMARE_MAX_RECKONINGS}</strong></div>
+      <div class="game-over-stat-row"><span>Peak Dread</span><strong>${nm().peakDread || 0}</strong></div>
+      <div class="game-over-stat-row"><span>Candles lit</span><strong>${nm().candlesLit || 0}</strong></div>` : '';
   const statsEl = document.getElementById('game-over-stats');
   if (statsEl) {
     statsEl.innerHTML = `
-      <div class="game-over-stat-row"><span>Day reached</span><strong>${state.day}</strong></div>
+      <div class="game-over-stat-row"><span>${nightmare ? 'Night' : 'Day'} reached</span><strong>${state.day}</strong></div>
       <div class="game-over-stat-row"><span>Total cars sold</span><strong>${(state.salesHistory||[]).length}</strong></div>
       <div class="game-over-stat-row"><span>Cumulative profit</span><strong>${formatCurrency((state.salesHistory||[]).reduce((s,h)=>s+(h.profit||0),0))}</strong></div>
-      <div class="game-over-stat-row"><span>Difficulty</span><strong class="text-red">Hard 💪</strong></div>`;
+      <div class="game-over-stat-row"><span>Difficulty</span>${diffRow}</div>${nmRows}`;
   }
   el.classList.remove('hidden');
-  setMusicTrack('menu'); // ease back to the calm soundtrack for the Game Over screen
+  setMusicTrack(nightmare ? 'nightmare' : 'menu'); // Nightmare keeps its own soundtrack; others ease back to the calm one
 }
 
 function gameOverReturnToMenu() {
@@ -3702,37 +3873,43 @@ function gameOverReturnToMenu() {
 
 function gameOverNewGame() {
   document.getElementById('game-over-screen')?.classList.add('hidden');
+  const diff = state.difficulty === 'nightmare' ? 'nightmare' : 'hard';   // restart on the difficulty you just lost on
   state = JSON.parse(JSON.stringify(DEFAULT_STATE));
-  state.difficulty = 'hard';
+  state.difficulty = diff;
   syncLoanTermsToDifficulty();
   state.usedMarketOffers = generateUsedMarket();
   saveState();
   renderAll();
   applyMusicForContext(); // back to the in-game soundtrack now that a fresh run is underway
-  showToast('New Hard game started. Good luck! 💪', 'success');
+  showToast(diff === 'nightmare' ? 'New Nightmare started. Keep the lights on. 🕯️' : 'New Hard game started. Good luck! 💪', 'success');
 }
 
 /** Shift per-segment market indices and occasionally fire a market event. */
 function processMarketVolatility() {
+  const nightmare = isNightmare();
   const isHard = state.difficulty === 'hard';
-  const diffMultiplier = isHard ? 1.4 : 1.0;
+  const diffMultiplier = nightmare ? 1.7 : isHard ? 1.4 : 1.0;
   for (const seg of Object.keys(state.marketIndices)) {
-    // Daily drift ±0–1.5% on Normal, ±0–2.1% on Hard (was ±2.5% on both)
+    // Daily drift ±0–1.5% on Normal, ±0–2.1% on Hard, ±0–2.6% on Nightmare
     const drift = (Math.random() - 0.5) * 0.03 * diffMultiplier;
     // Mean reversion: gently pull index back toward 1.0 each day
-    // Normal: 3% of the excess per day; Hard: 1.5% (slower reversion = more volatility)
-    const reversionStrength = isHard ? 0.015 : 0.030;
+    // Normal: 3% of the excess per day; Hard: 1.5%; Nightmare: 1% (slower reversion = more volatility)
+    const reversionStrength = nightmare ? 0.010 : isHard ? 0.015 : 0.030;
     const reversion = (1.0 - state.marketIndices[seg]) * reversionStrength;
     state.marketIndices[seg] = clamp(state.marketIndices[seg] * (1 + drift) + reversion, 0.60, 1.50);
   }
-  // Random market event — reduced frequency on Normal (5% vs 12% on Hard)
-  const eventChance = isHard ? 0.12 : 0.05;
+  // Random market event — 5% on Normal, 12% on Hard, 20% on Nightmare (which also adds its own omens)
+  const eventChance = nightmare ? 0.20 : isHard ? 0.12 : 0.05;
   if (Math.random() < eventChance) {
-    const evt = randomFrom(MARKET_EVENTS);
+    const evt = randomFrom(nightmare ? MARKET_EVENTS.concat(NIGHTMARE_EVENTS) : MARKET_EVENTS);
     for (const [seg, delta] of Object.entries(evt.effects)) {
       if (state.marketIndices[seg] !== undefined) {
         state.marketIndices[seg] = clamp(state.marketIndices[seg] + delta * diffMultiplier, 0.60, 1.50);
       }
+    }
+    if (nightmare && evt.dread) {
+      changeDread(evt.dread);
+      nm().eventsSeen = (nm().eventsSeen || 0) + 1;
     }
     state.lastMarketEvent = evt.msg;
     addNote(`📊 Market Event: ${evt.msg}`, 'warning');
@@ -4384,8 +4561,8 @@ function getTheftChancePerCar() {
 /** Each night check if any car on the lot gets stolen. Leased cars are under signed lease
  *  agreements with the lessee, not sitting exposed on the lot, so they're never at risk. */
 function processTheft() {
-  const diffMult = state.difficulty === 'hard' ? 1.5 : state.difficulty === 'easy' ? 0.3 : 1.0;
-  const chancePerCar = getTheftChancePerCar() * diffMult;
+  const diffMult = state.difficulty === 'nightmare' ? 2.2 : state.difficulty === 'hard' ? 1.5 : state.difficulty === 'easy' ? 0.3 : 1.0;
+  const chancePerCar = getTheftChancePerCar() * diffMult * (isNightmare() && hasWard('wardLights') ? 0.6 : 1);
   if (chancePerCar <= 0) return;
 
   const company = getActiveInsurance();
@@ -4986,6 +5163,7 @@ function nextDay() {
   processInsuranceBilling();  // monthly insurance premium (bills every 30 days)
   processLoanAndDelinquency();// daily debt service and delinquency ladder
   processMarketVolatility();  // segment index drift + random events
+  processNightmareNight();    // Dread, hauntings, the Pale Customer (Nightmare only)
   processMarketDepreciation();// value changes on inventory
   resolveCustomerOfferCounters();
   resolveTradeInCounters();
@@ -5082,6 +5260,7 @@ function acceptUsedOffer(offerId) {
   delete car.playerOffer; delete car.sellerCounter; delete car.patience;
   car.purchasePrice = price;
   state.garage.push(car);
+  if (car.cursed && isNightmare()) nm().cursedBought = (nm().cursedBought || 0) + 1;
   state.usedMarketOffers = state.usedMarketOffers.filter(o => o.id !== offerId);
   let noteExtra = '';
   if ((car.legalStatus || 'clean') !== 'clean' && !car.legalDiscovered) {
@@ -5110,6 +5289,10 @@ function inspectUsedOffer(offerId) {
   state.cash   -= cost;
   offer.inspected = true;
   offer.repairCost = offer.hiddenIssues.reduce((s, i) => s + i.cost, 0);
+  if (offer.cursed && !offer.curseRevealed) {
+    offer.curseRevealed = true;
+    showToast('🕯️ The inspector refuses to sit in it. This car is cursed.', 'warning', 'curse');
+  }
 
   // Reveal legal status via DMV access
   if (state.upgrades.dmvDatabaseAccess && !offer.legalDiscovered) {
@@ -5555,6 +5738,7 @@ function bulkSetListing(mult) {
 function buyUpgrade(upgradeId) {
   const upg = UPGRADES_CONFIG.find(u => u.id === upgradeId);
   if (!upg) return;
+  if (upg.nightmareOnly && !isNightmare()) return;
   const st = getUpgradeStatus(upg);
   if (st.owned) { showToast('Already purchased!', 'error'); return; }
   if (st.lock)  { showToast(`${st.lock} first.`, 'error'); return; }
@@ -5931,7 +6115,7 @@ function titleBadge(status) {
 
 function renderStats() {
   document.getElementById('stat-cash').innerHTML   = `${uiIcon('cash')} ${formatCurrency(state.cash)}`;
-  document.getElementById('stat-day').innerHTML    = `${uiIcon('calendar')} Day ${state.day}`;
+  document.getElementById('stat-day').innerHTML    = isNightmare() ? `${uiIcon('moon')} Night ${state.day}` : `${uiIcon('calendar')} Day ${state.day}`;
   document.getElementById('stat-rep').innerHTML    = `${uiIcon('star')} Rep ${state.reputation.toFixed(2)}`;
   document.getElementById('stat-garage').innerHTML = `${uiIcon('home')} ${state.garage.length} / ${state.garageSlots}`;
   const debtChip = document.getElementById('stat-debt');
@@ -5959,6 +6143,20 @@ function renderStats() {
   _flashStatIfChanged('stat-debt',   debtVal,          _prevStats.debt,        d => `${d > 0 ? '+' : '-'}${formatCurrency(Math.abs(d))}`, true);
 
   _prevStats = { cash: state.cash, reputation: repRounded, garageCount: state.garage.length, debt: debtVal };
+
+  // Nightmare: the Dread chip, plus red skies and the haunted overlay
+  const dreadChip = document.getElementById('stat-dread');
+  if (dreadChip) {
+    if (isNightmare()) {
+      const tier = getDreadTier();
+      dreadChip.innerHTML = `${uiIcon('eye')} Dread ${getDread()}`;
+      dreadChip.title = `Dread ${getDread()}/100 — ${DREAD_TIER_LABELS[tier]}. Sell cars and light candles to push it back.`;
+      for (let t = 0; t < 4; t++) dreadChip.classList.toggle('nm-tier-' + t, t === tier);
+    } else {
+      dreadChip.innerHTML = '';
+    }
+  }
+  applyNightmareAtmosphere();
   updateMusicBaseline(); // let the in-game soundtrack's tone track the business's current standing
 }
 
@@ -6020,6 +6218,7 @@ function renderDashboard() {
   }).join('');
 
   document.getElementById('tab-dashboard').innerHTML = `
+    ${renderNightmarePanel()}
     <div class="kpi-row">
       <div class="kpi-tile kpi-cash">
         <div class="kpi-icon-wrap">${uiIconLg('cash')}</div>
@@ -6027,7 +6226,7 @@ function renderDashboard() {
       </div>
       <div class="kpi-tile kpi-day">
         <div class="kpi-icon-wrap">${uiIconLg('calendar')}</div>
-        <div><div class="kpi-value">Day ${state.day}</div><div class="kpi-label">Time</div></div>
+        <div><div class="kpi-value">${isNightmare() ? 'Night' : 'Day'} ${state.day}</div><div class="kpi-label">Time</div></div>
       </div>
       <div class="kpi-tile kpi-rep">
         <div class="kpi-icon-wrap">${uiIconLg('star')}</div>
@@ -6315,6 +6514,7 @@ function renderUsedCatalog() {
             <div class="badge-stack">
               ${condBadge(offer.condition)}
               ${titleBadge(offer.titleStatus)}
+              ${curseBadge(offer)}
               ${legalBadge}
               ${discontinuedBadge}
             </div>
@@ -6336,6 +6536,7 @@ function renderUsedCatalog() {
             </span></div>` : ''}
         </div>
         ${crashBadgeHtml ? `<div>${crashBadgeHtml}</div>` : ''}
+        ${(offer.nmTell && !offer.curseRevealed) ? `<div class="nm-tell">${offer.nmTell}</div>` : ''}
         <div class="issues-section">${issuesHtml}</div>
         ${crashUnknownHtml}
         ${legalWarningHtml}
@@ -7450,6 +7651,7 @@ function renderCarLot() {
               ${needsMaint ? `<span class="badge badge-orange" title="Pinned to top: needs maintenance">${uiIcon('wrench')} NEEDS MAINTENANCE</span>` : ''}
               ${condBadge(car.condition)}
               ${titleBadge(car.titleStatus)}
+              ${curseBadge(car)}
               ${car.staffFlip ? `<span class="badge badge-purple" title="${car.staffFlip.staffName} bought this car and is flipping it">🧑‍💼 ${car.staffFlip.staffName}'s flip</span>` : ''}
               ${isCertifiedCar(car) ? '<span class="badge badge-green" title="Certified Pre-Owned: +18% sale chance">✔ CERTIFIED</span>' : ''}
               ${car.provenance ? `<span class="badge badge-yellow" title="${car.provenance.blurb}">★ ${car.provenance.label}</span>` : ''}
@@ -7465,6 +7667,7 @@ function renderCarLot() {
         ${car.isForSale ? `<div class="for-sale-banner">${uiIcon('tag')} LISTED FOR SALE</div>` : ''}
         ${isLeased ? `<div class="service-banner">${uiIcon('document')} LEASE ACTIVE — ${leaseDaysLeft} day(s) remaining</div>` : ''}
         ${car.washed ? `<div class="wash-banner">${uiIcon('droplet')} Washed — permanent boost</div>` : ''}
+        ${curseBannerHtml(car)}
         ${(car.legalDiscovered && (car.legalStatus || 'clean') === 'stolen') ? `<div class="police-alert">🚨 <strong>STOLEN VEHICLE</strong> — Do NOT list for sale. Police may impound and fine you.</div>` : ''}
         ${(car.legalDiscovered && (car.legalStatus || 'clean') === 'noTitle') ? `<div class="legal-warning">⚠️ <strong>No Valid Title</strong> — Selling without title risks a police fine.</div>` : ''}
         ${(car.vinDiscovered && (car.vinStatus || 'normal') === 'scratched') ? `<div class="legal-warning">🔦 <strong>Scratched/Altered VIN</strong> — Increases police detection risk when selling.</div>` : ''}
@@ -8186,6 +8389,7 @@ function renderForSale() {
         ${car.source === 'tradein' ? `<div class="tradein-source-banner">${uiIcon('refresh')} Accepted trade-in vehicle${car.purchasePrice > 0 ? ` — credited at ${formatCurrency(car.purchasePrice)}` : ''}</div>` : ''}
         ${hasOffer ? `<div class="offer-banner">${uiIcon('inbox')} Customer offer waiting (see above)</div>` : ''}
         ${car.washed ? `<div class="wash-banner">${uiIcon('droplet')} Washed — permanent boost</div>` : ''}
+        ${curseBannerHtml(car)}
         <div class="car-details">
           <div class="detail-row"><span>Purchased For</span><span>${formatCurrency(car.purchasePrice)}</span></div>
           <div class="detail-row"><span>Market Value</span><span class="text-green">${formatCurrency(car.marketValue)}</span></div>
@@ -8257,6 +8461,7 @@ const UPGRADE_TREE_NEEDS = {
   titleRecovery: ['dmvDatabaseAccess'],
   security2: ['security1'], security3: ['security2'], security4: ['security3'],
   serviceCapacity1: ['serviceBay'], serviceCapacity2: ['serviceCapacity1'], serviceCapacity3: ['serviceCapacity2'],
+  wardLights: ['wardSalt'], wardChapel: ['wardLights'],
 };
 const UPGRADE_TREE_COL_OVERRIDE = { certifiedProgram: 1 };
 const UPGRADE_STAGE_COLORS = { 1: '#2ed59f', 2: '#61b6ff', 3: '#b47bff', 4: '#ff9f43' };
@@ -8329,7 +8534,7 @@ function skillDetailHtml() {
 
 function renderUpgrades() {
   const grouped = {};
-  UPGRADES_CONFIG.forEach(u => (grouped[u.category] = grouped[u.category] || []).push(u));
+  UPGRADES_CONFIG.filter(u => !u.nightmareOnly || isNightmare()).forEach(u => (grouped[u.category] = grouped[u.category] || []).push(u));
   const cats = UPGRADE_CATEGORY_ORDER.filter(c => grouped[c])
     .concat(Object.keys(grouped).filter(c => !UPGRADE_CATEGORY_ORDER.includes(c)));
 
@@ -8550,8 +8755,8 @@ function renderFinance() {
 function renderFinanceOverview() {
   const available = Math.max(0, state.loanLimit - state.loanBalance);
   const dailyInterest = state.loanBalance > 0 ? Math.max(1, Math.round(state.loanBalance * state.loanApr / 365)) : 0;
-  const minPrincipal = state.difficulty === 'hard' && state.loanBalance > 0
-    ? Math.max(250, Math.round(state.loanBalance * LOAN_TERMS.hard.minPrincipalRate))
+  const minPrincipal = isHardPlus() && state.loanBalance > 0
+    ? Math.max(250, Math.round(state.loanBalance * getBaseLoanTerms().minPrincipalRate))
     : 0;
   const report = state.lastBankruptcyReport;
   const reportRows = report?.liquidated?.length
@@ -8620,6 +8825,7 @@ function renderFinanceOverview() {
         <div class="stat-row"><span>1 Missed Payment</span><strong class="text-yellow">Warning</strong></div>
         <div class="stat-row"><span>2 Missed Payments</span><strong class="text-red">Default: credit freeze + APR increase</strong></div>
         <div class="stat-row"><span>3 Missed Payments</span><strong class="text-red">${(() => {
+          if (state.difficulty === 'nightmare') return 'Nightmare: Game Over (permanent)';
           if (state.difficulty === 'hard') return 'Hard: Game Over';
           if (state.difficulty === 'easy') return 'Easy: N/A (no late payments)';
           return 'Normal: Instant liquidation then continue';
@@ -9049,8 +9255,8 @@ function renderSettings() {
   const musicMuted = !!settings.musicMuted;
   const overhead = getLotOverhead();
   const diff = state.difficulty || 'normal';
-  const diffLabel = diff === 'hard' ? `Hard 💪` : diff === 'easy' ? 'Easy 😎' : 'Normal';
-  const diffClass = diff === 'hard' ? 'text-red' : diff === 'easy' ? 'text-green' : 'text-blue';
+  const diffLabel = diff === 'nightmare' ? 'Nightmare 💀' : diff === 'hard' ? `Hard 💪` : diff === 'easy' ? 'Easy 😎' : 'Normal';
+  const diffClass = (diff === 'hard' || diff === 'nightmare') ? 'text-red' : diff === 'easy' ? 'text-green' : 'text-blue';
 
   document.getElementById('tab-settings').innerHTML = `
     <div class="settings-panel">
@@ -9286,7 +9492,10 @@ function triggerDayTransition(dayNum) {
   const overlay = document.getElementById('day-sweep-overlay');
   const label   = document.getElementById('day-sweep-label');
   if (!overlay || !label) return;
-  label.textContent = `Day ${dayNum}`;
+  label.textContent = isNightmare() ? `Night ${dayNum}` : `Day ${dayNum}`;
+  let sub = document.getElementById('day-sweep-sub');
+  if (!sub) { sub = document.createElement('span'); sub.id = 'day-sweep-sub'; overlay.appendChild(sub); }
+  sub.textContent = isNightmare() ? randomFrom(NIGHTMARE_SWEEP_LINES) : '';
   overlay.classList.remove('active');
   void overlay.offsetWidth;
   overlay.classList.add('active');
@@ -9376,7 +9585,11 @@ function closeModal() {
  *  advance, one at a time — then hands off to the insurance-event queue so
  *  everything from that day surfaces in order once the day card is done. */
 function flushHeldModals() {
-  if (_heldModalQueue.length === 0) { flushInsuranceModals(); return; }
+  if (_heldModalQueue.length === 0) {
+    if (flushNightmareModals()) return;   // Reckonings / the Pale Customer come after the normal popups
+    flushInsuranceModals();
+    return;
+  }
   const { title, message, onConfirm } = _heldModalQueue.shift();
   showModal(title, message, () => { onConfirm(); flushHeldModals(); });
 }
@@ -9608,6 +9821,17 @@ let _audioUnlockBound = false;
 // rather than a single generic beep, and every player action below maps to one of these.
 const SFX = {
   click:       [{ freq: 600, dur: 0.035, type: 'square',   gain: 0.45 }],
+  // Nightmare-only sounds: soft, low, a little wrong.
+  candle:      [{ freq: 392, dur: 0.55, type: 'sine', gain: 0.5, glide: 0.99 },
+                { freq: 587.33, dur: 0.75, type: 'sine', gain: 0.4, delay: 0.07, glide: 0.99 }],
+  ash:         [{ freq: 330, dur: 0.18, type: 'triangle', gain: 0.5, glide: 0.7 },
+                { freq: 247, dur: 0.30, type: 'triangle', gain: 0.45, delay: 0.12, glide: 0.6 },
+                { freq: 165, dur: 0.50, type: 'sine',     gain: 0.4,  delay: 0.28, glide: 0.7 }],
+  curse:       [{ freq: 196, dur: 0.20, type: 'triangle', gain: 0.45, glide: 0.8 },
+                { freq: 139, dur: 0.35, type: 'triangle', gain: 0.45, delay: 0.14, glide: 0.8 }],
+  whisper:     [{ freq: 220, dur: 0.25, type: 'sine', gain: 0.25, glide: 0.8 }],
+  reckoning:   [{ freq: 130, dur: 0.9, type: 'sawtooth', gain: 0.45, glide: 0.5 },
+                { freq: 98,  dur: 1.2, type: 'sine',     gain: 0.7,  delay: 0.1, glide: 0.6 }],
   toggle:      [{ freq: 460, dur: 0.03,  type: 'triangle', gain: 0.4  },
                 { freq: 620, dur: 0.04,  type: 'triangle', gain: 0.45, delay: 0.03 }],
   tab:         [{ freq: 480, dur: 0.03,  type: 'sine',     gain: 0.35 }],
@@ -9828,14 +10052,15 @@ function playSfx(kind = 'click') {
   if (!ctx) return;
   try {
     const baseVol = clamp(settings.sfxVolume ?? 0.22, 0, 1) * SFX_VOLUME_SCALE;
+    const pitch = (_nmSessionActive && isNightmare()) ? 0.84 : 1;   // Nightmare: everything sounds slightly wrong
     notes.forEach(note => {
       const start = ctx.currentTime + (note.delay || 0);
       const end   = start + note.dur;
       const osc   = ctx.createOscillator();
       const gain  = ctx.createGain();
       osc.type = note.type || 'sine';
-      osc.frequency.setValueAtTime(note.freq, start);
-      osc.frequency.exponentialRampToValueAtTime(Math.max(80, note.freq * (note.glide ?? 0.92)), end);
+      osc.frequency.setValueAtTime(note.freq * pitch, start);
+      osc.frequency.exponentialRampToValueAtTime(Math.max(80, note.freq * pitch * (note.glide ?? 0.92)), end);
       // Short attack/decay envelope: exponential ramps cannot start/end at 0, so we clamp to tiny floors to avoid pops.
       const peak = Math.max(SFX_FLOOR_GAIN, baseVol * (note.gain ?? 1));
       gain.gain.setValueAtTime(SFX_MIN_GAIN, start);
@@ -10043,6 +10268,9 @@ function setMusicVolume(raw) {
   }
   if (gameMusicGainNode && audioCtx) {
     gameMusicGainNode.gain.setTargetAtTime(vol * GAME_MUSIC_VOLUME_SCALE, audioCtx.currentTime, 0.1);
+  }
+  if (nmMusic && audioCtx) {
+    nmMusic.master.gain.setTargetAtTime(vol * NM_MUSIC_VOLUME_SCALE, audioCtx.currentTime, 0.1);
   }
   const pct = Math.round(settings.musicVolume * 100) + '%';
   ['music-volume-pct', 'menu-music-volume-pct'].forEach(id => {
@@ -10577,12 +10805,12 @@ function stopGameMusic() {
 }
 
 // --- Track switching: decides which soundtrack should be playing ---
-let currentMusicTrack = 'menu'; // 'menu' (original loop) | 'game' (rotating in-game playlist)
+let currentMusicTrack = 'menu'; // 'menu' (original loop) | 'game' (rotating in-game playlist) | 'nightmare' (Nightmare difficulty)
 
 /** Starts/stops whichever track is current — used by the mute toggle and
  *  anything else that just needs to act on "the music", not a specific track. */
-function startCurrentMusic() { if (currentMusicTrack === 'game') startGameMusic(); else startMusic(); }
-function stopCurrentMusic()  { if (currentMusicTrack === 'game') stopGameMusic();  else stopMusic(); }
+function startCurrentMusic() { if (currentMusicTrack === 'nightmare') startNightmareMusic(); else if (currentMusicTrack === 'game') startGameMusic(); else startMusic(); }
+function stopCurrentMusic()  { if (currentMusicTrack === 'nightmare') stopNightmareMusic();  else if (currentMusicTrack === 'game') stopGameMusic();  else stopMusic(); }
 
 /** Makes sure the given track is the one actually playing. Both startMusic()
  *  and startGameMusic() are already no-ops if their loop is running, so this
@@ -10592,9 +10820,11 @@ function stopCurrentMusic()  { if (currentMusicTrack === 'game') stopGameMusic()
 function setMusicTrack(track) {
   if (track !== currentMusicTrack) {
     currentMusicTrack = track;
-    if (track === 'menu') stopGameMusic(); else stopMusic();
+    if (track !== 'menu') stopMusic();
+    if (track !== 'game') stopGameMusic();
+    if (track !== 'nightmare') stopNightmareMusic();
   }
-  if (track === 'menu') startMusic(); else startGameMusic();
+  if (track === 'menu') startMusic(); else if (track === 'nightmare') startNightmareMusic(); else startGameMusic();
 }
 
 /** Looks at what's actually on screen and picks the right track: the
@@ -10607,7 +10837,8 @@ function applyMusicForContext() {
   const inGame = !!(hs && hs.classList.contains('hidden'));
   const activePanel = document.querySelector('.tab-panel.active');
   const onSettingsTab = inGame && activePanel && activePanel.id === 'tab-settings';
-  setMusicTrack(inGame && !onSettingsTab ? 'game' : 'menu');
+  // Nightmare saves keep their own soundtrack on every in-game screen, Settings included.
+  setMusicTrack(inGame && isNightmare() ? 'nightmare' : (inGame && !onSettingsTab ? 'game' : 'menu'));
 }
 
 /**
@@ -10830,6 +11061,11 @@ const DIFFICULTY_OPTIONS = [
     label: 'Hard',
     desc: '1.5× overhead costs, higher loan APR, minimum principal payments, and bankruptcy ends the run permanently.',
   },
+  {
+    key:  'nightmare',
+    label: 'Nightmare',
+    desc: '2× overhead, 24% APR, pickier buyers — and a world that watches back. Dread rises every night; cursed cars and a Pale Customer prowl the lot; three Reckonings or bankruptcy end the run for good. Red skies, darker music. Not for the faint of heart.',
+  },
 ];
 
 let _diffPickerSlot = null;
@@ -10846,6 +11082,8 @@ function _renderDiffPicker() {
   const opt = DIFFICULTY_OPTIONS[_diffPickerIdx];
   document.getElementById('diff-picker-option').textContent = opt.label;
   document.getElementById('diff-picker-desc').textContent   = opt.desc;
+  const box = document.querySelector('.diff-picker-box');
+  if (box) box.classList.toggle('is-nightmare', opt.key === 'nightmare');
 }
 
 function diffPickerPrev() {
@@ -10866,6 +11104,8 @@ function diffPickerConfirm() {
 
 function diffPickerCancel() {
   document.getElementById('difficulty-picker-modal').classList.add('hidden');
+  const box = document.querySelector('.diff-picker-box');
+  if (box) box.classList.remove('is-nightmare');
 }
 
 /** Re-render the three save-slot cards into #save-slot-grid. */
@@ -10886,7 +11126,7 @@ function renderSaveSlots() {
       : `Save Slot ${slot}: Empty — start new game`);
 
     if (summary) {
-      const diffLabel = summary.difficulty === 'hard' ? '💪 Hard' : summary.difficulty === 'easy' ? '😎 Easy' : '🎮 Normal';
+      const diffLabel = summary.difficulty === 'nightmare' ? '💀 Nightmare' : summary.difficulty === 'hard' ? '💪 Hard' : summary.difficulty === 'easy' ? '😎 Easy' : '🎮 Normal';
       card.innerHTML = `
         ${isLast ? '<span class="slot-last-badge">Last Played</span>' : ''}
         <div class="slot-label">Save Slot ${slot}</div>
@@ -11496,6 +11736,7 @@ function _tutorialPositionSpotlight(step, overlay, spotlight, tooltip) {
  * @param {boolean} isNew  true → create a fresh game; false → load existing save
  */
 function launchGame(slot, isNew, difficulty, opts = {}) {
+  _nmSessionActive = true;   // the in-game theme/music may now apply (Nightmare saves go red)
   currentSlot = slot;
   setLastSlot(slot);
   setActiveSession(slot, opts.resumeTab || 'dashboard');
@@ -11547,6 +11788,964 @@ function launchGame(slot, isNew, difficulty, opts = {}) {
   }, 450);
 }
 
+const NIGHTMARE_TELLS = [
+  'The seller keeps glancing at it. They want it gone.',
+  'The seller would not sit in it. Not even for a photo.',
+  'There is a faint handprint on the inside of the glass.',
+  'The listing photos were all taken from across the street.',
+  'A smell of wet earth lingers around it.',
+  'Every dog on the lot walks the long way around it.',
+];
+
+// ============================================================
+// NIGHTMARE MODE (v1.19.0)
+// ------------------------------------------------------------
+// A fourth difficulty. Everything Hard does, only worse — plus a
+// world that watches back:
+//   • DREAD  — a 0–100 meter that creeps up every night. Sales push
+//     it back; empty tills, debt and cursed cars push it forward.
+//   • RECKONINGS — hit 100 Dread and the dark collects: cash, your
+//     best car, and a step closer to the end. The third is final.
+//   • CURSED CARS — suspiciously cheap used cars that haunt the lot.
+//   • THE PALE CUSTOMER — a stranger who pays far too much, in
+//     money that might not exist by morning.
+//   • WARDS — a nightmare-only upgrade branch (salt, light, chapel).
+//   • ATMOSPHERE — red skies, fog, grain, watching eyes, and a
+//     soft dark-ambient soundtrack that breathes with your Dread.
+// Everything here is inert unless state.difficulty === 'nightmare'.
+// ============================================================
+
+const NIGHTMARE_MAX_RECKONINGS = 3;       // the third Reckoning ends the run
+const NIGHTMARE_CANDLE_COST    = 750;
+const NIGHTMARE_CANDLE_RELIEF  = 20;
+const NIGHTMARE_EXORCISM_COST  = 2500;
+const NIGHTMARE_CURSE_CHANCE   = 0.16;    // share of used-market listings that are cursed
+const NIGHTMARE_HAUNT_CHANCE   = 0.12;    // per cursed car, per night
+const NIGHTMARE_ASH_CHANCE     = 0.25;    // the Pale Customer's money may not survive the night
+const DREAD_TIER_LABELS = ['Uneasy', 'Haunted', 'Terrified', 'On the Edge'];
+
+/** Nightmare-only omens, mixed into the market-event pool. `dread` shifts the meter. */
+const NIGHTMARE_EVENTS = [
+  { msg: '🌫️ A thick, wrong fog rolls over the lot. Buyers stay home.',          effects: { Economy: -0.04, Sedan: -0.05, SUV: -0.05, Truck: -0.04, Sports: -0.05, Luxury: -0.06 }, dread: 4 },
+  { msg: '🔌 The lot lights die at midnight. Nobody browses in the dark.',       effects: { Sports: -0.05, Luxury: -0.07 }, dread: 3 },
+  { msg: '🐾 Something has been sleeping in the back seats of the sedans.',      effects: { Sedan: -0.08 }, dread: 5 },
+  { msg: '📻 Every radio on the lot tuned itself to the same station.',          effects: {}, dread: 6 },
+  { msg: '🩸 The showroom floor is damp. Nobody will say why.',                  effects: { Truck: -0.05, SUV: -0.04 }, dread: 4 },
+  { msg: '🚪 Every car door is unlocked. Nothing is missing. Yet.',              effects: { Luxury: -0.04 }, dread: 5 },
+  { msg: '🦉 Owls line the fence. They are all looking at the office.',          effects: { Economy: -0.03 }, dread: 4 },
+  { msg: '💀 A funeral procession passes. The hearse dealers are thrilled.',     effects: { Truck: 0.06, SUV: 0.05 }, dread: 2 },
+  { msg: '🕯️ A priest blessed the lot unprompted and left without a word.',      effects: { Luxury: 0.03 }, dread: -10 },
+  { msg: '🌕 A full moon. Strange buyers pay strange prices for strange cars.',  effects: { Sports: 0.07, Luxury: 0.04 }, dread: 2 },
+];
+
+const NIGHTMARE_WHISPERS = [
+  'Someone is standing between the cars.',
+  'The showroom lights hum a tune you almost recognize.',
+  'You counted the cars. Then you counted again. The number changed.',
+  'A customer waved from across the lot. There was no customer.',
+  'Your reflection in a windshield blinked a moment late.',
+  'Every odometer on the lot says the same number tonight.',
+  'A radio whispered your name. The radio was unplugged.',
+  'The lot is quieter than it should be.',
+  'There are more footprints in the dust than yesterday.',
+  'The keys on the board are swaying. There is no wind.',
+  'You sold a car today. You can\'t remember the buyer\'s face.',
+  'Something is breathing in the service bay.',
+  'The office phone rang once. The line was open. Someone was listening.',
+  'Your shadow is a little too far ahead of you.',
+];
+
+const NIGHTMARE_SWEEP_LINES = [
+  'You are not alone.', 'Do not look in the mirrors.', 'It is later than you think.',
+  'The lot remembers.', 'Keep the lights on.', 'Count the cars. Count them again.',
+  'Something followed you in.', 'Almost morning. Almost.', 'It was here before you.',
+  'Don\'t wake it.', 'The dark is patient.',
+];
+
+const NIGHTMARE_HAUNT_LINES = [
+  'sat with its headlights on all night. The battery is fine.',
+  'was found facing the opposite way this morning.',
+  'has a handprint on the inside of the windshield.',
+  'smells like rain and old flowers.',
+  'started itself at 3:07 and idled until dawn.',
+  'has a child\'s drawing on the dash that nobody can explain.',
+];
+
+/** True when the active save is on Nightmare difficulty. */
+function isNightmare() { return !!state && state.difficulty === 'nightmare'; }
+/** True for Hard and Nightmare — the "permadeath, harsh finance" tiers. */
+function isHardPlus()  { return !!state && (state.difficulty === 'hard' || state.difficulty === 'nightmare'); }
+
+/** The nightmare sub-state, created on demand (older saves, imports). */
+function nm() {
+  if (!state.nightmare || typeof state.nightmare !== 'object') {
+    state.nightmare = JSON.parse(JSON.stringify(NIGHTMARE_DEFAULTS));
+  }
+  return state.nightmare;
+}
+function getDread()      { return (state && state.nightmare && state.nightmare.dread) || 0; }
+function getDreadTier(d = getDread()) { return d >= 90 ? 3 : d >= 70 ? 2 : d >= 40 ? 1 : 0; }
+function hasWard(id)     { return !!(state && state.upgrades && state.upgrades[id]); }
+
+/** Move Dread by `delta` (clamped 0–100) and keep the peak/low watermarks. Returns the actual change. */
+function changeDread(delta) {
+  const n = nm();
+  const before = n.dread;
+  n.dread = clamp(Math.round(n.dread + delta), 0, 100);
+  n.peakDread = Math.max(n.peakDread || 0, n.dread);
+  n.lowestDread = Math.min(n.lowestDread ?? 100, n.dread);
+  return n.dread - before;
+}
+
+/** What tonight's Dread drift will be, itemised — shared by the nightly tick and the dashboard forecast. */
+function computeNightlyDreadDrift() {
+  const n = nm();
+  const parts = [];
+  let total = 0;
+  const add = (label, v) => { if (v) { parts.push({ label, v }); total += v; } };
+  add('The night closes in', 3);
+  const cursedCount = state.garage.filter(c => c.cursed).length;
+  add('Cursed cars on the lot', Math.min(8, cursedCount * (hasWard('wardLights') ? 1 : 2)));
+  if (state.cash < 0) add('Empty tills', 2);
+  if (state.loanBalance > 0 && (state.delinquencyLevel || 0) > 0) add('Overdue debts', 2);
+  add('Sales since last dusk', -Math.min(16, (n.salesToday || 0) * 4));
+  if (hasWard('wardSalt'))   add('Salt Lines', -1);
+  if (hasWard('wardLights')) add('Floodlight Array', -1);
+  if (hasWard('wardChapel')) add('Lot Chapel', -3);
+  return { total, parts };
+}
+
+// ------------------------------------------------------------
+// Nightly tick
+// ------------------------------------------------------------
+function processNightmareNight() {
+  if (!isNightmare() || state.gameOver) return;
+  const n = nm();
+  const tierBefore = getDreadTier();
+
+  // 1. Money that was never real.
+  if (n.ashDue > 0 && state.day >= n.ashDay) {
+    const lost = n.ashDue;
+    n.ashDue = 0; n.ashDay = 0;
+    state.cash -= lost;
+    n.ashCount = (n.ashCount || 0) + 1;
+    changeDread(8);
+    addNote(`🔥 The Pale Customer's cash crumbled to ash overnight. −${formatCurrency(lost)}.`, 'error');
+    showToast(`🔥 The money turned to ash. −${formatCurrency(lost)}`, 'error', 'ash');
+  }
+
+  // 2. An unanswered visitor doesn't wait.
+  if (n.visitor && state.day > n.visitor.day) {
+    n.visitor = null;
+    addNote('🚪 The Pale Customer waited at the edge of the lot until dawn, then was simply gone.', 'whisper');
+  }
+
+  // 3. Cursed cars act up.
+  let hauntDread = 0;
+  const hauntChance = NIGHTMARE_HAUNT_CHANCE * (hasWard('wardSalt') ? 0.5 : 1);
+  for (const car of state.garage.filter(c => c.cursed)) {
+    if (Math.random() < hauntChance) hauntDread += hauntCar(car).dread;
+  }
+
+  // 4. The night itself.
+  const drift = computeNightlyDreadDrift();
+  changeDread(drift.total + hauntDread);
+  n.salesToday = 0;
+
+  // 5. Atmosphere in the activity log.
+  const tier = getDreadTier();
+  if (tier > tierBefore) {
+    addNote([
+      '', 'The lot feels watched now.',
+      'Your hands won\'t stop shaking. Shadows move when you look away.',
+      'You can hear it breathing. The lights are leaning toward you.',
+    ][tier], 'whisper');
+  } else if (tier < tierBefore) {
+    addNote('You can breathe again. For now.', 'whisper');
+  } else if (tier >= 1 && Math.random() < 0.22 + tier * 0.12) {
+    addNote(randomFrom(NIGHTMARE_WHISPERS), 'whisper');
+  }
+
+  // 6. The Reckoning.
+  if (n.dread >= 100) { triggerReckoning(); if (state.gameOver) return; }
+
+  // 7. A stranger at the gate.
+  maybeSpawnPaleCustomer();
+}
+
+/** Something happens to a cursed car in the night. Returns { dread }. */
+function hauntCar(car) {
+  const n = nm();
+  const label = formatCarDisplayName(car);
+  car.curseRevealed = true;
+  n.hauntings = (n.hauntings || 0) + 1;
+  const roll = Math.random();
+
+  if (roll < 0.40) {
+    addNote(`🕯️ The ${label} ${randomFrom(NIGHTMARE_HAUNT_LINES)}`, 'whisper');
+    return { dread: 3 };
+  }
+  if (roll < 0.80) {
+    const issueDef = randomFrom(HIDDEN_ISSUES);
+    const issue = { name: issueDef.name, cost: computeIssueCost(issueDef, car.marketValue) };
+    car.hiddenIssues = car.hiddenIssues || [];
+    if (!car.hiddenIssues.some(i => i.name === issue.name)) {
+      car.hiddenIssues.push(issue);
+      car.repairCost = car.hiddenIssues.reduce((s, i) => s + i.cost, 0);
+      car.inspected = true;
+      addNote(`🕯️ The ${label} broke itself overnight: ${issue.name} (${formatCurrency(issue.cost)}). Nobody touched it.`, 'warning');
+      return { dread: 2 };
+    }
+    addNote(`🕯️ The ${label} ${randomFrom(NIGHTMARE_HAUNT_LINES)}`, 'whisper');
+    return { dread: 3 };
+  }
+  if (roll < 0.94) {
+    const add = randomInt(1800, 9000);
+    car.mileage = (car.mileage || 0) + add;
+    car.marketValue = Math.max(1000, Math.round(car.marketValue * 0.97));
+    addNote(`🕯️ The ${label}'s odometer jumped ${add.toLocaleString()} miles overnight. Nobody drove it.`, 'warning');
+    return { dread: 3 };
+  }
+  if (canNightmareTakeCar(car)) {
+    nightmareRemoveCar(car.id);
+    n.carsTaken = (n.carsTaken || 0) + 1;
+    addNote(`🕯️ The ${label} is gone. The spot is clean. The gate was locked all night.`, 'error');
+    showToast(`🕯️ The ${label} vanished from the lot.`, 'error', 'curse');
+    return { dread: 6 };
+  }
+  addNote(`🕯️ The ${label} ${randomFrom(NIGHTMARE_HAUNT_LINES)}`, 'whisper');
+  return { dread: 3 };
+}
+
+function canNightmareTakeCar(car) {
+  return !car.staffFlip && !(car.leaseStatus === 'active' && car.activeLease);
+}
+function nightmareRemoveCar(carId) {
+  state.garage = state.garage.filter(c => c.id !== carId);
+  state.customerOffers = state.customerOffers.filter(o => o.carId !== carId);
+  state.tradeInRequests = state.tradeInRequests.filter(r => r.targetCarId !== carId);
+}
+
+// ------------------------------------------------------------
+// The Reckoning
+// ------------------------------------------------------------
+function triggerReckoning() {
+  const n = nm();
+  n.reckonings = (n.reckonings || 0) + 1;
+  nightmareFx('reckoning', 2600);
+  playSfx('reckoning');
+  if (n.reckonings >= NIGHTMARE_MAX_RECKONINGS) { nightmareConsumed(); return; }
+
+  const chapel = hasWard('wardChapel');
+  const loss = clamp(Math.round(Math.max(0, state.cash) * (chapel ? 0.10 : 0.20)), 2000, chapel ? 100000 : 200000);
+  state.cash -= loss;
+  let carLine = 'It took nothing else. This time.';
+  if (!chapel) {
+    const target = state.garage.filter(canNightmareTakeCar).sort((a, b) => b.marketValue - a.marketValue)[0];
+    if (target) {
+      nightmareRemoveCar(target.id);
+      n.carsTaken = (n.carsTaken || 0) + 1;
+      carLine = `It took your ${formatCarDisplayName(target)} — worth ${formatCurrency(target.marketValue)}.`;
+    }
+  } else {
+    carLine = 'The chapel bells rang. Your cars were spared.';
+  }
+  n.dread = 55;
+  n.lowestDread = Math.min(n.lowestDread ?? 100, n.dread);
+  const left = NIGHTMARE_MAX_RECKONINGS - n.reckonings;
+  addNote(`💀 THE RECKONING (${n.reckonings}/${NIGHTMARE_MAX_RECKONINGS}). −${formatCurrency(loss)}. ${carLine}`, 'error');
+  showNightmareModal({
+    title: '💀 The Reckoning',
+    tone: 'nm-modal-red',
+    html: `<p>The lights go out all at once.</p>
+           <p>When they return, the till is lighter by <strong>${formatCurrency(loss)}</strong>. ${carLine}</p>
+           <p class="nm-modal-warn">${left === 1 ? 'The next Reckoning will be the last.' : `${left} Reckonings remain before the dark keeps you.`} Dread has settled at 55.</p>`,
+    actions: [{ label: 'Keep going', cls: 'btn-primary' }],
+  });
+}
+
+function nightmareConsumed() {
+  state.gameOver = true;
+  state.gameOverCause = 'consumed';
+  addNote('💀 The third Reckoning. The dark keeps you. Game Over.', 'error');
+  saveState();            // gated by state.gameOver — deletes this slot rather than writing it
+  clearActiveSession();
+  runAchievementChecks();
+  showGameOverScreen();
+}
+
+// ------------------------------------------------------------
+// Player actions
+// ------------------------------------------------------------
+function lightCandle() {
+  if (!isNightmare() || state.gameOver) return;
+  const n = nm();
+  if (n.candleDay === state.day) { showToast('One candle a night is all the dark allows.', 'warning'); return; }
+  if (state.cash < NIGHTMARE_CANDLE_COST) { showToast('Not enough cash for a candle.', 'error'); return; }
+  state.cash -= NIGHTMARE_CANDLE_COST;
+  n.candleDay = state.day;
+  n.candlesLit = (n.candlesLit || 0) + 1;
+  const eased = -changeDread(-NIGHTMARE_CANDLE_RELIEF);
+  addNote(`🕯️ You lit a candle. The shadows pull back. Dread −${eased}.`, 'success');
+  runAchievementChecks();
+  saveState();
+  renderAll();
+  showToast(`🕯️ The flame holds. Dread −${eased}.`, 'success', 'candle');
+  nightmareFx('candle', 1800);
+}
+
+function getExorcismCost() { return Math.round(NIGHTMARE_EXORCISM_COST * (hasWard('wardChapel') ? 0.5 : 1)); }
+
+function exorciseCar(carId) {
+  if (!isNightmare() || state.gameOver) return;
+  const car = state.garage.find(c => c.id === carId);
+  if (!car || !car.cursed) return;
+  const cost = getExorcismCost();
+  if (state.cash < cost) { showToast(`An exorcism costs ${formatCurrency(cost)} — not enough cash.`, 'error'); return; }
+  state.cash -= cost;
+  car.cursed = false;
+  car.exorcised = true;
+  const n = nm();
+  n.exorcisms = (n.exorcisms || 0) + 1;
+  changeDread(-6);
+  addNote(`🕯️ The ${formatCarDisplayName(car)} was exorcised (${formatCurrency(cost)}). It just feels like a car now.`, 'success');
+  runAchievementChecks();
+  saveState();
+  renderAll();
+  showToast('🕯️ The curse lifts. The air feels lighter.', 'success', 'candle');
+}
+
+/** Called from recordSaleStats() for every completed sale. */
+function onNightmareSale(car) {
+  const n = nm();
+  n.salesToday = (n.salesToday || 0) + 1;
+  n.totalSales = (n.totalSales || 0) + 1;
+  if (car && car.cursed) n.cursedSold = (n.cursedSold || 0) + 1;
+}
+
+// ------------------------------------------------------------
+// The Pale Customer
+// ------------------------------------------------------------
+function maybeSpawnPaleCustomer() {
+  const n = nm();
+  if (n.visitor || state.day < 5) return;
+  const chance = 0.07 + getDreadTier() * 0.04;
+  if (Math.random() >= chance) return;
+  const eligible = state.garage.filter(c => canNightmareTakeCar(c) && !c.inServiceUntilDay && c.marketValue >= 2000);
+  if (!eligible.length) return;
+  const car = randomFrom(eligible);
+  const offer = Math.round(car.marketValue * randomFloat(1.4, 1.75));
+  n.visitor = { id: generateId(), carId: car.id, carLabel: formatCarDisplayName(car), offer, marketValue: car.marketValue, day: state.day };
+  addNote(`🚪 A pale stranger is waiting at the gate. They want your ${n.visitor.carLabel}.`, 'whisper');
+  showNightmareModal(paleCustomerModalSpec(n.visitor));
+}
+
+function paleCustomerModalSpec(v) {
+  const pct = Math.round((v.offer / Math.max(1, v.marketValue)) * 100);
+  return {
+    title: '🚪 The Pale Customer',
+    tone: 'nm-modal-pale',
+    valid: () => !!(state.nightmare && state.nightmare.visitor && state.nightmare.visitor.id === v.id),
+    html: `<p>A stranger stands at the edge of the lot. Nobody saw them arrive. They do not blink.</p>
+           <p>"That one," they say, pointing at your <strong>${v.carLabel}</strong>. "I'll pay <strong>${formatCurrency(v.offer)}</strong>."</p>
+           <p>That's <strong>${pct}%</strong> of what it's worth. The bills smell faintly of smoke.</p>
+           <p class="nm-modal-warn">⚠️ Taking the deal adds +18 Dread, and there's a 1 in 4 chance the money is gone by morning. The offer stands for tonight only.</p>`,
+    actions: [
+      { label: 'Take the money', cls: 'btn-danger', fn: acceptPaleCustomer },
+      { label: 'Send them away', cls: 'btn-secondary', fn: refusePaleCustomer },
+    ],
+  };
+}
+
+function acceptPaleCustomer() {
+  if (!isNightmare() || state.gameOver) return;
+  const n = nm();
+  const v = n.visitor;
+  if (!v) return;
+  const car = state.garage.find(c => c.id === v.carId);
+  if (!car || car.inServiceUntilDay || (car.leaseStatus === 'active' && car.activeLease)) {
+    n.visitor = null;
+    showToast('The car is no longer there. Neither is the stranger.', 'warning');
+    saveState(); renderAll();
+    return;
+  }
+  nightmareRemoveCar(car.id);
+  state.cash += v.offer;
+  n.visitorsAccepted = (n.visitorsAccepted || 0) + 1;
+  n.visitor = null;
+  changeDread(18);
+  const ash = Math.random() < NIGHTMARE_ASH_CHANCE;
+  if (ash) { n.ashDue = v.offer; n.ashDay = state.day + 1; }
+  addNote(`🚪 You sold the ${v.carLabel} to the Pale Customer for ${formatCurrency(v.offer)}. Your hand is still cold.`, 'warning');
+  runAchievementChecks();
+  saveState();
+  renderAll();
+  showToast(`🚪 +${formatCurrency(v.offer)}. The bills feel… warm.`, 'warning', 'curse');
+}
+
+function refusePaleCustomer() {
+  if (!isNightmare() || state.gameOver) return;
+  const n = nm();
+  if (!n.visitor) return;
+  n.visitor = null;
+  n.visitorsDeclined = (n.visitorsDeclined || 0) + 1;
+  changeDread(-3);
+  addNote('🚪 You told the stranger no. They smiled, and walked backwards into the dark.', 'whisper');
+  runAchievementChecks();
+  saveState();
+  renderAll();
+  showToast('🚪 They left. Dread −3.', 'info');
+}
+
+// ------------------------------------------------------------
+// Cursed-car helpers (used by the Used Market and Car Lot renderers)
+// ------------------------------------------------------------
+function curseBadge(car) {
+  return (car && car.cursed && car.curseRevealed)
+    ? '<span class="badge badge-curse" title="Cursed: +2 Dread each night, buyers sense it, and it haunts the lot.">🕯️ CURSED</span>'
+    : '';
+}
+
+function curseBannerHtml(car) {
+  if (!isNightmare() || !car.cursed || !car.curseRevealed) return '';
+  const cost = getExorcismCost();
+  return `<div class="curse-banner">
+      <span>🕯️ <strong>Cursed</strong> — +2 Dread a night, buyers sense it (−32% sale chance), and it may haunt you.</span>
+      <button class="btn btn-secondary curse-exorcise-btn" onclick="exorciseCar('${car.id}')" ${state.cash < cost ? 'disabled' : ''}>Exorcise (${formatCurrency(cost)})</button>
+    </div>`;
+}
+
+// ------------------------------------------------------------
+// Dashboard panel
+// ------------------------------------------------------------
+function renderNightmarePanel() {
+  if (!isNightmare()) return '';
+  const n = nm();
+  const d = n.dread;
+  const tier = getDreadTier(d);
+  const cursedOnLot = state.garage.filter(c => c.cursed).length;
+  const drift = computeNightlyDreadDrift();
+  const candleUsed = n.candleDay === state.day;
+  const v = n.visitor;
+  const driftCls = drift.total > 0 ? 'text-red' : drift.total < 0 ? 'text-green' : 'text-muted';
+  const driftRows = drift.parts.map(p =>
+    `<div class="nm-drift-row"><span>${p.label}</span><strong class="${p.v > 0 ? 'text-red' : 'text-green'}">${p.v > 0 ? '+' : ''}${p.v}</strong></div>`).join('');
+
+  const visitorHtml = v ? `
+      <div class="nm-visitor">
+        <div class="nm-visitor-head">🚪 <strong>The Pale Customer</strong> <span class="nm-visitor-sub">waits at the gate — tonight only</span></div>
+        <p>Offers <strong>${formatCurrency(v.offer)}</strong> for your <strong>${v.carLabel}</strong> (${Math.round(v.offer / Math.max(1, v.marketValue) * 100)}% of value). +18 Dread. 1 in 4 the money is ash by morning.</p>
+        <div class="nm-actions">
+          <button class="btn btn-danger" onclick="acceptPaleCustomer()">Take the money</button>
+          <button class="btn btn-secondary" onclick="refusePaleCustomer()">Send them away</button>
+        </div>
+      </div>` : '';
+  const ashHtml = n.ashDue > 0
+    ? `<div class="nm-ash-warn">🔥 The last payment feels wrong. Something may be waiting for you in the morning.</div>` : '';
+
+  return `
+    <div class="dash-card nm-panel nm-tier-${tier}">
+      <h3>${uiIcon('eye')} The Dark <span class="nm-tier-label">${DREAD_TIER_LABELS[tier]}</span></h3>
+      <div class="nm-panel-grid">
+        <div class="nm-panel-main">
+          <div class="nm-dread-bar" role="progressbar" aria-label="Dread" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${d}">
+            <div class="nm-dread-fill" style="width:${d}%"></div>
+            <span class="nm-dread-num">Dread ${d} / 100</span>
+          </div>
+          <div class="stat-row"><span>Reckonings</span><strong class="${n.reckonings ? 'text-red' : 'text-muted'}">${n.reckonings || 0} / ${NIGHTMARE_MAX_RECKONINGS} <small>(the last is final)</small></strong></div>
+          <div class="stat-row"><span>Cursed cars on the lot</span><strong class="${cursedOnLot ? 'text-red' : 'text-muted'}">${cursedOnLot}</strong></div>
+          <div class="stat-row"><span>Tonight's drift</span><strong class="${driftCls}">${drift.total > 0 ? '+' : ''}${drift.total} Dread</strong></div>
+          <div class="nm-drift">${driftRows}</div>
+          <div class="nm-actions">
+            <button class="btn btn-primary" onclick="lightCandle()" ${candleUsed || state.cash < NIGHTMARE_CANDLE_COST ? 'disabled' : ''}
+              title="One per night. Costs ${formatCurrency(NIGHTMARE_CANDLE_COST)}.">🕯️ ${candleUsed ? 'Candle lit tonight' : `Light a Candle · −${NIGHTMARE_CANDLE_RELIEF} Dread · ${formatCurrency(NIGHTMARE_CANDLE_COST)}`}</button>
+          </div>
+          ${ashHtml}
+        </div>
+        <ul class="nm-rules">
+          <li><strong>Sell cars</strong> to keep the dark back (−4 Dread each, up to −16 a night).</li>
+          <li>At <strong>100 Dread</strong> the dark collects: cash, your best car, and a step closer to the end.</li>
+          <li><strong>Cursed cars</strong> sell cheap — inspect first. Exorcise them, or sell them fast.</li>
+          <li>The <strong>Pale Customer</strong> pays far too much. Money can burn.</li>
+          <li>Buy <strong>Wards</strong> in Upgrades to push the night back for good.</li>
+          <li>Overhead ×2, staff pay +25%, buyers pickier, bankruptcy is permanent.</li>
+        </ul>
+      </div>
+      ${visitorHtml}
+    </div>`;
+}
+
+// ------------------------------------------------------------
+// Modal queue (dramatic one-offs: Reckonings, the Pale Customer)
+// ------------------------------------------------------------
+let _nmModalQueue = [];
+let _nmModalOpen  = false;
+
+/** spec: { title, html, tone?, valid?(), actions: [{ label, cls?, fn? }] } */
+function showNightmareModal(spec) {
+  if (_holdDayPopups || _nmModalOpen) { _nmModalQueue.push(spec); return; }
+  _openNightmareModal(spec);
+}
+
+function _openNightmareModal(spec) {
+  if (spec.valid && !spec.valid()) { flushHeldModals(); return; }
+  _nmModalOpen = true;
+  const ov = document.createElement('div');
+  ov.className = 'nm-modal-overlay';
+  ov.setAttribute('role', 'dialog');
+  ov.setAttribute('aria-modal', 'true');
+  ov.innerHTML = `<div class="nm-modal-box ${spec.tone || ''}">
+      <h3 class="nm-modal-title"></h3><div class="nm-modal-body"></div><div class="nm-modal-actions"></div></div>`;
+  ov.querySelector('.nm-modal-title').textContent = spec.title;
+  ov.querySelector('.nm-modal-body').innerHTML = spec.html;
+  const bar = ov.querySelector('.nm-modal-actions');
+  const close = (fn) => {
+    ov.remove();
+    _nmModalOpen = false;
+    playSfx('modalClose');
+    if (typeof fn === 'function') fn();
+    flushHeldModals();
+  };
+  (spec.actions || [{ label: 'Close' }]).forEach(a => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = `btn ${a.cls || 'btn-secondary'}`;
+    b.textContent = a.label;
+    b.addEventListener('click', () => close(a.fn));
+    bar.appendChild(b);
+  });
+  document.body.appendChild(ov);
+  playSfx('modalOpen');
+  setTimeout(() => { try { bar.firstChild && bar.firstChild.focus(); } catch (_) {} }, 30);
+}
+
+/** Opens the next queued nightmare modal, if any. Returns true while one is (or just became) open. */
+function flushNightmareModals() {
+  if (_nmModalOpen) return true;
+  if (!_nmModalQueue.length) return false;
+  _openNightmareModal(_nmModalQueue.shift());
+  return true;
+}
+
+// ------------------------------------------------------------
+// Atmosphere — red skies, fog, grain, flicker, watching eyes
+// ------------------------------------------------------------
+let _nmSessionActive = false;
+let _nmFxRunning     = false;
+let _nmEyesTimer     = null;
+let _nmGlitchTimer   = null;
+
+function ensureNightmareOverlay() {
+  if (document.getElementById('nm-overlay')) return;
+  const ov = document.createElement('div');
+  ov.id = 'nm-overlay';
+  ov.setAttribute('aria-hidden', 'true');
+  ov.innerHTML = '<div class="nm-fog nm-fog-a"></div><div class="nm-fog nm-fog-b"></div>' +
+                 '<div class="nm-vignette"></div><div class="nm-grain"></div><div class="nm-flicker"></div><div class="nm-flash"></div>';
+  document.body.appendChild(ov);
+  const eyes = document.createElement('div');
+  eyes.id = 'nm-eyes-layer';
+  eyes.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(eyes);
+}
+
+/** Idempotent: makes the page match the current save (red + haunted on Nightmare, normal otherwise). */
+function applyNightmareAtmosphere() {
+  const on = !!(_nmSessionActive && isNightmare());
+  const body = document.body;
+  body.classList.toggle('nightmare', on);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (on) {
+    ensureNightmareOverlay();
+    const tier = getDreadTier();
+    body.dataset.dread = String(tier);
+    body.style.setProperty('--nm-beat', ['7s', '4.6s', '2.9s', '1.9s'][tier]);
+    if (meta) meta.setAttribute('content', '#1a0306');
+    startNightmareFx();
+  } else {
+    delete body.dataset.dread;
+    body.style.removeProperty('--nm-beat');
+    if (meta) meta.setAttribute('content', '#07162b');
+    stopNightmareFx();
+  }
+}
+
+function nightmareFx(kind, ms) {
+  const b = document.body;
+  if (!b.classList.contains('nightmare')) return;
+  b.classList.add('nm-fx-' + kind);
+  setTimeout(() => b.classList.remove('nm-fx-' + kind), ms);
+}
+
+function startNightmareFx() {
+  if (_nmFxRunning) return;
+  _nmFxRunning = true;
+  scheduleNightmareEyes();
+  scheduleNightmareGlitch();
+}
+function stopNightmareFx() {
+  _nmFxRunning = false;
+  clearTimeout(_nmEyesTimer); clearTimeout(_nmGlitchTimer);
+  const layer = document.getElementById('nm-eyes-layer');
+  if (layer) layer.textContent = '';
+}
+
+function scheduleNightmareEyes() {
+  if (!_nmFxRunning) return;
+  const base = [75000, 45000, 26000, 13000][getDreadTier()];
+  _nmEyesTimer = setTimeout(() => {
+    if (getDreadTier() >= 1 || Math.random() < 0.2) spawnNightmareEyes();
+    scheduleNightmareEyes();
+  }, base * (0.6 + Math.random() * 0.9));
+}
+
+function spawnNightmareEyes() {
+  const layer = document.getElementById('nm-eyes-layer');
+  if (!layer || !document.body.classList.contains('nightmare') || layer.childElementCount >= 2) return;
+  const el = document.createElement('button');
+  el.type = 'button';
+  el.className = 'nm-eyes';
+  el.tabIndex = -1;
+  el.setAttribute('aria-hidden', 'true');
+  const edge = Math.random();
+  let x, y;
+  if (edge < 0.4)      { x = 2 + Math.random() * 9;  y = 14 + Math.random() * 70; }
+  else if (edge < 0.8) { x = 89 + Math.random() * 7; y = 14 + Math.random() * 70; }
+  else                 { x = 10 + Math.random() * 80; y = 90 + Math.random() * 5; }
+  el.style.left = x + '%';
+  el.style.top = y + '%';
+  el.style.setProperty('--s', (0.8 + Math.random() * 0.9).toFixed(2));
+  el.innerHTML = '<i></i><i></i>';
+  el.addEventListener('click', (e) => {
+    const t = e.currentTarget;
+    t.classList.remove('open'); t.classList.add('startled');
+    nm().eyesClicked = (nm().eyesClicked || 0) + 1;
+    playSfx('whisper');
+    setTimeout(() => t.remove(), 450);
+    runAchievementChecks();
+    saveState();
+  });
+  layer.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('open'));
+  const hold = 2400 + Math.random() * 3200;
+  setTimeout(() => el.classList.add('blink'), hold * 0.62);
+  setTimeout(() => el.classList.remove('open'), hold);
+  setTimeout(() => el.remove(), hold + 1500);
+}
+
+function scheduleNightmareGlitch() {
+  if (!_nmFxRunning) return;
+  const delay = getDreadTier() >= 2 ? 14000 + Math.random() * 22000 : 38000 + Math.random() * 40000;
+  _nmGlitchTimer = setTimeout(() => {
+    if (getDreadTier() >= 1) {
+      const el = document.getElementById(randomFrom(['stat-cash', 'stat-day', 'stat-rep', 'stat-garage', 'stat-debt', 'stat-dread']));
+      if (el) { el.classList.add('nm-glitch'); setTimeout(() => el.classList.remove('nm-glitch'), 560); }
+    }
+    scheduleNightmareGlitch();
+  }, delay);
+}
+
+// ============================================================
+// NIGHTMARE MUSIC — "Lullaby for an Empty Lot"
+// ------------------------------------------------------------
+// A slow dark-ambient piece synthesized live, like the rest of the
+// soundtrack (no audio files). Built to be unsettling but soothing —
+// nothing sudden, nothing sharp, everything soft and washed in reverb:
+//   • a sub-bass drone that swells and recedes like breathing
+//   • long, overlapping pad chords drifting through eerie-but-gentle
+//     colours (minor ♭9, lydian ♯11, half-diminished, phrygian sus)
+//   • a music-box lullaby that wanders the lot, slightly out of tune,
+//     with an occasional wrong note
+//   • a bed of low wind, rare distant whispers and a far-off groan
+//   • a very soft heartbeat that only appears — and quickens — as
+//     your Dread climbs; the tone also opens up a little with Dread
+// ============================================================
+const NM_MUSIC_VOLUME_SCALE = 0.55;
+const NM_MIN_GAIN = 0.0001;
+const NM_CHORD_SECONDS = 18;       // how long each chord rings
+const NM_CHORD_STEP_SECONDS = 14;  // …and when the next begins (overlap = slow crossfade)
+const NM_CHORDS = [
+  { root: 'D2',  notes: ['A3', 'D4', 'F4', 'Eb5'] },   // Dm(♭9)        — minor with a cold shadow on top
+  { root: 'Bb1', notes: ['F3', 'A3', 'D4', 'E4']  },   // Bbmaj7(♯11)   — dreamlike, slightly wrong
+  { root: 'G2',  notes: ['Bb3', 'Db4', 'F4', 'A4'] },  // Gm7♭5-ish     — hollow
+  { root: 'A1',  notes: ['E3', 'A3', 'Bb3', 'E4']  },  // Asus(♭9)      — phrygian lean, unresolved
+];
+// The lullaby: a descending child's tune in D minor that never quite resolves.
+const NM_MOTIF = ['A4', 'D5', 'F5', 'E5', 'D5', 'C5', 'D5', 'A4', 'Bb4', 'D5', 'F5', 'G5', 'F5', 'E5', 'D5', 'C#5'];
+
+let nmMusic = null;      // the live engine (null when stopped)
+let nmMusicGen = 0;      // invalidates stale timers after stop()
+
+function nmMakeImpulse(ctx, seconds, power) {
+  const rate = ctx.sampleRate, len = Math.floor(rate * seconds);
+  const buf = ctx.createBuffer(2, len, rate);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = buf.getChannelData(ch);
+    let lp = 0;
+    for (let i = 0; i < len; i++) {
+      const t = i / len;
+      lp += ((Math.random() * 2 - 1) - lp) * (0.34 - 0.27 * t);   // tail grows darker as it fades
+      d[i] = lp * Math.pow(1 - t, power);
+    }
+  }
+  return buf;
+}
+
+function nmMakeNoise(ctx, seconds, brown) {
+  const len = Math.floor(ctx.sampleRate * seconds);
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  let last = 0;
+  for (let i = 0; i < len; i++) {
+    const w = Math.random() * 2 - 1;
+    if (brown) { last = (last + 0.02 * w) / 1.02; d[i] = last * 3.2; } else { d[i] = w; }
+  }
+  const f = Math.floor(ctx.sampleRate * 0.06);       // fade the seam so the loop never clicks
+  for (let i = 0; i < f; i++) { const g = i / f; d[i] *= g; d[len - 1 - i] *= g; }
+  return buf;
+}
+
+function nmPanner(ctx, amount) {
+  if (!ctx.createStereoPanner) return null;
+  const p = ctx.createStereoPanner();
+  p.pan.value = (Math.random() * 2 - 1) * amount;
+  return p;
+}
+
+function startNightmareMusic() {
+  if (settings.musicMuted || nmMusic) return;
+  const ctx = ensureAudioCtx();
+  if (!ctx) return;
+  try {
+    const m = { ctx, gen: ++nmMusicGen, timers: {}, persistent: [], chordIdx: 0, motifIdx: 0 };
+    nmMusic = m;
+
+    // Output chain: sources → (dry + reverb) → master → soft lowpass → speakers
+    m.master = ctx.createGain();
+    m.master.gain.value = NM_MIN_GAIN;
+    m.tone = ctx.createBiquadFilter();
+    m.tone.type = 'lowpass'; m.tone.frequency.value = 900; m.tone.Q.value = 0.35;
+    m.master.connect(m.tone); m.tone.connect(ctx.destination);
+
+    m.reverb = ctx.createConvolver();
+    m.reverb.buffer = nmMakeImpulse(ctx, 6.5, 2.4);
+    const wet = ctx.createGain(); wet.gain.value = 0.85;
+    m.reverb.connect(wet); wet.connect(m.master);
+    m.out = ctx.createGain();                       // everything "in the room" goes through here
+    const dry = ctx.createGain(); dry.gain.value = 0.7;
+    m.out.connect(dry); dry.connect(m.master);
+    m.out.connect(m.reverb);
+    m.sub = ctx.createGain();                       // bass that should stay clean and dry
+    m.sub.connect(m.master);
+
+    m.noiseBuf = nmMakeNoise(ctx, 3, false);
+
+    const now = ctx.currentTime;
+
+    // ── Sub drone: D1 + A1 + a faint D2, breathing slowly ──────────────
+    const droneGain = ctx.createGain();
+    droneGain.gain.value = 0.085;
+    droneGain.connect(m.sub);
+    [[36.71, 'sine', 1.0], [55.0, 'sine', 0.45], [73.42, 'triangle', 0.22]].forEach(([f, type, lv]) => {
+      const o = ctx.createOscillator(); const g = ctx.createGain();
+      o.type = type; o.frequency.value = f; g.gain.value = lv;
+      o.connect(g); g.connect(droneGain); o.start(now); m.persistent.push(o);
+    });
+    const breathe = ctx.createOscillator(); const breatheDepth = ctx.createGain();
+    breathe.frequency.value = 0.055; breatheDepth.gain.value = 0.04;
+    breathe.connect(breatheDepth); breatheDepth.connect(droneGain.gain);
+    breathe.start(now); m.persistent.push(breathe);
+
+    // ── Wind: brown noise through a slowly wandering band ─────────────
+    const wind = ctx.createBufferSource();
+    wind.buffer = nmMakeNoise(ctx, 4, true); wind.loop = true;
+    const windBand = ctx.createBiquadFilter();
+    windBand.type = 'bandpass'; windBand.frequency.value = 420; windBand.Q.value = 0.8;
+    const windGain = ctx.createGain(); windGain.gain.value = 0.085;
+    wind.connect(windBand); windBand.connect(windGain); windGain.connect(m.out);
+    const sweep = ctx.createOscillator(); const sweepDepth = ctx.createGain();
+    sweep.frequency.value = 0.037; sweepDepth.gain.value = 230;
+    sweep.connect(sweepDepth); sweepDepth.connect(windBand.frequency);
+    const swell = ctx.createOscillator(); const swellDepth = ctx.createGain();
+    swell.frequency.value = 0.051; swellDepth.gain.value = 0.035;
+    swell.connect(swellDepth); swellDepth.connect(windGain.gain);
+    wind.start(now); sweep.start(now); swell.start(now);
+    m.persistent.push(wind, sweep, swell);
+
+    // Fade the whole piece in over a few seconds.
+    m.master.gain.setTargetAtTime(
+      clamp(settings.musicVolume ?? 0.16, 0, 1) * NM_MUSIC_VOLUME_SCALE, now, 1.6);
+
+    nmChordStep(m);
+    m.timers.bell    = setTimeout(() => nmBell(m), 3500);
+    m.timers.heart   = setTimeout(() => nmHeartbeat(m), 2000);
+    m.timers.whisper = setTimeout(() => nmWhisper(m), 14000 + Math.random() * 8000);
+  } catch (err) {
+    console.warn('Nightmare music failed to start', err);
+    nmMusic = null;
+  }
+}
+
+function stopNightmareMusic() {
+  nmMusicGen++;
+  const m = nmMusic;
+  if (!m) return;
+  nmMusic = null;
+  Object.values(m.timers).forEach(clearTimeout);
+  try {
+    m.master.gain.cancelScheduledValues(m.ctx.currentTime);
+    m.master.gain.setTargetAtTime(NM_MIN_GAIN, m.ctx.currentTime, 0.3);
+  } catch (_) {}
+  setTimeout(() => {
+    m.persistent.forEach(n => { try { n.stop(); } catch (_) {} });
+    try { m.master.disconnect(); m.tone.disconnect(); } catch (_) {}
+  }, 1800);
+}
+
+/** Dread opens the tone up a touch (more tension, never harshness). */
+function nmApplyIntensity(m) {
+  const d = getDread() / 100;
+  try { m.tone.frequency.setTargetAtTime(760 + d * 900, m.ctx.currentTime, 3); } catch (_) {}
+}
+
+function nmRetry(m, key, fn) { m.timers[key] = setTimeout(() => fn(m), 400); }
+
+/** One long pad chord; the next begins before this one has finished, so they dissolve into each other. */
+function nmChordStep(m) {
+  if (m.gen !== nmMusicGen) return;
+  const ctx = m.ctx;
+  if (ctx.state !== 'running') { nmRetry(m, 'chord', nmChordStep); return; }
+  nmApplyIntensity(m);
+  const chord = NM_CHORDS[m.chordIdx % NM_CHORDS.length];
+  m.chordIdx++;
+  const t = ctx.currentTime + 0.1;
+  const dur = NM_CHORD_SECONDS, attack = 5, release = 7;
+
+  const voice = (freq, type, peak, bus) => {
+    const o = ctx.createOscillator(); const g = ctx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t);
+    o.detune.setValueAtTime((Math.random() - 0.5) * 12, t);
+    g.gain.setValueAtTime(NM_MIN_GAIN, t);
+    g.gain.linearRampToValueAtTime(peak, t + attack);
+    g.gain.setValueAtTime(peak, t + dur - release);
+    g.gain.linearRampToValueAtTime(NM_MIN_GAIN, t + dur);
+    o.connect(g); g.connect(bus);
+    o.start(t); o.stop(t + dur + 0.1);
+  };
+  voice(noteFreq(chord.root), 'sine', 0.07, m.sub);
+  chord.notes.forEach((name) => {
+    const f = noteFreq(name);
+    voice(f, 'sine', 0.05, m.out);
+    voice(f * 1.003, 'triangle', 0.016, m.out);
+  });
+  m.timers.chord = setTimeout(() => nmChordStep(m), NM_CHORD_STEP_SECONDS * 1000);
+}
+
+/** One struck bell partial-set (a music-box tine): soft attack, long fading ring, slight downward sag. */
+function nmPlayBell(m, freq, t, peak) {
+  const ctx = m.ctx;
+  const pan = nmPanner(ctx, 0.65);
+  const bus = ctx.createGain();
+  bus.gain.value = 1;
+  if (pan) { bus.connect(pan); pan.connect(m.out); } else { bus.connect(m.out); }
+  [[1, 1, 4.4], [2.76, 0.26, 2.2], [5.4, 0.09, 1.0]].forEach(([ratio, level, decay]) => {
+    const f = freq * ratio;
+    if (f > 5200) return;
+    const o = ctx.createOscillator(); const g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(f, t);
+    o.detune.setValueAtTime(0, t);
+    o.detune.linearRampToValueAtTime(-16, t + decay);
+    const p = peak * level;
+    g.gain.setValueAtTime(NM_MIN_GAIN, t);
+    g.gain.linearRampToValueAtTime(p, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(NM_MIN_GAIN, t + decay);
+    o.connect(g); g.connect(bus);
+    o.start(t); o.stop(t + decay + 0.1);
+  });
+}
+
+function nmBell(m) {
+  if (m.gen !== nmMusicGen) return;
+  const ctx = m.ctx;
+  if (ctx.state !== 'running') { nmRetry(m, 'bell', nmBell); return; }
+  const dread = getDread() / 100;
+  if (Math.random() > 0.12) {                              // now and then the tune simply forgets itself
+    let freq = noteFreq(NM_MOTIF[m.motifIdx % NM_MOTIF.length]);
+    m.motifIdx++;
+    if (Math.random() < 0.05 + dread * 0.16) freq *= Math.pow(2, (Math.random() < 0.5 ? -1 : 1) / 12);   // a wrong note
+    freq *= Math.pow(2, ((Math.random() * 2 - 1) * (18 + dread * 40)) / 1200);                         // warped tuning
+    nmPlayBell(m, freq, ctx.currentTime + 0.05, 0.075 - dread * 0.012);
+  }
+  m.timers.bell = setTimeout(() => nmBell(m), 2200 + Math.random() * 3800 - dread * 900);
+}
+
+/** A very soft double-thump. Silent when calm; slow and faint as Dread rises, a touch quicker near the edge. */
+function nmHeartbeat(m) {
+  if (m.gen !== nmMusicGen) return;
+  const ctx = m.ctx;
+  if (ctx.state !== 'running') { nmRetry(m, 'heart', nmHeartbeat); return; }
+  nmApplyIntensity(m);
+  const tier = getDreadTier();
+  const level = [0, 0.07, 0.13, 0.19][tier];
+  if (level > 0) {
+    const t = ctx.currentTime + 0.05;
+    [[0, 1], [0.3, 0.7]].forEach(([dt, k]) => {
+      const o = ctx.createOscillator(); const g = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(72, t + dt);
+      o.frequency.exponentialRampToValueAtTime(34, t + dt + 0.22);
+      g.gain.setValueAtTime(NM_MIN_GAIN, t + dt);
+      g.gain.linearRampToValueAtTime(level * k, t + dt + 0.014);
+      g.gain.exponentialRampToValueAtTime(NM_MIN_GAIN, t + dt + 0.34);
+      o.connect(g); g.connect(m.sub);
+      o.start(t + dt); o.stop(t + dt + 0.4);
+    });
+  }
+  m.timers.heart = setTimeout(() => nmHeartbeat(m), 60000 / (46 + tier * 6));
+}
+
+/** Rare distant events: a breath of almost-words, and a long far-off groan. */
+function nmWhisper(m) {
+  if (m.gen !== nmMusicGen) return;
+  const ctx = m.ctx;
+  if (ctx.state !== 'running') { nmRetry(m, 'whisper', nmWhisper); return; }
+  const tier = getDreadTier();
+  const t = ctx.currentTime + 0.1;
+
+  if (Math.random() < 0.6 + tier * 0.1) {
+    const dur = 3.6 + Math.random() * 2.4;
+    const src = ctx.createBufferSource(); src.buffer = m.noiseBuf; src.loop = true;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(NM_MIN_GAIN, t);
+    g.gain.linearRampToValueAtTime(0.5, t + dur * 0.45);
+    g.gain.linearRampToValueAtTime(NM_MIN_GAIN, t + dur);
+    [[430 + Math.random() * 260, 8], [1100 + Math.random() * 520, 10]].forEach(([f, q]) => {
+      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = q;
+      src.connect(bp); bp.connect(g);
+    });
+    const pan = nmPanner(ctx, 0.8);
+    const lvl = ctx.createGain(); lvl.gain.value = 0.045;
+    g.connect(lvl);
+    if (pan) { lvl.connect(pan); pan.connect(m.out); } else { lvl.connect(m.out); }
+    src.start(t, Math.random()); src.stop(t + dur + 0.1);
+  }
+  if (tier >= 1 && Math.random() < 0.35) {
+    const o = ctx.createOscillator(); const lp = ctx.createBiquadFilter(); const g = ctx.createGain();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(54, t + 0.5);
+    o.frequency.linearRampToValueAtTime(44, t + 5.5);
+    lp.type = 'lowpass'; lp.frequency.value = 170;
+    g.gain.setValueAtTime(NM_MIN_GAIN, t + 0.5);
+    g.gain.linearRampToValueAtTime(0.07, t + 3);
+    g.gain.linearRampToValueAtTime(NM_MIN_GAIN, t + 6);
+    o.connect(lp); lp.connect(g); g.connect(m.out);
+    o.start(t + 0.5); o.stop(t + 6.2);
+  }
+  m.timers.whisper = setTimeout(() => nmWhisper(m), 16000 + Math.random() * 24000 - tier * 3500);
+}
+
 // ============================================================
 // RETURN TO MENU
 // ============================================================
@@ -11559,6 +12758,8 @@ function returnToMenu() {
   saveState();
   // Deliberately leaving the game — a refresh from here should show the menu
   clearActiveSession();
+  _nmSessionActive = false;      // the menu is always the calm blue one
+  applyNightmareAtmosphere();
   playSfx('navigate');
 
   // Restore home screen
@@ -11873,6 +13074,7 @@ function init() {
     makeLeaseAvailable, stopOfferingLease, viewLeaseDetails, toggleShowLeasedCars, setCarLotSort, toggleLotSortMenu, chooseLotSort, switchTab,
     buyUpgrade, selectSkillNode, detailCar, carWash, basicRepair, partsUpgrade,
     drawLoan, payDownLoan,
+    lightCandle, exorciseCar, acceptPaleCustomer, refusePaleCustomer,
     selectInsurance, cancelInsurance,
     confirmNewGame, exportSave, hireStaff, dismissCandidate, fireStaff, toggleStaffTrading,
     toggleDarkMode, toggleReduceMotion, setBrightness, resetBrightness, setDifficulty, toggleSfxMuted, setSfxVolume, toggleTutorials,
