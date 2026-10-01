@@ -21,6 +21,7 @@ const PATCH_NOTES = [
       { type: 'feature', text: "New difficulty: NIGHTMARE. Pick it when creating a save slot. The whole game turns red — fog, film grain, a pulsing vignette, and now and then, something watching from the edge of the screen. Overhead is double, staff are paid 25% extra for night shifts, loans are 24% APR with 2% minimum principal, buyers are pickier, and bankruptcy ends the run for good." },
       { type: 'feature', text: "Dread: a new 0–100 meter on Nightmare. It creeps up every night and is pushed back by sales (−4 each), candles, and Wards. Cursed cars, empty tills and overdue debts push it forward. As it climbs the dark gets louder — more fog, flickering numbers, a heartbeat in the soundtrack. Hit 100 and a Reckoning takes cash and your best car; the third Reckoning is final." },
       { type: 'feature', text: "Cursed cars: some used-market listings on Nightmare are suspiciously cheap. Inspect them to confirm the curse. Owned cursed cars add Dread, haunt the lot (breakdowns, odometers that move on their own, the occasional vanishing), and are harder to sell — or pay to exorcise them." },
+      { type: 'feature', text: "Sleep (Nightmare): a new meter that drains 10% every minute. At 0 you fall asleep and the run is over. To rest, play the Pale Man at rock-paper-scissors — best of three. Win and you sleep (+50%); lose and you gain nothing. He could kill you any time. He'd rather play. Lose a match and he makes you wait 20 seconds. The Pale Customer is him, too, wearing a customer's face." },
       { type: 'feature', text: "The Pale Customer: now and then a stranger offers far above market value for one of your cars. The money might be ash by morning. +18 Dread if you take it." },
       { type: 'feature', text: "Wards: three Nightmare-only upgrades — Salt Lines, Floodlight Array and Lot Chapel — that push the night back for good. Plus ten Nightmare-only omens in the market-event pool, and \"Night N\" replaces \"Day N\" with a creeping line of text between nights." },
       { type: 'feature', text: "New soundtrack for Nightmare: \"Lullaby for an Empty Lot\". A slow dark-ambient piece — breathing sub drone, drifting pad chords, a slightly out-of-tune music box, low wind and distant whispers, with a very soft heartbeat that only appears as Dread rises. Unsettling but calm. All synthesized in the browser, like the rest of the music. UI sounds also drop in pitch on Nightmare." },
@@ -613,6 +614,7 @@ const NIGHTMARE_DEFAULTS = {
   exorcisms: 0, cursedBought: 0, cursedSold: 0, hauntings: 0, carsTaken: 0,
   visitorsAccepted: 0, visitorsDeclined: 0, ashCount: 0, ashDue: 0, ashDay: 0,
   eventsSeen: 0, salesToday: 0, totalSales: 0, eyesClicked: 0, visitor: null,
+  sleep: 100, sleepDuelsWon: 0, sleepDuelsLost: 0, duelCooldownUntil: 0,   // Sleep meter + Pale Man duels
 };
 
 // ============================================================
@@ -3836,12 +3838,15 @@ function showGameOverScreen() {
   playSfx('gameOver');
   const nightmare = isNightmare();
   const consumed = state.gameOverCause === 'consumed';
+  const asleep = state.gameOverCause === 'sleep';
   const titleEl = document.getElementById('game-over-title-text');
   const subEl   = document.getElementById('game-over-subtitle');
-  if (titleEl) titleEl.textContent = nightmare ? (consumed ? 'YOU NEVER WOKE UP' : 'THE LOT GOES DARK') : 'GAME OVER';
+  if (titleEl) titleEl.textContent = nightmare ? (asleep ? 'YOU FELL ASLEEP' : consumed ? 'YOU NEVER WOKE UP' : 'THE LOT GOES DARK') : 'GAME OVER';
   if (subEl) {
     subEl.textContent = nightmare
-      ? (consumed
+      ? (asleep
+          ? 'Your eyes closed, just for a moment. The Pale Man had been patient all night. He was only ever waiting for you to stop watching.'
+          : consumed
           ? 'The third Reckoning took everything. The dealership is still open. Nobody remembers who runs it.'
           : 'Bankruptcy on Nightmare. The lights go out one by one. Somewhere, a radio plays your name.')
       : 'Hard mode bankruptcy — your dealership has closed its doors.';
@@ -3853,7 +3858,8 @@ function showGameOverScreen() {
   const nmRows = nightmare ? `
       <div class="game-over-stat-row"><span>Reckonings</span><strong>${nm().reckonings || 0} / ${NIGHTMARE_MAX_RECKONINGS}</strong></div>
       <div class="game-over-stat-row"><span>Peak Dread</span><strong>${nm().peakDread || 0}</strong></div>
-      <div class="game-over-stat-row"><span>Candles lit</span><strong>${nm().candlesLit || 0}</strong></div>` : '';
+      <div class="game-over-stat-row"><span>Candles lit</span><strong>${nm().candlesLit || 0}</strong></div>
+      <div class="game-over-stat-row"><span>Pale Man duels won / lost</span><strong>${nm().sleepDuelsWon || 0} / ${nm().sleepDuelsLost || 0}</strong></div>` : '';
   const statsEl = document.getElementById('game-over-stats');
   if (statsEl) {
     statsEl.innerHTML = `
@@ -6156,6 +6162,7 @@ function renderStats() {
       dreadChip.innerHTML = '';
     }
   }
+  updateSleepUi();
   applyNightmareAtmosphere();
   updateMusicBaseline(); // let the in-game soundtrack's tone track the business's current standing
 }
@@ -11853,6 +11860,11 @@ const NIGHTMARE_WHISPERS = [
   'Something is breathing in the service bay.',
   'The office phone rang once. The line was open. Someone was listening.',
   'Your shadow is a little too far ahead of you.',
+  'The Pale Man is standing at the end of the lot. He could reach you in a blink. He is not in a hurry.',
+  'You can feel the Pale Man deciding not to kill you. Again.',
+  'A cold hand rests on your shoulder, then pats it, almost kindly. When you turn, he is already smiling.',
+  'The Pale Man is humming. He is thinking of a game.',
+  'A customer you do not remember lingers by the gate, smiling. The suit is a little too big. He is wearing it, not the other way round.',
 ];
 
 const NIGHTMARE_SWEEP_LINES = [
@@ -11937,7 +11949,7 @@ function processNightmareNight() {
   // 2. An unanswered visitor doesn't wait.
   if (n.visitor && state.day > n.visitor.day) {
     n.visitor = null;
-    addNote('🚪 The Pale Customer waited at the edge of the lot until dawn, then was simply gone.', 'whisper');
+    addNote('🚪 The Pale Customer waited at the edge of the lot until dawn, then was simply gone. The Pale Man has many faces.', 'whisper');
   }
 
   // 3. Cursed cars act up.
@@ -12074,6 +12086,387 @@ function nightmareConsumed() {
   showGameOverScreen();
 }
 
+
+// ------------------------------------------------------------
+// Sleep meter & the Pale Man (rock-paper-scissors for rest)
+// ------------------------------------------------------------
+const SLEEP_DRAIN_PER_MIN = 10;     // percentage points lost per real minute
+const SLEEP_WIN_GAIN      = 50;     // sleep regained by beating the Pale Man
+const PALE_WINS_NEEDED    = 2;      // best of three
+const PALE_LOSS_COOLDOWN_SEC = 20;  // after losing a match, the Pale Man won't play again for this long
+const RPS_MOVES = ['rock', 'paper', 'scissors'];
+const RPS_LABELS = { rock: 'Rock', paper: 'Paper', scissors: 'Scissors' };
+
+const SLEEP_WARNINGS = [
+  { at: 75, line: 'The Pale Man waves from the edge of the lot. He could have you in a heartbeat. He would rather play.' },
+  { at: 50, line: '"Tired?" a voice says, from inside the walls. "Come and play with me."' },
+  { at: 30, line: 'Your eyelids are lead. The Pale Man is closer than before, smiling, in no hurry at all.' },
+  { at: 10, line: '"Almost there," whispers the Pale Man. "I could end it now. But where is the fun in that?"' },
+];
+const PALE_OPEN_LINES = [
+  'Did you like my suit? The customer? I do so enjoy dressing up.',
+  'I could kill you right now. But that would be so... quick. Sit. Play.',
+  'You look so tired. Let us play a little game, you and I.',
+  'Every night you come back to me. I do love how you try.',
+  'Win, and I will let you sleep. Lose, and I will keep you company.',
+];
+const PALE_ROUND_WIN_LINES  = ['Lucky.', 'Hm. Do that again.', 'Enjoy it. It will not last.', 'I let you have that one.'];
+const PALE_ROUND_LOSE_LINES = ['Mine.', 'So easy. So tired.', 'I could do this all night. You cannot.', 'Your hands are slow.'];
+const PALE_DRAW_LINES       = ['We think alike. How awful for you.', 'Again.', 'Same mind. Same hunger.'];
+const PALE_MATCH_WIN_LINES  = ['Fine. Sleep. I will be here when you wake. I am always here.', 'Go on, close your eyes. I will watch.', 'You win. This time. Rest, little dealer.'];
+const PALE_MATCH_LOSE_LINES = ['Poor thing. Your eyes are so heavy. Shall we go again?', 'No sleep for you. I am only warming up.', 'I could have ended you at the start. Aren\'t you glad I did not?'];
+
+let _sleepTimer = null;
+let _sleepLast = 0;
+let _sleepLastSave = 0;
+let _sleepWarned = {};
+let _paleDuel = null;   // active duel (also pauses the sleep drain while open)
+
+/** Whole seconds left before the Pale Man will play again (0 = ready). */
+function paleCooldownLeft() {
+  const until = (state && state.nightmare && state.nightmare.duelCooldownUntil) || 0;
+  return Math.max(0, Math.ceil((until - Date.now()) / 1000));
+}
+function sleepBtnLabel() {
+  const cd = paleCooldownLeft();
+  return cd > 0 ? `😴 The Pale Man is bored of you… ${cd}s` : `😴 Play the Pale Man · sleep +${SLEEP_WIN_GAIN}%`;
+}
+/** Keeps every cooldown-aware button in step (runs even while a duel is open). */
+function updateSleepCooldownUi() {
+  const cd = paleCooldownLeft();
+  document.querySelectorAll('.nm-sleep-btn').forEach(b => { b.disabled = cd > 0; b.textContent = sleepBtnLabel(); });
+  const retry = document.querySelector('.rps-retry');
+  if (retry) { retry.disabled = cd > 0; retry.textContent = cd > 0 ? `Try again in ${cd}s` : 'Try again'; }
+}
+
+function getSleep() {
+  const v = state && state.nightmare && state.nightmare.sleep;
+  return typeof v === 'number' && isFinite(v) ? clamp(v, 0, 100) : 100;
+}
+function changeSleep(delta) {
+  const n = nm();
+  const before = getSleep();
+  n.sleep = clamp(before + delta, 0, 100);
+  return n.sleep - before;
+}
+/** Whole-number sleep for display. Only shows 0% once it truly is 0. */
+function sleepDisplay() { const s = getSleep(); return s <= 0 ? 0 : Math.max(1, Math.ceil(s)); }
+
+function startSleepClock() {
+  if (_sleepTimer) return;
+  _sleepLast = _sleepLastSave = performance.now();
+  _sleepWarned = {};
+  SLEEP_WARNINGS.forEach(w => { _sleepWarned[w.at] = getSleep() <= w.at; });   // no spam for thresholds already crossed
+  _sleepTimer = setInterval(sleepTick, 250);
+}
+function stopSleepClock() {
+  if (_sleepTimer) clearInterval(_sleepTimer);
+  _sleepTimer = null;
+}
+
+function sleepTick() {
+  const now = performance.now();
+  const dt = Math.min(now - _sleepLast, 1500);   // a throttled/suspended tab never costs a big lump of sleep
+  _sleepLast = now;
+  if (!isNightmare() || !_nmSessionActive || !state || state.gameOver) return;
+  updateSleepCooldownUi();
+  // Time stands still in a hidden tab, during the tutorial, and while playing the Pale Man.
+  if (document.hidden || _paleDuel || _tutorialStep >= 0) return;
+
+  const n = nm();
+  n.sleep = Math.max(0, getSleep() - dt * SLEEP_DRAIN_PER_MIN / 60000);
+  const s = n.sleep;
+
+  SLEEP_WARNINGS.forEach(w => {
+    if (s > w.at) _sleepWarned[w.at] = false;
+    else if (!_sleepWarned[w.at]) {
+      _sleepWarned[w.at] = true;
+      addNote('😴 ' + w.line, 'whisper');
+      showToast('😴 ' + w.line, 'warning', 'whisper');
+    }
+  });
+
+  updateSleepUi();
+  if (s <= 0) { nightmareFellAsleep(); return; }
+  if (now - _sleepLastSave > 15000) { _sleepLastSave = now; saveState(); }
+}
+
+function nightmareFellAsleep() {
+  if (state.gameOver) return;
+  stopSleepClock();
+  state.gameOver = true;
+  state.gameOverCause = 'sleep';
+  nm().sleep = 0;
+  updateSleepUi();
+  addNote('😴 Your eyes closed. The Pale Man had been patient. Game Over.', 'error');
+  document.querySelectorAll('.nm-modal-overlay').forEach(el => el.remove());   // nothing may sit on top of the end screen
+  _nmModalQueue = []; _nmModalOpen = false;
+  nightmareFx('reckoning', 2600);
+  saveState();            // gated by state.gameOver — deletes this slot rather than writing it
+  clearActiveSession();
+  runAchievementChecks();
+  showGameOverScreen();
+}
+
+/** Keeps the header chip and any dashboard/duel bars in step with the sleep value. */
+function updateSleepUi() {
+  const chip = document.getElementById('stat-sleep');
+  const on = isNightmare();
+  if (chip) {
+    if (!on) { chip.innerHTML = ''; chip.className = 'stat-chip nm-chip'; }
+    else {
+      if (!chip.querySelector('.nm-sleep-mini')) {
+        chip.innerHTML = '<span>😴 Sleep</span><span class="nm-sleep-mini"><i></i></span><span class="nm-sleep-pct"></span>';
+      }
+      const pct = sleepDisplay();
+      chip.querySelector('.nm-sleep-mini i').style.width = pct + '%';
+      chip.querySelector('.nm-sleep-pct').textContent = pct + '%';
+      chip.title = `Sleep ${pct}% — drains ${SLEEP_DRAIN_PER_MIN}% a minute. At 0 you fall asleep for good. Click to play the Pale Man for +${SLEEP_WIN_GAIN}%.`;
+      chip.classList.toggle('sleep-low',  getSleep() <= 30);
+      chip.classList.toggle('sleep-crit', getSleep() <= 10);
+    }
+  }
+  if (!on) return;
+  updateSleepCooldownUi();
+  const pct = sleepDisplay();
+  document.querySelectorAll('.nm-sleep-fill').forEach(el => { el.style.width = pct + '%'; });
+  document.querySelectorAll('.nm-sleep-num').forEach(el => { el.textContent = `Sleep ${pct}%`; });
+  document.querySelectorAll('.nm-sleep-bar').forEach(el => el.setAttribute('aria-valuenow', String(pct)));
+}
+
+// ---- Hand art (SVG, drawn pointing up; colour comes from --hand) ----
+function rpsHandSvg(kind) {
+  const art = {
+    rock: `<rect x="24" y="30" width="15" height="34" rx="7.5"/><rect x="38" y="26" width="15" height="38" rx="7.5"/>
+           <rect x="52" y="28" width="15" height="36" rx="7.5"/><rect x="66" y="34" width="14" height="30" rx="7"/>
+           <rect x="22" y="48" width="60" height="58" rx="18"/><rect x="14" y="72" width="44" height="17" rx="8.5" transform="rotate(-8 36 80)"/>`,
+    paper: `<rect x="12" y="62" width="34" height="14" rx="7" transform="rotate(-40 29 69)"/>
+            <rect x="24" y="14" width="13" height="62" rx="6.5"/><rect x="38" y="6" width="13" height="68" rx="6.5"/>
+            <rect x="52" y="12" width="13" height="64" rx="6.5"/><rect x="66" y="26" width="12" height="50" rx="6"/>
+            <rect x="22" y="58" width="58" height="48" rx="16"/>`,
+    scissors: `<rect x="30" y="8" width="13" height="64" rx="6.5" transform="rotate(-14 36 72)"/>
+               <rect x="52" y="8" width="13" height="64" rx="6.5" transform="rotate(14 58 72)"/>
+               <rect x="62" y="52" width="14" height="30" rx="7"/><rect x="74" y="56" width="12" height="26" rx="6"/>
+               <rect x="22" y="62" width="62" height="44" rx="16"/><rect x="14" y="80" width="42" height="16" rx="8" transform="rotate(-8 35 88)"/>`,
+  };
+  return `<svg class="rps-svg" viewBox="0 0 100 120" aria-hidden="true"><g class="rps-skin">${art[kind] || art.rock}</g></svg>`;
+}
+
+function rpsOutcome(you, him) {
+  if (you === him) return 0;
+  return ((you === 'rock' && him === 'scissors') || (you === 'paper' && him === 'rock') || (you === 'scissors' && him === 'paper')) ? 1 : -1;
+}
+
+// ---- The duel ----
+function openPaleDuel() {
+  if (!isNightmare() || state.gameOver || _paleDuel) return;
+  const cd = paleCooldownLeft();
+  if (cd > 0) {
+    showToast(`The Pale Man is done with you for now. Wait ${cd}s.`, 'warning', 'whisper');
+    return;
+  }
+  if (getSleep() >= 99.5) {
+    showToast('You are wide awake. The Pale Man tilts his head, disappointed.', 'info', 'whisper');
+    return;
+  }
+  const ov = document.createElement('div');
+  ov.className = 'rps-overlay';
+  ov.setAttribute('role', 'dialog');
+  ov.setAttribute('aria-modal', 'true');
+  ov.setAttribute('aria-label', 'Rock paper scissors with the Pale Man');
+  ov.innerHTML = `
+    <div class="rps-box">
+      <h3 class="rps-title">THE PALE MAN</h3>
+      <p class="rps-sub">Best of three. Win to sleep (+${SLEEP_WIN_GAIN}%). Lose and you gain nothing, and wait ${PALE_LOSS_COOLDOWN_SEC}s.</p>
+      <div class="rps-score">
+        <div class="rps-side"><span>You</span><span class="rps-pips" data-side="you"></span></div>
+        <div class="rps-side rps-side-him"><span class="rps-pips" data-side="him"></span><span>Pale Man</span></div>
+      </div>
+      <div class="rps-stage">
+        <div class="rps-hand-wrap rps-you"></div>
+        <div class="rps-vs">VS</div>
+        <div class="rps-hand-wrap rps-him"></div>
+      </div>
+      <p class="rps-status" aria-live="polite"></p>
+      <p class="rps-say"></p>
+      <div class="rps-choices">
+        ${RPS_MOVES.map(m => `<button type="button" class="rps-choice" data-move="${m}" aria-label="${RPS_LABELS[m]}">${rpsHandSvg(m)}<span>${RPS_LABELS[m]}</span></button>`).join('')}
+      </div>
+      <div class="nm-sleep-bar rps-sleepbar" role="progressbar" aria-label="Sleep" aria-valuemin="0" aria-valuemax="100">
+        <div class="nm-sleep-fill"></div><span class="nm-sleep-num"></span>
+      </div>
+      <div class="rps-actions"></div>
+    </div>`;
+  document.body.appendChild(ov);
+  _paleDuel = { ov, you: 0, him: 0, round: 1, busy: false, over: false };
+  ov.querySelectorAll('.rps-choice').forEach(b => b.addEventListener('click', () => paleDuelPick(b.dataset.move)));
+  playSfx('modalOpen');
+  paleDuelReset(true);
+  updateSleepUi();
+}
+
+function paleDuelEls() {
+  const ov = _paleDuel && _paleDuel.ov;
+  return ov ? {
+    ov, status: ov.querySelector('.rps-status'), say: ov.querySelector('.rps-say'),
+    you: ov.querySelector('.rps-you'), him: ov.querySelector('.rps-him'),
+    choices: ov.querySelectorAll('.rps-choice'), actions: ov.querySelector('.rps-actions'),
+    hands: ov.querySelector('.rps-stage'),
+  } : null;
+}
+
+function paleDuelPips() {
+  const e = paleDuelEls(); if (!e) return;
+  ['you', 'him'].forEach(side => {
+    e.ov.querySelector(`.rps-pips[data-side="${side}"]`).innerHTML =
+      Array.from({ length: PALE_WINS_NEEDED }, (_, i) => `<i class="${i < _paleDuel[side] ? 'on' : ''}"></i>`).join('');
+  });
+}
+
+function paleDuelSay(text) { const e = paleDuelEls(); if (e) e.say.textContent = text ? `"${text}"` : ''; }
+
+function paleDuelShowFists() {
+  const e = paleDuelEls(); if (!e) return;
+  e.you.innerHTML = rpsHandSvg('rock');
+  e.him.innerHTML = rpsHandSvg('rock');
+  [e.you, e.him].forEach(h => h.classList.remove('won', 'lost', 'reveal', 'pumping'));
+  e.hands.classList.remove('pumping');
+}
+
+function paleDuelWalkAway() {
+  if (!_paleDuel || _paleDuel.busy) return;
+  const d = _paleDuel;
+  d.ov.remove();
+  _paleDuel = null;
+  _sleepLast = performance.now();
+  playSfx('modalClose');
+  saveState();
+  renderAll();
+}
+
+function paleDuelSetActions(list) {
+  const e = paleDuelEls(); if (!e) return;
+  e.actions.innerHTML = '';
+  list.forEach(a => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = `btn ${a.cls || 'btn-secondary'}`;
+    b.textContent = a.label;
+    b.addEventListener('click', a.fn);
+    e.actions.appendChild(b);
+  });
+}
+
+/** Fresh match (scores to 0) or the next round. */
+function paleDuelReset(newMatch) {
+  const e = paleDuelEls(); if (!e) return;
+  const d = _paleDuel;
+  if (newMatch) { d.you = 0; d.him = 0; d.round = 1; d.over = false; }
+  d.busy = false;
+  paleDuelPips();
+  paleDuelShowFists();
+  e.choices.forEach(b => { b.disabled = false; b.classList.remove('picked'); });
+  e.ov.classList.remove('rps-won', 'rps-lost');
+  e.status.textContent = newMatch ? 'Choose your hand.' : `Round ${d.round}. Choose your hand.`;
+  if (newMatch) paleDuelSay(randomFrom(PALE_OPEN_LINES));
+  paleDuelSetActions([{ label: 'Walk away', fn: paleDuelWalkAway }]);
+}
+
+async function paleDuelPick(move) {
+  const d = _paleDuel;
+  if (!d || d.busy || d.over) return;
+  const e = paleDuelEls();
+  d.busy = true;
+  const him = randomFrom(RPS_MOVES);
+
+  // Locked in: no more changing your mind, and no walking away mid-match.
+  e.choices.forEach(b => { b.disabled = true; b.classList.toggle('picked', b.dataset.move === move); });
+  e.actions.innerHTML = '';
+  paleDuelShowFists();
+  void e.hands.offsetWidth;
+  e.hands.classList.add('pumping');
+  e.you.classList.add('pumping');
+  e.him.classList.add('pumping');
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const alive = () => _paleDuel === d;
+
+  const beats = ['Rock...', 'Paper...', 'Scissors...'];
+  for (const text of beats) {
+    e.status.textContent = text;
+    playSfx('tab');
+    await wait(450);
+    if (!alive()) return;
+  }
+  // Reveal: his hand bright red, yours white.
+  e.hands.classList.remove('pumping');
+  [e.you, e.him].forEach(h => h.classList.remove('pumping'));
+  e.status.textContent = 'SHOOT!';
+  e.you.innerHTML = rpsHandSvg(move);
+  e.him.innerHTML = rpsHandSvg(him);
+  void e.you.offsetWidth;
+  [e.you, e.him].forEach(h => h.classList.add('reveal'));
+  playSfx('curse');
+  await wait(800);
+  if (!alive()) return;
+
+  const result = rpsOutcome(move, him);
+  if (result === 1)       { d.you++; e.you.classList.add('won'); e.him.classList.add('lost'); }
+  else if (result === -1) { d.him++; e.him.classList.add('won'); e.you.classList.add('lost'); }
+  else                    { e.you.classList.add('draw'); e.him.classList.add('draw'); }
+  paleDuelPips();
+  e.status.textContent = result === 1 ? `${RPS_LABELS[move]} beats ${RPS_LABELS[him].toLowerCase()}. You take the round.`
+                       : result === -1 ? `${RPS_LABELS[him]} beats ${RPS_LABELS[move].toLowerCase()}. He takes the round.`
+                       : `Both chose ${RPS_LABELS[move].toLowerCase()}. A draw. Again.`;
+  paleDuelSay(randomFrom(result === 1 ? PALE_ROUND_WIN_LINES : result === -1 ? PALE_ROUND_LOSE_LINES : PALE_DRAW_LINES));
+  playSfx(result === 1 ? 'success' : result === -1 ? 'error' : 'whisper');
+  await wait(1500);
+  if (!alive()) return;
+
+  if (d.you >= PALE_WINS_NEEDED || d.him >= PALE_WINS_NEEDED) { paleDuelFinish(d.you >= PALE_WINS_NEEDED); return; }
+  if (result !== 0) d.round++;
+  paleDuelReset(false);
+}
+
+function paleDuelFinish(won) {
+  const d = _paleDuel; if (!d) return;
+  const e = paleDuelEls();
+  const n = nm();
+  d.over = true;
+  d.busy = false;
+  e.choices.forEach(b => { b.disabled = true; });
+  e.ov.classList.add(won ? 'rps-won' : 'rps-lost');
+  if (won) {
+    const gained = Math.round(changeSleep(SLEEP_WIN_GAIN));
+    n.sleepDuelsWon = (n.sleepDuelsWon || 0) + 1;
+    e.status.textContent = `You win the match. 💤 You sleep. +${gained}% sleep.`;
+    paleDuelSay(randomFrom(PALE_MATCH_WIN_LINES));
+    addNote(`😴 You beat the Pale Man and slept. +${gained}% sleep. He watched the whole time.`, 'whisper');
+    playSfx('candle');
+    nightmareFx('candle', 1800);
+  } else {
+    n.sleepDuelsLost = (n.sleepDuelsLost || 0) + 1;
+    n.duelCooldownUntil = Date.now() + PALE_LOSS_COOLDOWN_SEC * 1000;
+    e.status.textContent = `The Pale Man wins. You gain nothing. He will play again in ${PALE_LOSS_COOLDOWN_SEC}s.`;
+    paleDuelSay(randomFrom(PALE_MATCH_LOSE_LINES));
+    addNote('😴 You lost to the Pale Man. No sleep. He seemed pleased.', 'whisper');
+    playSfx('ash');
+  }
+  // Reset the drain clock so time spent in the duel never counts against you.
+  _sleepLast = performance.now();
+  saveState();
+  updateSleepUi();
+  const actions = [];
+  if (won) {
+    actions.push({ label: 'Wake up', cls: 'btn-primary', fn: paleDuelWalkAway });
+    if (getSleep() < 99.5) actions.push({ label: 'Play again', fn: () => paleDuelReset(true) });
+  } else {
+    actions.push({ label: `Try again in ${PALE_LOSS_COOLDOWN_SEC}s`, cls: 'btn-danger rps-retry', fn: () => { if (paleCooldownLeft() <= 0) paleDuelReset(true); } });
+    actions.push({ label: 'Leave', fn: paleDuelWalkAway });
+  }
+  paleDuelSetActions(actions);
+  updateSleepCooldownUi();
+}
+
 // ------------------------------------------------------------
 // Player actions
 // ------------------------------------------------------------
@@ -12136,7 +12529,7 @@ function maybeSpawnPaleCustomer() {
   const car = randomFrom(eligible);
   const offer = Math.round(car.marketValue * randomFloat(1.4, 1.75));
   n.visitor = { id: generateId(), carId: car.id, carLabel: formatCarDisplayName(car), offer, marketValue: car.marketValue, day: state.day };
-  addNote(`🚪 A pale stranger is waiting at the gate. They want your ${n.visitor.carLabel}.`, 'whisper');
+  addNote(`🚪 A customer is waiting at the gate. His smile is far too wide. He wants your ${n.visitor.carLabel}.`, 'whisper');
   showNightmareModal(paleCustomerModalSpec(n.visitor));
 }
 
@@ -12146,13 +12539,14 @@ function paleCustomerModalSpec(v) {
     title: '🚪 The Pale Customer',
     tone: 'nm-modal-pale',
     valid: () => !!(state.nightmare && state.nightmare.visitor && state.nightmare.visitor.id === v.id),
-    html: `<p>A stranger stands at the edge of the lot. Nobody saw them arrive. They do not blink.</p>
-           <p>"That one," they say, pointing at your <strong>${v.carLabel}</strong>. "I'll pay <strong>${formatCurrency(v.offer)}</strong>."</p>
+    html: `<p>A customer stands at the edge of the lot, in a suit that fits him badly. Nobody saw him arrive. He does not blink.</p>
+           <p>"That one," he says, pointing at your <strong>${v.carLabel}</strong>. "I'll pay <strong>${formatCurrency(v.offer)}</strong>."</p>
+           <p>The smile is too wide. The skin is too pale. You know this face from your sleep. <strong>It is the Pale Man, dressed as a customer.</strong> He could take everything. He would rather make a deal.</p>
            <p>That's <strong>${pct}%</strong> of what it's worth. The bills smell faintly of smoke.</p>
            <p class="nm-modal-warn">⚠️ Taking the deal adds +18 Dread, and there's a 1 in 4 chance the money is gone by morning. The offer stands for tonight only.</p>`,
     actions: [
       { label: 'Take the money', cls: 'btn-danger', fn: acceptPaleCustomer },
-      { label: 'Send them away', cls: 'btn-secondary', fn: refusePaleCustomer },
+      { label: 'Send him away', cls: 'btn-secondary', fn: refusePaleCustomer },
     ],
   };
 }
@@ -12165,7 +12559,7 @@ function acceptPaleCustomer() {
   const car = state.garage.find(c => c.id === v.carId);
   if (!car || car.inServiceUntilDay || (car.leaseStatus === 'active' && car.activeLease)) {
     n.visitor = null;
-    showToast('The car is no longer there. Neither is the stranger.', 'warning');
+    showToast('The car is no longer there. Neither is the customer.', 'warning');
     saveState(); renderAll();
     return;
   }
@@ -12176,7 +12570,7 @@ function acceptPaleCustomer() {
   changeDread(18);
   const ash = Math.random() < NIGHTMARE_ASH_CHANCE;
   if (ash) { n.ashDue = v.offer; n.ashDay = state.day + 1; }
-  addNote(`🚪 You sold the ${v.carLabel} to the Pale Customer for ${formatCurrency(v.offer)}. Your hand is still cold.`, 'warning');
+  addNote(`🚪 You sold the ${v.carLabel} to the Pale Customer for ${formatCurrency(v.offer)}. Your hand is still cold. The Pale Man tips an imaginary hat.`, 'warning');
   runAchievementChecks();
   saveState();
   renderAll();
@@ -12190,7 +12584,7 @@ function refusePaleCustomer() {
   n.visitor = null;
   n.visitorsDeclined = (n.visitorsDeclined || 0) + 1;
   changeDread(-3);
-  addNote('🚪 You told the stranger no. They smiled, and walked backwards into the dark.', 'whisper');
+  addNote('🚪 You told the customer no. The Pale Man smiled, dropped the disguise like a coat, and walked backwards into the dark.', 'whisper');
   runAchievementChecks();
   saveState();
   renderAll();
@@ -12233,7 +12627,7 @@ function renderNightmarePanel() {
 
   const visitorHtml = v ? `
       <div class="nm-visitor">
-        <div class="nm-visitor-head">🚪 <strong>The Pale Customer</strong> <span class="nm-visitor-sub">waits at the gate — tonight only</span></div>
+        <div class="nm-visitor-head">🚪 <strong>The Pale Customer</strong> <span class="nm-visitor-sub">the Pale Man in a customer's face — waits at the gate, tonight only</span></div>
         <p>Offers <strong>${formatCurrency(v.offer)}</strong> for your <strong>${v.carLabel}</strong> (${Math.round(v.offer / Math.max(1, v.marketValue) * 100)}% of value). +18 Dread. 1 in 4 the money is ash by morning.</p>
         <div class="nm-actions">
           <button class="btn btn-danger" onclick="acceptPaleCustomer()">Take the money</button>
@@ -12252,6 +12646,15 @@ function renderNightmarePanel() {
             <div class="nm-dread-fill" style="width:${d}%"></div>
             <span class="nm-dread-num">Dread ${d} / 100</span>
           </div>
+          <div class="nm-sleep-bar" role="progressbar" aria-label="Sleep" aria-valuemin="0" aria-valuemax="100">
+            <div class="nm-sleep-fill" style="width:${Math.ceil(getSleep())}%"></div>
+            <span class="nm-sleep-num">Sleep ${Math.ceil(getSleep())}%</span>
+          </div>
+          <div class="stat-row"><span>Sleep drain</span><strong class="text-red">−${SLEEP_DRAIN_PER_MIN}% / minute</strong></div>
+          <div class="nm-actions">
+            <button class="btn btn-primary nm-sleep-btn" onclick="openPaleDuel()" ${paleCooldownLeft() > 0 ? 'disabled' : ''} title="Best of three. Win to sleep (+${SLEEP_WIN_GAIN}%). Lose and you gain nothing, and he makes you wait ${PALE_LOSS_COOLDOWN_SEC}s.">${sleepBtnLabel()}</button>
+          </div>
+          <p class="nm-pale-toy">He could kill you where you stand. He would rather play.</p>
           <div class="stat-row"><span>Reckonings</span><strong class="${n.reckonings ? 'text-red' : 'text-muted'}">${n.reckonings || 0} / ${NIGHTMARE_MAX_RECKONINGS} <small>(the last is final)</small></strong></div>
           <div class="stat-row"><span>Cursed cars on the lot</span><strong class="${cursedOnLot ? 'text-red' : 'text-muted'}">${cursedOnLot}</strong></div>
           <div class="stat-row"><span>Tonight's drift</span><strong class="${driftCls}">${drift.total > 0 ? '+' : ''}${drift.total} Dread</strong></div>
@@ -12266,7 +12669,9 @@ function renderNightmarePanel() {
           <li><strong>Sell cars</strong> to keep the dark back (−4 Dread each, up to −16 a night).</li>
           <li>At <strong>100 Dread</strong> the dark collects: cash, your best car, and a step closer to the end.</li>
           <li><strong>Cursed cars</strong> sell cheap — inspect first. Exorcise them, or sell them fast.</li>
-          <li>The <strong>Pale Customer</strong> pays far too much. Money can burn.</li>
+          <li><strong>Sleep</strong> drains ${SLEEP_DRAIN_PER_MIN}% every minute. At <strong>0</strong> you pass out and the run is over.</li>
+          <li>Beat the <strong>Pale Man</strong> at rock-paper-scissors (best of three) to sleep: +${SLEEP_WIN_GAIN}%. Lose and you gain nothing, and he makes you wait ${PALE_LOSS_COOLDOWN_SEC}s. He is only toying with you.</li>
+          <li>The <strong>Pale Customer</strong> is the Pale Man in disguise. He pays far too much. Money can burn.</li>
           <li>Buy <strong>Wards</strong> in Upgrades to push the night back for good.</li>
           <li>Overhead ×2, staff pay +25%, buyers pickier, bankruptcy is permanent.</li>
         </ul>
@@ -12362,11 +12767,13 @@ function applyNightmareAtmosphere() {
     body.style.setProperty('--nm-beat', ['7s', '4.6s', '2.9s', '1.9s'][tier]);
     if (meta) meta.setAttribute('content', '#1a0306');
     startNightmareFx();
+    startSleepClock();
   } else {
     delete body.dataset.dread;
     body.style.removeProperty('--nm-beat');
     if (meta) meta.setAttribute('content', '#07162b');
     stopNightmareFx();
+    stopSleepClock();
   }
 }
 
@@ -13074,7 +13481,7 @@ function init() {
     makeLeaseAvailable, stopOfferingLease, viewLeaseDetails, toggleShowLeasedCars, setCarLotSort, toggleLotSortMenu, chooseLotSort, switchTab,
     buyUpgrade, selectSkillNode, detailCar, carWash, basicRepair, partsUpgrade,
     drawLoan, payDownLoan,
-    lightCandle, exorciseCar, acceptPaleCustomer, refusePaleCustomer,
+    lightCandle, exorciseCar, acceptPaleCustomer, refusePaleCustomer, openPaleDuel,
     selectInsurance, cancelInsurance,
     confirmNewGame, exportSave, hireStaff, dismissCandidate, fireStaff, toggleStaffTrading,
     toggleDarkMode, toggleReduceMotion, setBrightness, resetBrightness, setDifficulty, toggleSfxMuted, setSfxVolume, toggleTutorials,
