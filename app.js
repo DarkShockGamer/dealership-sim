@@ -11,9 +11,23 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.18.5';
+const GAME_VERSION = '1.18.7';
 
 const PATCH_NOTES = [
+  {
+    version: '1.18.7',
+    date: 'September 2026',
+    notes: [
+      { type: 'fix', text: "Showroom cars are now fully excluded from save trimming — they keep their complete recon history and every other detail. Only Car Lot cars have their oldest recon entries trimmed." },
+    ],
+  },
+  {
+    version: '1.18.6',
+    date: 'September 2026',
+    notes: [
+      { type: 'chore', text: "Smaller save files. Sold-car records used to keep a full copy of the car (hidden issues, service history, lease data and more) forever; saves now keep only what Receipts, stats and achievements actually use. Your 150 most recent sales keep their full purchase agreements, and older sales shrink to a short summary (they still count toward totals and achievements, and appear in Receipts as older sales). Car Lot cars also keep only their latest 10 recon entries (Showroom cars are never trimmed). Existing saves shrink automatically the next time they save." },
+    ],
+  },
   {
     version: '1.18.5',
     date: 'September 2026',
@@ -2095,6 +2109,51 @@ function getTotalStaffWages() {
 // ============================================================
 // PERSISTENCE
 // ============================================================
+// ------------------------------------------------------------------
+// Save-size trimming (v1.18.6)
+// Sold cars used to be stored as a full copy of the car, forever. Only a few
+// fields are ever read back (Receipts, stats, achievements), so the rest is
+// stripped when saving. The newest SALES_FULL_RECORDS keep everything a
+// purchase agreement needs; older ones shrink to a short summary and show in
+// Receipts as older sales (no agreement), but still count for totals/achievements.
+// ------------------------------------------------------------------
+const SALES_FULL_RECORDS = 150;
+const RECON_LOG_MAX = 10;
+const SALE_FULL_KEYS = ['id', 'year', 'make', 'model', 'trim', 'category', 'mileage', 'condition', 'titleStatus',
+  'source', 'daysInLot', 'soldDay', 'salePrice', 'fee', 'profit', 'dealerFees', 'buyerName', 'agreementNo',
+  'purchasePrice', 'note', 'wasLease', 'tradeInAccepted', 'soldAtAuction'];
+const SALE_SUMMARY_KEYS = ['year', 'make', 'model', 'trim', 'category', 'mileage', 'condition', 'titleStatus',
+  'source', 'daysInLot', 'soldDay', 'salePrice', 'profit', 'buyerName', 'note', 'wasLease', 'tradeInAccepted', 'soldAtAuction'];
+
+function pickKeys(obj, keys) {
+  const out = {};
+  for (const k of keys) if (obj[k] !== undefined) out[k] = obj[k];
+  return out;
+}
+
+/** Shrinks salesHistory (newest first) and old garage recon logs. Never touches showroom cars. Safe to call repeatedly. */
+function compactStateForSave(st) {
+  if (Array.isArray(st.salesHistory)) {
+    st.salesHistory = st.salesHistory.map((h, i) => {
+      if (!h) return h;
+      if (i < SALES_FULL_RECORDS) {
+        return h._c === 1 ? h : { ...pickKeys(h, SALE_FULL_KEYS), _c: 1 };
+      }
+      if (h._c === 2) return h;
+      const slim = pickKeys(h, SALE_SUMMARY_KEYS);
+      if (h.dealerFees && h.dealerFees.total !== undefined) slim.dealerFees = { total: h.dealerFees.total };
+      slim._c = 2;
+      return slim;
+    });
+  }
+  // Showroom cars are deliberately left untouched — they keep all of their data.
+  for (const car of st.garage || []) {
+    if (car && Array.isArray(car.reconditionLog) && car.reconditionLog.length > RECON_LOG_MAX) {
+      car.reconditionLog = car.reconditionLog.slice(-RECON_LOG_MAX);
+    }
+  }
+}
+
 function saveState() {
   try {
     if (state.gameOver) {
@@ -2106,6 +2165,7 @@ function saveState() {
       deleteSlot(currentSlot);
       return;
     }
+    compactStateForSave(state);
     localStorage.setItem(slotKey(currentSlot), JSON.stringify(state));
   } catch (err) {
     showToast('⚠️ Save failed: ' + (err?.message || 'storage quota exceeded'), 'error');
@@ -2502,7 +2562,8 @@ function loadState(slot) {
       for (const o of loaded.usedMarketOffers || []) migrateCar(o);
       for (const l of loaded.auctions.lots || []) migrateCar(l.car);
       for (const req of loaded.tradeInRequests || []) migrateCar(req.customerCar);
-      for (const sold of loaded.salesHistory || []) migrateCar(sold);
+      // Sold records are stored compactly and never need car-field migration.
+      compactStateForSave(loaded);
       state = loaded;
       syncLoanTermsToDifficulty();
       return true;
