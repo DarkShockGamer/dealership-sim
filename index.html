@@ -66,7 +66,7 @@
       var boot = document.getElementById('boot-screen');
       if (!boot) return;
       var reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-      // v1.18.3: also honour the in-game Reduce Motion setting (saved by app.js).
+      // v1.18.4: also honour the in-game Reduce Motion setting (saved by app.js).
       try {
         var saved = JSON.parse(localStorage.getItem('dealerSim_settings') || '{}');
         if (saved && saved.reduceMotion) { reduced = true; boot.classList.add('boot-reduced'); }
@@ -189,6 +189,26 @@
               <span class="toggle-thumb"></span>
             </button>
           </div>
+          <div class="menu-setting-row" style="margin-top:10px">
+            <div>
+              <div class="menu-setting-label">Reduce Motion</div>
+              <div class="menu-setting-desc">Turns off animations and transitions.</div>
+            </div>
+            <button class="toggle-btn" id="menu-toggle-motion" onclick="menuToggleReduceMotion()" aria-label="Toggle reduce motion">
+              <span class="toggle-thumb"></span>
+            </button>
+          </div>
+          <div class="menu-setting-row" style="margin-top:10px">
+            <div>
+              <div class="menu-setting-label">Brightness</div>
+              <div class="menu-setting-desc" id="menu-brightness-pct">100%</div>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <input type="range" min="0.5" max="1.5" step="0.01" id="menu-brightness-range"
+                oninput="setBrightness(this.value)" aria-label="Brightness" style="width:140px">
+              <button class="btn btn-secondary" onclick="menuResetBrightness()" aria-label="Reset brightness to 100%">Reset</button>
+            </div>
+          </div>
         </div>
         <div class="menu-settings-card">
           <h3>Audio</h3>
@@ -285,7 +305,7 @@
       </div>
     </div>
 
-    <span class="menu-version" aria-hidden="true">v1.18.3</span>
+    <span class="menu-version" aria-hidden="true">v1.18.4</span>
   </div>
 
   <!-- Delete-slot confirmation dialog -->
