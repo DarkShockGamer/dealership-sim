@@ -11,9 +11,17 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.18.2';
+const GAME_VERSION = '1.18.3';
 
 const PATCH_NOTES = [
+  {
+    version: '1.18.3',
+    date: 'September 2026',
+    notes:
+[
+      { type: 'fix', text: "Fixed the Reduce Motion switch and the new Brightness slider (and its Reset button) doing nothing when clicked in Settings > Display." },
+    ],
+  },
   {
     version: '1.18.2',
     date: 'September 2026',
@@ -11757,7 +11765,7 @@ function init() {
     drawLoan, payDownLoan,
     selectInsurance, cancelInsurance,
     confirmNewGame, exportSave, hireStaff, dismissCandidate, fireStaff, toggleStaffTrading,
-    toggleDarkMode, setDifficulty, toggleSfxMuted, setSfxVolume, toggleTutorials,
+    toggleDarkMode, toggleReduceMotion, setBrightness, resetBrightness, setDifficulty, toggleSfxMuted, setSfxVolume, toggleTutorials,
     toggleMusicMuted, setMusicVolume, menuToggleMusic, playSfx,
     startMusic, // exposed so the boot-intro screen (index.html) can arm the soundtrack on its own first gesture
     applyMusicForContext, // preferred over startMusic() once app.js has booted — picks the right track (menu vs. in-game) instead of always arming the menu one
