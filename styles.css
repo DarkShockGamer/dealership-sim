@@ -1213,6 +1213,9 @@ img.ui-icon { filter: brightness(0) invert(1); }
 .pn-type-feature .pn-label { background: rgba(97, 211, 255, .2); color: #9fe8ff; }
 .pn-type-balance .pn-label  { background: rgba(255, 191, 93, .2); color: #ffe0a8; }
 .pn-type-fix     .pn-label  { background: rgba(46, 213, 159, .18); color: #9dffe1; }
+.pn-type-chore   .pn-label  { background: rgba(167, 139, 250, .2); color: #d8ccff; }
+.pn-type-parts   .pn-label  { background: rgba(255, 140, 105, .2); color: #ffc9b8; }
+.pn-type-repair  .pn-label  { background: rgba(255, 140, 105, .2); color: #ffc9b8; }
 
 /* ============================================================
    Receipts tab — sale list
