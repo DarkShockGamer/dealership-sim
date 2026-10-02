@@ -11,9 +11,16 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.20.0';
+const GAME_VERSION = '1.20.1';
 
 const PATCH_NOTES = [
+  {
+    version: '1.20.1',
+    date: 'October 2026',
+    notes: [
+      { type: 'fix', text: "Hotfix: loans on Normal difficulty now pay down a little principal every day, not just interest. Each day the autopay takes the interest plus 0.5% of the balance (at least $100, never more than you owe, and only from cash you actually have). Hard and Nightmare already paid principal and are unchanged, and Easy still has no loan costs. The Finance tab now shows the daily principal autopay on every difficulty that has one." },
+    ],
+  },
   {
     version: '1.20.0',
     date: 'October 2026',
@@ -996,10 +1003,10 @@ const SFX_FLOOR_GAIN = 0.0002;
 const SFX_VOLUME_SCALE = 0.28;
 const SFX_ATTACK_SECONDS = 0.01;
 const LOAN_TERMS = {
-  easy:   { limit: 60000, apr: 0,    minPrincipalRate: 0 },
-  normal: { limit: 60000, apr: 0.12, minPrincipalRate: 0 },
-  hard:   { limit: 45000, apr: 0.18, minPrincipalRate: 0.01 },
-  nightmare: { limit: 30000, apr: 0.24, minPrincipalRate: 0.02 },
+  easy:   { limit: 60000, apr: 0,    minPrincipalRate: 0,     minPrincipalFloor: 0 },
+  normal: { limit: 60000, apr: 0.12, minPrincipalRate: 0.005, minPrincipalFloor: 100 },
+  hard:   { limit: 45000, apr: 0.18, minPrincipalRate: 0.01,  minPrincipalFloor: 250 },
+  nightmare: { limit: 30000, apr: 0.24, minPrincipalRate: 0.02, minPrincipalFloor: 250 },
 };
 const LEASE_STATUSES = ['none', 'available', 'active'];
 const LEASE_TERM_DAYS = [60, 120, 180];
@@ -3821,7 +3828,7 @@ function processLoanAndDelinquency() {
     due += interest;
     addNote(`🏦 Loan interest charged: ${formatCurrency(interest)} at ${(state.loanApr * 100).toFixed(1)}% APR.`, 'warning');
     if (terms.minPrincipalRate > 0) {
-      const principalDue = Math.max(250, Math.round(state.loanBalance * terms.minPrincipalRate));
+      const principalDue = Math.min(state.loanBalance, Math.max(terms.minPrincipalFloor ?? 250, Math.round(state.loanBalance * terms.minPrincipalRate)));
       const paid = Math.max(0, Math.min(principalDue, state.cash >= 0 ? state.cash : 0, state.loanBalance));
       state.loanBalance -= paid;
       state.cash -= paid;
@@ -8894,8 +8901,9 @@ function renderFinance() {
 function renderFinanceOverview() {
   const available = Math.max(0, state.loanLimit - state.loanBalance);
   const dailyInterest = state.loanBalance > 0 ? Math.max(1, Math.round(state.loanBalance * state.loanApr / 365)) : 0;
-  const minPrincipal = isHardPlus() && state.loanBalance > 0
-    ? Math.max(250, Math.round(state.loanBalance * getBaseLoanTerms().minPrincipalRate))
+  const loanTermsForUi = getBaseLoanTerms();
+  const minPrincipal = state.difficulty !== 'easy' && state.loanBalance > 0 && loanTermsForUi.minPrincipalRate > 0
+    ? Math.min(state.loanBalance, Math.max(loanTermsForUi.minPrincipalFloor ?? 250, Math.round(state.loanBalance * loanTermsForUi.minPrincipalRate)))
     : 0;
   const report = state.lastBankruptcyReport;
   const reportRows = report?.liquidated?.length
@@ -8935,7 +8943,7 @@ function renderFinanceOverview() {
         <div class="stat-row"><span>Limit</span><strong>${formatCurrency(state.loanLimit)}</strong></div>
         <div class="stat-row"><span>APR</span><strong>${(state.loanApr * 100).toFixed(1)}%</strong></div>
         <div class="stat-row"><span>Daily Interest</span><strong class="text-red">−${formatCurrency(dailyInterest)}</strong></div>
-        <div class="stat-row"><span>Min Principal (Hard)</span><strong>${minPrincipal ? formatCurrency(minPrincipal) : 'None'}</strong></div>
+        <div class="stat-row"><span>Daily Principal Autopay</span><strong>${minPrincipal ? formatCurrency(minPrincipal) : 'None'}</strong></div>
         <div class="stat-row"><span>Late payments</span><strong class="${state.delinquencyLevel > 0 ? 'text-red' : 'text-green'}">Level ${state.delinquencyLevel || 0}</strong></div>
         <div class="stat-row"><span>Credit Status</span><strong class="${state.loanFrozen ? 'text-red' : 'text-green'}">${state.loanFrozen ? 'Frozen' : 'Open'}</strong></div>
         ${state.delinquencyLevel > 0 && state.difficulty === 'normal' ? `<div class="stat-row"><span>Credit rebuild</span><strong class="text-blue">${state.daysGoodStanding || 0}/10 good days</strong></div>` : ''}
