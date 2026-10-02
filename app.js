@@ -6162,6 +6162,7 @@ function renderStats() {
       dreadChip.innerHTML = '';
     }
   }
+  if (isNightmare()) prunePaleVisitor();
   updateSleepUi();
   applyNightmareAtmosphere();
   updateMusicBaseline(); // let the in-game soundtrack's tone track the business's current standing
@@ -12633,6 +12634,8 @@ function onNightmareSale(car) {
   n.salesToday = (n.salesToday || 0) + 1;
   n.totalSales = (n.totalSales || 0) + 1;
   if (car && car.cursed) n.cursedSold = (n.cursedSold || 0) + 1;
+  // The car he wanted just sold to someone else: the offer is off the table.
+  if (car && n.visitor && n.visitor.carId === car.id) prunePaleVisitor(true);
 }
 
 // ------------------------------------------------------------
@@ -12652,12 +12655,33 @@ function maybeSpawnPaleCustomer() {
   showNightmareModal(paleCustomerModalSpec(n.visitor));
 }
 
+/** The car the Pale Customer wants is still ours to sell: on the lot, not in service, not out on lease. */
+function paleVisitorCarAvailable(v) {
+  if (!v || !state || !Array.isArray(state.garage)) return false;
+  const car = state.garage.find(c => c.id === v.carId);
+  return !!car && !car.inServiceUntilDay && canNightmareTakeCar(car);
+}
+
+/** Pulls the offer if its car is gone (sold to someone else, auctioned, traded, totalled…). Returns true if it withdrew one. */
+function prunePaleVisitor(force) {
+  if (!state || !state.nightmare || state.gameOver) return false;
+  const n = state.nightmare, v = n.visitor;
+  if (!v || (!force && paleVisitorCarAvailable(v))) return false;
+  n.visitor = null;
+  // If his popup is on screen right now, take it down with the offer.
+  const open = document.querySelector('.nm-modal-box.nm-modal-pale');
+  if (open) { const ov = open.closest('.nm-modal-overlay'); if (ov) ov.remove(); _nmModalOpen = false; flushHeldModals(); }
+  addNote(`🚪 The ${v.carLabel} is gone. The Pale Customer's offer goes with it. He does not seem angry. He seems amused.`, 'whisper');
+  showToast(`🚪 The ${v.carLabel} sold. The Pale Customer's offer is withdrawn.`, 'info');
+  return true;
+}
+
 function paleCustomerModalSpec(v) {
   const pct = Math.round((v.offer / Math.max(1, v.marketValue)) * 100);
   return {
     title: '🚪 The Pale Customer',
     tone: 'nm-modal-pale',
-    valid: () => !!(state.nightmare && state.nightmare.visitor && state.nightmare.visitor.id === v.id),
+    valid: () => !!(state.nightmare && state.nightmare.visitor && state.nightmare.visitor.id === v.id && paleVisitorCarAvailable(v)),
     html: `<p>A customer stands at the edge of the lot, in a suit that fits him badly. Nobody saw him arrive. He does not blink.</p>
            <p>"That one," he says, pointing at your <strong>${v.carLabel}</strong>. "I'll pay <strong>${formatCurrency(v.offer)}</strong>."</p>
            <p>The smile is too wide. The skin is too pale. You know this face from your sleep. <strong>It is the Pale Man, dressed as a customer.</strong> He could take everything. He would rather make a deal.</p>
@@ -12675,13 +12699,12 @@ function acceptPaleCustomer() {
   const n = nm();
   const v = n.visitor;
   if (!v) return;
-  const car = state.garage.find(c => c.id === v.carId);
-  if (!car || car.inServiceUntilDay || (car.leaseStatus === 'active' && car.activeLease)) {
-    n.visitor = null;
-    showToast('The car is no longer there. Neither is the customer.', 'warning');
+  if (!paleVisitorCarAvailable(v)) {
+    prunePaleVisitor(true);
     saveState(); renderAll();
     return;
   }
+  const car = state.garage.find(c => c.id === v.carId);
   nightmareRemoveCar(car.id);
   state.cash += v.offer;
   n.visitorsAccepted = (n.visitorsAccepted || 0) + 1;
@@ -12733,6 +12756,7 @@ function curseBannerHtml(car) {
 // ------------------------------------------------------------
 function renderNightmarePanel() {
   if (!isNightmare()) return '';
+  prunePaleVisitor();
   const n = nm();
   const d = n.dread;
   const tier = getDreadTier(d);
