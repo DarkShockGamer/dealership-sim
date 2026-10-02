@@ -11,9 +11,18 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.19.2';
+const GAME_VERSION = '1.19.3';
 
 const PATCH_NOTES = [
+  {
+    version: '1.19.3',
+    date: 'October 2026',
+    notes: [
+      { type: 'fix', text: "Used cars can no longer be older or newer than the car was actually built. Every car in the catalog now has a production start year and end year, and a used listing only ever rolls a model year inside that window. Fixed many wrong ones: the Ford Bronco and Maverick no longer show up as 2012-2020 cars (they returned in 2021 and 2022), the Kia K5 starts in 2021, the Hyundai Sonata N Line in 2021, the Tucson N Line in 2022, the Volkswagen Atlas in 2018, the Honda HR-V in 2016, the Cadillac XT5 in 2017, the McLaren Artura in 2022 and more. Cars that ended early, like the Chevrolet Malibu, Audi R8, Kia Stinger and Nissan Rogue Sport, no longer show years after their last model year." },
+      { type: 'fix', text: "Service customers' cars follow the same rule: an Audi RS 6 Avant now only comes in as a 2021 or newer, and a Lexus LX 600 as a 2022 or newer." },
+      { type: 'chore', text: "Discontinued badges now show each car's real production run from the catalog." },
+    ],
+  },
   {
     version: '1.19.2',
     date: 'October 2026',
@@ -2945,10 +2954,20 @@ function checkPoliceEvent(car, allowImpound = true) {
   return true;
 }
 
+/** Roll a used car's model year. Always inside the car's real production window. */
+function rollModelYear(entry) {
+  const pStart = entry.productionStart ?? -Infinity;
+  const pEnd   = entry.productionEnd   ??  Infinity;
+  const lo = Math.max(entry.yearRange[0], pStart);
+  const hi = Math.min(entry.yearRange[1], pEnd);
+  if (lo > hi) return Math.min(Math.max(lo, pStart), pEnd);
+  return randomInt(lo, hi);
+}
+
 /** Build a full car object from a catalog entry. */
 function buildCar(entry, condition, source, inspected = false) {
   // Factory cars are always 2026 with near-zero miles
-  const year    = source === 'factory' ? 2026 : randomInt(entry.yearRange[0], entry.yearRange[1]);
+  const year    = source === 'factory' ? 2026 : rollModelYear(entry);
   const mileage = source === 'factory' ? randomInt(5, 50) : randomInt(entry.baseMileage[0], entry.baseMileage[1]);
   const titleStatus = pickTitleStatus(source, condition, mileage);
   const issues  = inspected || source === 'factory' ? [] : genHiddenIssues(condition, entry.marketValue * CONDITION_VALUE[condition]);
@@ -3012,8 +3031,8 @@ function buildCar(entry, condition, source, inspected = false) {
     hasCrashRepair: false,
     // Discontinued models: used-market only, flavor info for display
     discontinued: !!entry.discontinued,
-    productionStart: entry.yearRange[0],
-    productionEnd: entry.yearRange[1],
+    productionStart: entry.productionStart ?? entry.yearRange[0],
+    productionEnd: entry.productionEnd ?? entry.yearRange[1],
   };
 }
 
@@ -4753,11 +4772,12 @@ const SERVICE_CAR_MAKES_MODELS = [
   { make: 'Mercedes', model: 'C-Class' }, { make: 'Dodge',  model: 'Charger' },
 ];
 // Larger service departments attract fleet and luxury customers.
+// `years` = [first, last] model year the car was sold in the US (default 2016-2025).
 const SERVICE_PREMIUM_MAKES_MODELS = [
   { make: 'Porsche',   model: '911'          }, { make: 'Land Rover', model: 'Range Rover' },
   { make: 'Tesla',     model: 'Model S'      }, { make: 'BMW',        model: 'M5'          },
-  { make: 'Mercedes',  model: 'S-Class'      }, { make: 'Audi',       model: 'RS6 Avant'   },
-  { make: 'Cadillac',  model: 'Escalade'     }, { make: 'Lexus',      model: 'LX 600'      },
+  { make: 'Mercedes',  model: 'S-Class'      }, { make: 'Audi',       model: 'RS6 Avant', years: [2021, 2025] },
+  { make: 'Cadillac',  model: 'Escalade'     }, { make: 'Lexus',      model: 'LX 600',    years: [2022, 2025] },
 ];
 const CUSTOMER_NAMES = [
   'Alex P.', 'Jordan K.', 'Sam R.', 'Taylor B.', 'Morgan L.', 'Casey H.',
@@ -4768,7 +4788,7 @@ function generateServiceCar() {
   const svcLevel = state.upgrades.serviceCapacityLevel || 0;
   const usePremium = svcLevel >= 2 && Math.random() < (svcLevel >= 3 ? 0.6 : 0.35);
   const mm    = randomFrom(usePremium ? SERVICE_PREMIUM_MAKES_MODELS : SERVICE_CAR_MAKES_MODELS);
-  const year  = 2016 + randomInt(0, 9);
+  const year  = randomInt(Math.max(2016, mm.years ? mm.years[0] : 2016), Math.min(2025, mm.years ? mm.years[1] : 2025));
   const mileage = randomInt(20000, 180000);
   // Pick 1–3 issues, first one may be major (rare), rest are small
   const issueCount = Math.random() < 0.2 ? randomInt(2, 3) : 1;
