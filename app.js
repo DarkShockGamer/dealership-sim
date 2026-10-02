@@ -12301,6 +12301,13 @@ ${sleeve ? `<g class="rps-sleeve"><path class="rps-sleeve-body" d="M 33 136 L 91
 </svg>`;
 }
 
+/** The Pale Man's throw: uniformly random and independent of what you picked. Uses crypto randomness when available. */
+function paleThrow() {
+  let r;
+  try { const a = new Uint32Array(1); crypto.getRandomValues(a); r = a[0] / 4294967296; } catch (_) { r = Math.random(); }
+  return RPS_MOVES[Math.min(RPS_MOVES.length - 1, Math.floor(r * RPS_MOVES.length))];
+}
+
 function rpsOutcome(you, him) {
   if (you === him) return 0;
   return ((you === 'rock' && him === 'scissors') || (you === 'paper' && him === 'rock') || (you === 'scissors' && him === 'paper')) ? 1 : -1;
@@ -12480,7 +12487,7 @@ async function paleDuelPick(move) {
   if (!d || d.busy || d.over) return;
   const e = paleDuelEls();
   d.busy = true;
-  const him = randomFrom(RPS_MOVES);
+  const him = paleThrow();   // chosen independently of your move
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const alive = () => _paleDuel === d;
 
