@@ -229,42 +229,89 @@ body.nightmare .btn-return-menu { color: #ffd6d2; }
 .rps-pips[data-side="you"] i.on { background: #fff; box-shadow: 0 0 10px #fff; }
 .rps-pips[data-side="him"] i.on { background: #ff1a1a; border-color: #ff1a1a; box-shadow: 0 0 10px #ff1a1a; }
 
-.rps-stage { display: flex; align-items: flex-end; justify-content: center; gap: 12px; margin: 10px 0 4px; height: 170px; overflow: hidden; }
-.rps-vs { align-self: center; font-weight: 800; letter-spacing: .1em; color: #ff8a8a; opacity: .8; }
-.rps-hand-wrap { width: 128px; transition: transform .3s ease, opacity .3s ease, filter .3s ease; transform-origin: 50% 90%; }
-.rps-svg { display: block; width: 100%; height: auto; }
-.rps-skin * { fill: var(--hand); stroke: #1b0509; stroke-width: 3; stroke-linejoin: round; }
-.rps-you { --hand: #ffffff; filter: drop-shadow(0 0 10px rgba(255,255,255,.4)); }
-.rps-him { --hand: #ff1a1a; filter: drop-shadow(0 0 16px rgba(255,20,20,.9)); }
-.rps-him .rps-svg { transform: scaleX(-1); }   /* mirror so both thumbs face the middle */
-.rps-him:not(.pumping):not(.reveal) { animation: rpsSway 3.2s ease-in-out infinite; }
+.rps-stage { position: relative; display: flex; align-items: flex-end; justify-content: center; gap: 0; margin: 2px 0 0; height: 262px; overflow: visible; clip-path: inset(-90px -90px 0 -90px); padding-top: 58px; }
+.rps-vs { align-self: center; font-weight: 800; letter-spacing: .1em; color: #ff8a8a; opacity: .8; z-index: 1; }
+.rps-hand-wrap { width: 184px; margin-bottom: -40px; --lean: 7deg; transform: rotate(var(--lean)); transform-origin: 50% 100%; transition: transform .3s ease, opacity .3s ease, filter .3s ease; will-change: transform; }
+.rps-him { --lean: -7deg; }
+.rps-him .rps-svg { transform: scaleX(-1); }   /* mirror: his thumb faces the middle too */
+.rps-you { filter: drop-shadow(0 0 12px rgba(255,255,255,.35)); }
+.rps-him { filter: drop-shadow(0 0 18px rgba(255,20,20,.85)); }
+.rps-hand-wrap.idle { animation: rpsIdle 3.6s ease-in-out infinite; }
+.rps-him.idle { animation-duration: 4.3s; animation-delay: -1.1s; }
+@keyframes rpsIdle { 0%,100% { transform: rotate(var(--lean)) translateY(0); } 50% { transform: rotate(calc(var(--lean) * .55)) translateY(-6px); } }
+.rps-hand-wrap.won  { transform: rotate(var(--lean)) translateY(-4px) scale(1.06); }
+.rps-you.won  { filter: drop-shadow(0 0 24px rgba(255,255,255,.95)); }
+.rps-him.won  { filter: drop-shadow(0 0 30px rgba(255,20,20,1)); }
+.rps-hand-wrap.lost { transform: rotate(var(--lean)) translateY(12px) scale(.92); opacity: .45; }
+.rps-hand-wrap.draw { transform: rotate(var(--lean)) scale(1.04); }
+.rps-word { position: absolute; left: 50%; top: 4px; transform: translateX(-50%); opacity: 0; pointer-events: none; z-index: 3; font-size: 1.7rem; font-weight: 900; letter-spacing: .22em; padding-left: .22em; color: #fff; text-shadow: 0 0 18px rgba(255,255,255,.55), 0 2px 6px #000; white-space: nowrap; }
+.rps-word.shoot { color: #ff2a2a; font-size: 2.1rem; text-shadow: 0 0 26px rgba(255,30,30,.95), 0 2px 8px #000; }
+.rps-impact { position: absolute; left: 50%; bottom: 62px; width: 90px; height: 90px; margin-left: 0; border-radius: 50%; border: 3px solid rgba(255,255,255,.8); box-shadow: 0 0 18px rgba(255,70,70,.7); pointer-events: none; opacity: 0; transform: translate(-50%, 50%) scale(.2); z-index: 2; }
+.rps-box.rps-shake { animation: rpsShake .24s linear; }
+.rps-box.rps-shake-big { animation: rpsShake .5s linear; }
+@keyframes rpsShake { 0%,100% { transform: translate(0,0); } 20% { transform: translate(-3px,2px); } 40% { transform: translate(3px,-2px); } 60% { transform: translate(-2px,-1px); } 80% { transform: translate(2px,2px); } }
+.rps-svg { display:block; width:100%; height:auto; overflow:visible; }
+.rps-svg .f-skin { fill: var(--hand); stroke: var(--edge); stroke-width: 2; stroke-linejoin: round; }
+.rps-svg .f-crease, .rps-svg .f-fold, .rps-svg .rps-palm-lines path { fill: none; stroke: var(--edge); stroke-width: 1.1; stroke-linecap: round; opacity: .5; }
+.rps-svg .rps-palm-lines path { opacity: .35; }
+.rps-svg .f-fold { opacity: 0; stroke-width: 1.5; }
+.rps-svg .f-nail-shape { fill: var(--nail); stroke: var(--edge); stroke-width: 1; }
+.rps-svg .f-nail-shine { fill: none; stroke: #fff; stroke-width: 1.2; stroke-linecap: round; opacity: .55; }
+.rps-svg .f-webfill { fill: var(--hand); stroke: none; }
+.rps-svg .rps-sleeve-body { fill: var(--sleeve); stroke: #000; stroke-opacity:.5; stroke-width: 1.5; }
+.rps-svg .rps-cuff { fill: var(--cuff); stroke: #000; stroke-opacity:.35; stroke-width: 1.2; }
+.rps-svg.no-sleeve .rps-sleeve { display: none; }
+.rps-svg .f, .rps-svg .f-nail, .rps-svg .f-web, .rps-svg .f-fold, .rps-svg .rps-palm-lines { transition: transform .32s cubic-bezier(.3,1.5,.5,1), opacity .22s ease; }
+.rps-svg .f { transform-origin: 0 0; }
 
-.rps-hand-wrap.pumping { animation: rpsPump .45s ease-in-out 3; }
-.rps-him.pumping { animation-delay: .04s; }
-@keyframes rpsPump { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(34px) rotate(-4deg); } }
-@keyframes rpsSway { 0%, 100% { transform: rotate(-2deg); } 50% { transform: rotate(3deg) translateY(-4px); } }
-.rps-hand-wrap.reveal { animation: rpsPop .4s cubic-bezier(.2, 1.7, .4, 1); }
-@keyframes rpsPop { 0% { transform: translateY(40px) scale(.6); } 100% { transform: translateY(0) scale(1); } }
-.rps-hand-wrap.won  { transform: scale(1.12) translateY(-6px); }
-.rps-you.won  { filter: drop-shadow(0 0 22px rgba(255,255,255,.95)); }
-.rps-him.won  { filter: drop-shadow(0 0 28px rgba(255,20,20,1)); }
-.rps-hand-wrap.lost { transform: scale(.88); opacity: .45; }
-.rps-hand-wrap.draw { transform: scale(1.02); }
+/* paper (default): everything open */
+.rps-svg .f-pinky  { transform: translate(33px,67px) rotate(-9deg); }
+.rps-svg .f-ring   { transform: translate(50px,64px) rotate(-3deg); }
+.rps-svg .f-middle { transform: translate(68px,62px) rotate(2deg); }
+.rps-svg .f-index  { transform: translate(86px,64px) rotate(8deg); }
+.rps-svg .f-thumb  { transform: translate(92px,116px) rotate(41deg); }
+
+/* rock: four fingers curled down over the palm, thumb across them */
+.rps-svg.pose-rock .f-pinky, .rps-svg.pose-scissors .f-pinky  { transform: translate(33px,67px) rotate(180deg) scale(1.05,.62); }
+.rps-svg.pose-rock .f-ring,  .rps-svg.pose-scissors .f-ring   { transform: translate(50px,64px) rotate(180deg) scale(1,.62); }
+.rps-svg.pose-rock .f-middle { transform: translate(68px,62px) rotate(180deg) scale(1,.62); }
+.rps-svg.pose-rock .f-index  { transform: translate(86px,64px) rotate(180deg) scale(1,.62); }
+.rps-svg.pose-rock .f-thumb  { transform: translate(100px,103px) rotate(-84deg) scale(1,1.02); }
+/* scissors: index + middle in a V, ring + pinky curled, thumb pins them */
+.rps-svg.pose-scissors .f-middle { transform: translate(68px,62px) rotate(-11deg); }
+.rps-svg.pose-scissors .f-index  { transform: translate(86px,64px) rotate(10deg); }
+.rps-svg.pose-scissors .f-thumb  { transform: translate(100px,106px) rotate(-80deg) scale(1,.9); }
+
+.rps-svg.pose-rock .f-nail, .rps-svg.pose-scissors .f-pinky .f-nail, .rps-svg.pose-scissors .f-ring .f-nail { opacity: 0; }
+.rps-svg.pose-rock .f-web,  .rps-svg.pose-scissors .f-pinky .f-web, .rps-svg.pose-scissors .f-ring .f-web { opacity: 0; }
+.rps-svg.pose-rock .f-fold, .rps-svg.pose-scissors .f-pinky .f-fold, .rps-svg.pose-scissors .f-ring .f-fold { opacity: .6; }
+.rps-svg:not(.pose-paper) .rps-palm-lines { opacity: 0; }
+.rps-svg.pose-rock .f-thumb .f-nail, .rps-svg.pose-scissors .f-thumb .f-nail { opacity: 1; }
+
+/* hand colours */
+.hand-you { --hand: #ffffff; --edge: #7b8196; --nail: #f1d9d9; --sleeve: #232c4d; --cuff: #e9ecf6; }
+.hand-him { --hand: #ff1a1a; --edge: #5a0000; --nail: #3a0505; --sleeve: #0c0b0e; --cuff: #d8d0c6; }
+
+/* the thumb is tucked behind the palm when open, and lies over the fingers when curled */
+.rps-svg .f-thumb-under { opacity: 1; transition: transform .32s cubic-bezier(.3,1.5,.5,1), opacity 0s; }
+.rps-svg .f-thumb-over  { opacity: 0; transition: transform .32s cubic-bezier(.3,1.5,.5,1), opacity 0s; }
+.rps-svg:not(.pose-paper) .f-thumb-under { opacity: 0; }
+.rps-svg:not(.pose-paper) .f-thumb-over  { opacity: 1; }
 
 .rps-status { min-height: 1.4em; font-size: 1rem; font-weight: 700; margin: 6px 0 2px; }
 .rps-say { min-height: 2.6em; font-style: italic; color: #ffaaa4; font-size: .92rem; margin: 2px 0 8px; }
 .rps-choices { display: flex; justify-content: center; gap: 10px; }
 .rps-choice { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 92px; padding: 8px 6px 6px; border-radius: 14px; cursor: pointer;
   background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.35); color: #fff; font: inherit; font-size: .78rem; font-weight: 700; --hand: #fff; transition: transform .15s ease, background .15s ease, opacity .2s ease; }
-.rps-choice .rps-svg { width: 52px; }
+.rps-choice .rps-svg { width: 56px; margin: 0 auto; }
 .rps-choice:hover:not(:disabled) { transform: translateY(-3px); background: rgba(255,255,255,.18); }
 .rps-choice:disabled { cursor: default; opacity: .35; }
 .rps-choice.picked:disabled { opacity: 1; background: rgba(255,255,255,.25); border-color: #fff; box-shadow: 0 0 16px rgba(255,255,255,.55); }
 .rps-sleepbar { margin: 14px auto 6px; max-width: 360px; height: 20px; }
 .rps-actions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; min-height: 38px; margin-top: 6px; }
-@media (max-width: 480px) { .rps-hand-wrap { width: 100px; } .rps-stage { height: 140px; } .rps-choice { width: 78px; } }
+@media (max-width: 480px) { .rps-hand-wrap { width: 128px; margin-bottom: -28px; } .rps-stage { height: 196px; padding-top: 44px; } .rps-choice { width: 78px; } .rps-word { font-size: 1.3rem; } .rps-word.shoot { font-size: 1.6rem; } }
 
-body.reduce-motion .rps-hand-wrap, body.reduce-motion #stat-sleep.sleep-crit { animation: none !important; }
-@media (prefers-reduced-motion: reduce) { .rps-hand-wrap, #stat-sleep.sleep-crit { animation: none !important; } }
+body.reduce-motion .rps-hand-wrap, body.reduce-motion .rps-box, body.reduce-motion #stat-sleep.sleep-crit { animation: none !important; }
+@media (prefers-reduced-motion: reduce) { .rps-hand-wrap, .rps-box, #stat-sleep.sleep-crit { animation: none !important; } }
 .rps-actions .btn:disabled { opacity: .5; cursor: not-allowed; }
 .nm-sleep-btn:disabled { opacity: .6; cursor: not-allowed; }
