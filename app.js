@@ -11,9 +11,17 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.19.0';
+const GAME_VERSION = '1.19.1';
 
 const PATCH_NOTES = [
+  {
+    version: '1.19.1',
+    date: 'October 2026',
+    notes: [
+      { type: 'balance', text: "Nightmare start is fairer. Cursed cars are the cheapest listings on the lot, so a fresh run kept pushing you toward a car nobody wanted to buy while overhead ate your cash. Now the curse rate starts at 4% on Night 1 and creeps up to the usual 16% by around Night 11, and no refresh ever has more than 2 cursed cars." },
+      { type: 'balance', text: "Nightmare, first 10 nights: every Used Market refresh now guarantees at least 2 uncursed cars in Excellent or Good condition that you can afford (up to about 70% of your cash), so there is always a safe first flip." },
+    ],
+  },
   {
     version: '1.19.0',
     date: 'October 2026',
@@ -3025,6 +3033,40 @@ function pickAskingPriceMultiplier() {
   return randomFloat(1.15, 1.25);                 //  7% — reaching, rare
 }
 
+/** Build one Used Market listing. `forceCursed` (true/false) overrides the random curse roll. */
+function buildUsedOffer(entry, condition, forceCursed) {
+  const car       = buildCar(entry, condition, 'used', false);
+  const ownerAwareOfIssues = Math.random() < 0.4;
+  const effectiveMV = ownerAwareOfIssues ? car.marketValue - car.repairCost * 0.5 : car.marketValue;
+  // Sellers never pay you to take a car: the lowest possible asking price is $0.
+  // Nightmare: some listings are cursed — the seller practically gives them away.
+  const cursedListing = isNightmare() && (forceCursed !== undefined ? forceCursed : Math.random() < getNightmareCurseChance());
+  const askingPrice    = Math.max(0, Math.round(effectiveMV * pickAskingPriceMultiplier() * (cursedListing ? randomFloat(0.50, 0.68) : 1)));
+  // Hidden floor — seller won't accept below this. Keeps a real negotiation
+  // window under the asking price without making the asking price itself
+  // a de-facto discount.
+  const minAcceptPrice = Math.max(0, Math.round(askingPrice * randomFloat(0.85, 0.95)));
+  car.purchasePrice  = askingPrice;
+  car.askingPrice    = askingPrice;
+  car.minAcceptPrice = minAcceptPrice;
+  car.negotiationState = null; // null | 'countered'
+  car.playerOffer    = null;
+  car.sellerCounter  = null;
+  car.patience       = randomInt(1, 3); // max counter rounds
+  if (isNightmare()) {
+    if (cursedListing) { car.cursed = true; car.curseRevealed = false; }
+    // Cursed cars often give themselves away… and a few perfectly normal ones just feel wrong.
+    if (cursedListing ? Math.random() < 0.6 : Math.random() < 0.05) car.nmTell = randomFrom(NIGHTMARE_TELLS);
+  }
+  return car;
+}
+
+/** Nightmare: the curse rate starts low and creeps up as the nights go on. */
+function getNightmareCurseChance() {
+  const night = Math.max(1, state.day || 1);
+  return clamp(0.04 + 0.012 * (night - 1), 0.04, NIGHTMARE_CURSE_CHANCE);
+}
+
 function generateUsedMarket() {
   // Any identified stolen car still on the old list is being left behind — that counts as avoided.
   (state.usedMarketOffers || []).forEach(countStolenAvoided);
@@ -3033,32 +3075,43 @@ function generateUsedMarket() {
   for (let i = 0; i < count; i++) {
     const entry     = pickCatalogEntryForUsed();
     const condition = pickCondition(getUsedConditionWeights());
-    const car       = buildCar(entry, condition, 'used', false);
-    const ownerAwareOfIssues = Math.random() < 0.4;
-    const effectiveMV = ownerAwareOfIssues ? car.marketValue - car.repairCost * 0.5 : car.marketValue;
-    // Sellers never pay you to take a car: the lowest possible asking price is $0.
-    // Nightmare: some listings are cursed — the seller practically gives them away.
-    const cursedListing = isNightmare() && Math.random() < NIGHTMARE_CURSE_CHANCE;
-    const askingPrice    = Math.max(0, Math.round(effectiveMV * pickAskingPriceMultiplier() * (cursedListing ? randomFloat(0.50, 0.68) : 1)));
-    // Hidden floor — seller won't accept below this. Keeps a real negotiation
-    // window under the asking price without making the asking price itself
-    // a de-facto discount.
-    const minAcceptPrice = Math.max(0, Math.round(askingPrice * randomFloat(0.85, 0.95)));
-    car.purchasePrice  = askingPrice;
-    car.askingPrice    = askingPrice;
-    car.minAcceptPrice = minAcceptPrice;
-    car.negotiationState = null; // null | 'countered'
-    car.playerOffer    = null;
-    car.sellerCounter  = null;
-    car.patience       = randomInt(1, 3); // max counter rounds
-    if (isNightmare()) {
-      if (cursedListing) { car.cursed = true; car.curseRevealed = false; }
-      // Cursed cars often give themselves away… and a few perfectly normal ones just feel wrong.
-      if (cursedListing ? Math.random() < 0.6 : Math.random() < 0.05) car.nmTell = randomFrom(NIGHTMARE_TELLS);
-    }
-    offers.push(car);
+    offers.push(buildUsedOffer(entry, condition));
   }
+  if (isNightmare()) ensureNightmareStarterStock(offers);
   return offers;
+}
+
+/**
+ * Nightmare: never leave the player with a lot full of curses and wrecks.
+ *  - at most 2 cursed listings per refresh
+ *  - during the first nights, at least 2 uncursed, good-condition (A/B) cars the player can
+ *    actually afford (≤ ~70% of current cash), so there is always a safe first flip.
+ */
+function ensureNightmareStarterStock(offers) {
+  // Cap cursed listings at 2 — swap the extras for ordinary cars.
+  let cursedSeen = 0;
+  for (let i = 0; i < offers.length; i++) {
+    if (!offers[i].cursed) continue;
+    if (++cursedSeen > 2) {
+      offers[i] = buildUsedOffer(pickCatalogEntryForUsed(), pickCondition(getUsedConditionWeights()), false);
+    }
+  }
+  if ((state.day || 1) > 10) return;
+  const budget = Math.max(6000, (state.cash || 0) * 0.70);
+  const cheapPool = CAR_CATALOG.filter(e => e.marketValue <= budget * 1.6);
+  const isSafe = o => !o.cursed && (o.condition === 'A' || o.condition === 'B') && o.askingPrice <= budget;
+  let safe = offers.filter(isSafe).length;
+  for (let tries = 0; safe < 2 && tries < 120; tries++) {
+    const cand = buildUsedOffer(cheapPool.length ? randomFrom(cheapPool) : pickCatalogEntryForUsed(), Math.random() < 0.3 ? 'A' : 'B', false);
+    if (!isSafe(cand)) continue;
+    // Replace a cursed car first, then a Poor (D) car, then anything that isn't already safe.
+    let idx = offers.findIndex(o => o.cursed);
+    if (idx < 0) idx = offers.findIndex(o => o.condition === 'D');
+    if (idx < 0) idx = offers.findIndex(o => !isSafe(o));
+    if (idx < 0) break;
+    offers[idx] = cand;
+    safe++;
+  }
 }
 
 /** Generate trade-in requests: customers who want to swap their car for one of yours. */
