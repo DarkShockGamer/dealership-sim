@@ -11,9 +11,16 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.19.3';
+const GAME_VERSION = '1.19.4';
 
 const PATCH_NOTES = [
+  {
+    version: '1.19.4',
+    date: 'October 2026',
+    notes: [
+      { type: 'fix', text: "Nightmare: the creepy popups now stay on screen long enough to read. They last about 2.6 seconds plus a little for every word, at least 5 seconds for the Pale Man and curse lines, and never more than 12 seconds. Other difficulties are unchanged." },
+    ],
+  },
   {
     version: '1.19.3',
     date: 'October 2026',
@@ -9638,6 +9645,19 @@ let _holdDayPopups = false;
 let _heldToasts = [];
 let _heldModalQueue = [];
 
+// Toasts stay up 3.2s normally. On Nightmare the creepy lines need time to actually be read,
+// so they scale with message length (about 60ms per character, 5s minimum for the spooky
+// ones, 12s cap).
+const NIGHTMARE_CREEPY_SFX = new Set(['whisper', 'ash', 'curse']);
+function getToastDuration(message, sfx) {
+  const base = 3200;
+  if (!document.body.classList.contains('nightmare')) return base;
+  const len = String(message || '').length;
+  const scaled = 2600 + len * 60;
+  const floor  = NIGHTMARE_CREEPY_SFX.has(sfx) ? 5000 : base;
+  return Math.min(12000, Math.max(base, floor, scaled));
+}
+
 function showToast(message, type = 'info', sfx = null) {
   if (_holdDayPopups) { _heldToasts.push({ message, type, sfx }); return; }
   const container = document.getElementById('toast-container');
@@ -9649,7 +9669,7 @@ function showToast(message, type = 'info', sfx = null) {
   setTimeout(() => {
     el.classList.remove('show');
     setTimeout(() => el.remove(), 300);
-  }, 3200);
+  }, getToastDuration(message, sfx));
   // sfx lets callers pick a distinct, purpose-built sound (e.g. 'cash', 'hire',
   // 'achievement') instead of the generic tone for that toast's color/type.
   if (sfx) playSfx(sfx);
