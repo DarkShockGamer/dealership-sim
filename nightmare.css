@@ -28,7 +28,12 @@ body.nightmare .tab-btn.active { background: linear-gradient(180deg, #d8344a, #9
 body.nightmare .text-blue { color: #ff9c9c; }
 
 /* Surfaces that hard-code blue in styles.css get blood-red equivalents here. */
-body.nightmare .app-main, body.nightmare .tab-panel { background: rgba(34, 5, 9, .62); }
+/* The tab panel is the rounded card; .app-main is only its square scroll container, so it must stay transparent
+   (otherwise its square-cornered background pokes out behind the panel's rounded corners and edges). */
+body.nightmare .app-main { background: transparent; }
+body.nightmare .tab-panel { background: rgba(34, 5, 9, .62); box-shadow: 0 14px 34px rgba(12, 0, 3, .45); }
+body.nightmare .tab-nav { box-shadow: 0 8px 24px rgba(12, 0, 3, .38); }
+body.nightmare .tab-btn.active { box-shadow: 0 8px 22px rgba(190, 30, 50, .4); }
 body.nightmare .dash-card,
 body.nightmare .car-card,
 body.nightmare .upgrade-card { background: linear-gradient(180deg, rgba(72, 12, 20, .9), rgba(36, 6, 10, .86)); border-color: rgba(255, 110, 110, .26); }
