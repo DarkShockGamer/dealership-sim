@@ -11412,12 +11412,12 @@ function menuSetDifficulty(_level) {
 // ------------------------------------------------------------
 // STORY — normal (non-Nightmare) lore
 // ------------------------------------------------------------
-const NORMAL_LORE_INTRO = '👋 Welcome to DealerSim! Last month your mom finally kicked you out of her basement ("Honey, you are thirty-one. The casserole is in the fridge."). The next day a lawyer called: a great-uncle you barely remember left you his old, rundown used car dealership. The roof leaks, the sign is crooked, and the lot is full of tired cars. But the keys are in your hand, and it is yours.';
+const NORMAL_LORE_INTRO = '👋 Welcome to DealerSim! Last month your mom finally kicked you out of her basement. The next day a lawyer called: a great-uncle you barely remember left you his old, rundown used car dealership. The roof leaks, the sign is crooked, and the lot is full of tired cars. But the keys are in your hand, and it is yours.';
 
 /** Small story beats shown in the activity log as days pass (every difficulty except Nightmare). */
 const NORMAL_LORE_BEATS = [
   { day: 2,   text: "In the office desk you find a shoebox of receipts. Your great-uncle kept every deal he ever made, the bad ones most of all." },
-  { day: 5,   text: "Mom texts: \"Eating okay?\" You send a photo of a gas-station burrito. She replies with a thumbs-up and a casserole emoji. Progress." },
+  { day: 5,   text: "Mom texts: \"Eating okay?\" You send a photo of a gas-station burrito. She replies with a thumbs-up. Progress." },
   { day: 12,  text: "A neighbor stops by to say they thought the lot had closed for good years ago. They seem pleasantly surprised." },
   { day: 25,  text: "Someone has been leaving the crooked sign alone and the weeds trimmed. Nobody on your payroll admits to it. You decide not to ask." },
   { day: 45,  text: "Mom drives past the lot without stopping, slows down, then comes back around and honks. You choose to take this as pride." },
@@ -12414,7 +12414,7 @@ function onLucidDreamer() {
     title: '👁️ Lucid',
     tone: 'nm-modal-pale',
     html: `<p>You have woken up. You have gone back to sleep. You have done both so many times that you can no longer say which was the dream.</p>
-           <p>The lot, with its fog and its keys and its customers who smile too wide? Or the sleep: the basement, the casserole, the life you remember on the other side?</p>
+           <p>The lot, with its fog and its keys and its customers who smile too wide? Or the sleep: the basement, the life you remember on the other side?</p>
            <p>The Pale Man applauds, once, softly. "Now you are asking the right question," he says. He does not answer it.</p>`,
     actions: [{ label: 'Keep asking', cls: 'btn-primary' }],
   });
