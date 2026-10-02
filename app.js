@@ -11,9 +11,17 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.20.1';
+const GAME_VERSION = '1.21.0';
 
 const PATCH_NOTES = [
+  {
+    version: '1.21.0',
+    date: 'October 2026',
+    notes: [
+      { type: 'feature', text: "The Office Board is now a real bulletin board. On Nightmare, the Office board button opens a corkboard with the key tags and lore pinned up with red push pins and joined by red string. New notes appear as you uncover the story." },
+      { type: 'feature', text: "Every other difficulty gets its own Office board button on the Dashboard (from Day 2). It holds the lawyer's letter and each story beat you have found, from the shoebox of receipts to Mom's Sunday dinner, with a blank note showing the next one still to come." },
+    ],
+  },
   {
     version: '1.20.1',
     date: 'October 2026',
@@ -6363,8 +6371,12 @@ function renderDashboard() {
       <strong class="${cls}">${(idx * 100).toFixed(1)}% (${pct >= 0 ? '+' : ''}${pct}%)</strong></div>`;
   }).join('');
 
+  const bbLaunch = (!isNightmare() && state.day >= 2)
+    ? `<div class="bb-launch"><button class="btn btn-secondary" onclick="openBulletinBoard()" title="The corkboard in the lot office.">📌 Office board</button></div>`
+    : '';
   document.getElementById('tab-dashboard').innerHTML = `
     ${renderNightmarePanel()}
+    ${bbLaunch}
     <div class="kpi-row">
       <div class="kpi-tile kpi-cash">
         <div class="kpi-icon-wrap">${uiIconLg('cash')}</div>
@@ -12326,22 +12338,160 @@ function triggerReckoning() {
   });
 }
 
-/** The pegboard behind the desk. The tag with your name changes as the run goes on. */
-function openOfficeBoard() {
-  if (!isNightmare()) return;
+/**
+ * The office bulletin board: a corkboard with notes pinned up by red push pins and
+ * joined by red string. Nightmare shows the pegboard-and-tags lore; every other
+ * difficulty shows its own story beats. Only beats you have already seen are pinned.
+ */
+function _bbNightmareNotes() {
   const n = nm();
-  const tally = n.reckonings ? `<p>Under your name, in fresher ink, ${n.reckonings === 1 ? 'a single tally mark' : n.reckonings + ' tally marks'}.</p>` : '';
-  const others = globalAchievements.nm_woke
-    ? '<p>There are other tags on the board now. Dozens. Every one of them has your name on it, and every one has a different date.</p>' : '';
-  showNightmareModal({
-    title: '🗝️ The Office Board',
-    tone: 'nm-modal-red',
-    html: `<p>A pegboard behind the desk. Thirty-nine keys, one empty hook. Each key has a paper tag in the same cramped hand.</p>
-           <p>Most of the tags are stock numbers. One reads your name. The ink is brown and curled at the edges. It was written before you arrived.</p>
-           ${tally}${others}`,
-    actions: [{ label: 'Hang it back up', cls: 'btn-primary' }],
-  });
+  const out = [
+    { label: 'Behind the desk', kind: 'tag', text: 'Thirty-nine keys, one empty hook. Each key has a paper tag in the same cramped hand.' },
+    { label: 'Your key', kind: 'tag', text: 'One tag reads your name. The ink is brown and curled at the edges. It was written before you arrived.' },
+  ];
+  const seen = Math.min(n.loreIdx || 0, NIGHTMARE_LORE_BEATS.length);
+  for (let i = 0; i < seen; i++) {
+    const b = NIGHTMARE_LORE_BEATS[i];
+    if (b.night === 2) continue;   // the pegboard beat is already the first two notes
+    out.push({ label: b.title || ('Night ' + b.night), kind: i % 3 === 1 ? 'card' : 'paper', text: b.text });
+  }
+  if (n.reckonings) out.push({ label: 'Tally', kind: 'card', text: `Under your name, in fresher ink, ${n.reckonings === 1 ? 'a single tally mark' : n.reckonings + ' tally marks'}.` });
+  if (globalAchievements.nm_woke) out.push({ label: 'More tags', kind: 'tag', text: 'There are other tags on the board now. Dozens. Every one of them has your name on it, and every one has a different date.' });
+  if (seen < NIGHTMARE_LORE_BEATS.length) out.push({ label: 'A bare hook', kind: 'locked', text: 'Nothing hangs here yet.' });
+  return out;
 }
+
+function _bbNormalNotes() {
+  const seenMap = state.loreSeen || {};
+  const out = [
+    { label: 'From the lawyer', kind: 'card', text: 'Estate of your great-uncle: one used car dealership, sold as is. Keys enclosed. The roof leaks, the sign is crooked, and the lot is full of tired cars.' },
+  ];
+  let lockedDay = null;
+  NORMAL_LORE_BEATS.forEach((b, i) => {
+    if (seenMap[b.day]) out.push({ label: 'Day ' + b.day, kind: b.text.includes('Polaroid') ? 'polaroid' : (i % 3 === 1 ? 'card' : 'paper'), text: b.text });
+    else if (lockedDay === null) lockedDay = b.day;
+  });
+  if (lockedDay !== null) out.push({ label: 'Day ' + lockedDay, kind: 'locked', text: 'Nothing pinned here yet. Keep the lot open.' });
+  return out;
+}
+
+function openBulletinBoard() {
+  if (!state || document.querySelector('.bb-overlay')) return;
+  const nmode = isNightmare();
+  const notes = nmode ? _bbNightmareNotes() : _bbNormalNotes();
+  const found = notes.filter(x => x.kind !== 'locked').length;
+  const tilts = [-2.6, 1.8, -1.2, 2.8, -2, 1.2, -3, 2.2];
+
+  const ov = document.createElement('div');
+  ov.className = 'bb-overlay' + (nmode ? ' bb-nm' : '');
+  ov.setAttribute('role', 'dialog');
+  ov.setAttribute('aria-modal', 'true');
+  ov.setAttribute('aria-label', 'Office bulletin board');
+
+  const frame = document.createElement('div');
+  frame.className = 'bb-frame';
+  const head = document.createElement('div');
+  head.className = 'bb-head';
+  head.innerHTML = '<span class="bb-title"></span><span class="bb-count"></span>';
+  head.querySelector('.bb-title').textContent = nmode ? '🗝️ The Office Board' : '📌 The Office Board';
+  head.querySelector('.bb-count').textContent = `${found} pinned`;
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'bb-close';
+  closeBtn.textContent = 'Close';
+  head.appendChild(closeBtn);
+
+  const board = document.createElement('div');
+  board.className = 'bb-board';
+  const surface = document.createElement('div');
+  surface.className = 'bb-surface';
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('class', 'bb-strings');
+  svg.setAttribute('aria-hidden', 'true');
+  const grid = document.createElement('div');
+  grid.className = 'bb-grid';
+  notes.forEach((nt, i) => {
+    const el = document.createElement('div');
+    el.className = `bb-note bb-${nt.kind}`;
+    el.style.setProperty('--tilt', tilts[i % tilts.length] + 'deg');
+    el.style.setProperty('--drop', ((i * 17) % 5) * 7 + 'px');
+    const spot = document.createElement('span');
+    spot.className = 'bb-pinspot';
+    const lab = document.createElement('div');
+    lab.className = 'bb-label';
+    lab.textContent = nt.label;
+    const txt = document.createElement('div');
+    txt.className = 'bb-text';
+    txt.textContent = nt.text;
+    el.append(spot, lab, txt);
+    grid.appendChild(el);
+  });
+  const pinLayer = document.createElement('div');
+  pinLayer.className = 'bb-pins';
+  surface.append(grid, svg, pinLayer);
+  board.appendChild(surface);
+  frame.append(head, board);
+  ov.appendChild(frame);
+
+  const layout = () => {
+    const sr = surface.getBoundingClientRect();
+    svg.setAttribute('width', sr.width);
+    svg.setAttribute('height', surface.offsetHeight);
+    svg.innerHTML = '';
+    pinLayer.innerHTML = '';
+    const pts = [...grid.children].map(el => {
+      const r = el.querySelector('.bb-pinspot').getBoundingClientRect();
+      return { x: r.left - sr.left + r.width / 2, y: r.top - sr.top + r.height / 2, locked: el.classList.contains('bb-locked') };
+    });
+    const link = (a, b) => {
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const sag = 16 + Math.hypot(dx, dy) * 0.07;
+      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2 + sag;
+      const d = `M${a.x} ${a.y} Q${mx} ${my} ${b.x} ${b.y}`;
+      const sh = document.createElementNS(svgNS, 'path');
+      sh.setAttribute('d', d); sh.setAttribute('class', 'bb-string-shadow');
+      sh.setAttribute('transform', 'translate(2 4)');
+      const th = document.createElementNS(svgNS, 'path');
+      th.setAttribute('d', d); th.setAttribute('class', 'bb-string');
+      svg.append(sh, th);
+    };
+    const live = pts.filter(p => !p.locked);
+    for (let i = 0; i < live.length - 1; i++) {
+      link(live[i], live[i + 1]);
+      if (i % 3 === 0 && i + 2 < live.length) link(live[i], live[i + 2]);
+    }
+    pts.forEach(p => {
+      const pin = document.createElement('span');
+      pin.className = 'bb-pin';
+      pin.style.left = p.x + 'px';
+      pin.style.top = p.y + 'px';
+      pinLayer.appendChild(pin);
+    });
+  };
+
+  const close = () => {
+    document.removeEventListener('keydown', onKey, true);
+    window.removeEventListener('resize', layout);
+    ov.remove();
+    playSfx('modalClose');
+  };
+  const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+  closeBtn.addEventListener('click', close);
+  ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+  document.addEventListener('keydown', onKey, true);
+  window.addEventListener('resize', layout);
+
+  document.body.appendChild(ov);
+  playSfx('modalOpen');
+  layout();
+  requestAnimationFrame(layout);
+  setTimeout(layout, 120);
+  try { closeBtn.focus(); } catch (_) {}
+}
+
+/** Nightmare dashboard button keeps its old name. */
+function openOfficeBoard() { openBulletinBoard(); }
 
 /** Offered at Night 30, then again at Night 100 and 200 if you keep dreaming. */
 const NIGHTMARE_DAWN_NIGHTS = [30, 100, 200];
@@ -13984,6 +14134,7 @@ function init() {
     buyUpgrade, selectSkillNode, detailCar, carWash, basicRepair, partsUpgrade,
     drawLoan, payDownLoan,
     lightCandle, exorciseCar, acceptPaleCustomer, refusePaleCustomer, openPaleDuel,
+    openBulletinBoard, openOfficeBoard,
     selectInsurance, cancelInsurance,
     confirmNewGame, exportSave, hireStaff, dismissCandidate, fireStaff, toggleStaffTrading,
     toggleDarkMode, toggleReduceMotion, setBrightness, resetBrightness, setDifficulty, toggleSfxMuted, setSfxVolume, toggleTutorials,
