@@ -11,9 +11,20 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.19.4';
+const GAME_VERSION = '1.20.0';
 
 const PATCH_NOTES = [
+  {
+    version: '1.20.0',
+    date: 'October 2026',
+    notes: [
+      { type: 'feature', text: "Story. On every difficulty except Nightmare, the tutorial now opens with how you got here: your mom finally kicked you out of her basement, and a great-uncle you barely knew left you his old, rundown used car dealership. A handful of small story beats then turn up in the activity log as the days go by." },
+      { type: 'feature', text: "Nightmare lore, delivered only during play (the tutorial stays spoiler-free). Over the first few weeks the lot tells you why the Pale Man plays instead of killing you, what the Pale Customer's tell is, and what the ash really is. The Dashboard also gets an Office Board once you reach Night 2. One key on it has a tag with your name, written before you arrived." },
+      { type: 'feature', text: "Nightmare endings. Reach Night 30 (and again at Night 100 and 200) and the Pale Man offers you the dawn. Take it and you wake up, but winning does not free you. Choose to keep dreaming and the run carries on. There is also a secret ending for anyone who beats him often enough." },
+      { type: 'feature', text: "Two new Nightmare achievements: Rise and Shine and a secret one. Lucid Dreamer now needs both, and unlocking it asks which side was the real dream." },
+      { type: 'chore', text: "Sleep drain now reads as what it is: you haven't really slept since you signed. New one-line whispers hint at the lot's history." },
+    ],
+  },
   {
     version: '1.19.4',
     date: 'October 2026',
@@ -647,6 +658,7 @@ const NIGHTMARE_DEFAULTS = {
   visitorsAccepted: 0, visitorsDeclined: 0, ashCount: 0, ashDue: 0, ashDay: 0,
   eventsSeen: 0, salesToday: 0, totalSales: 0, eyesClicked: 0, visitor: null,
   sleep: 100, sleepDuelsWon: 0, sleepDuelsLost: 0, duelCooldownUntil: 0,   // Sleep meter + Pale Man duels
+  loreIdx: 0, dawnOffered: 0, wokeUp: 0, fondEnding: 0,                     // v1.20.0 — story beats + endings
 };
 
 // ============================================================
@@ -655,6 +667,7 @@ const NIGHTMARE_DEFAULTS = {
 const DEFAULT_STATE = {
   saveVersion: 18,
   difficulty: 'normal',
+  loreSeen: {},   // v1.20.0 — story beats already shown (non-Nightmare)
   nightmare: { ...NIGHTMARE_DEFAULTS },   // v1.19.0 — only used on Nightmare difficulty
   cash: 25000,
   day: 1,
@@ -1198,7 +1211,7 @@ const NIGHTMARE_ACH_IDS = [
   'nm_night_7', 'nm_night_30', 'nm_night_100', 'nm_night_200', 'nm_first_sale', 'nm_sales_25', 'nm_sales_100',
   'nm_cash_250k', 'nm_million', 'nm_candle_1', 'nm_candle_25', 'nm_exorcist', 'nm_exorcist_5', 'nm_cursed_sale',
   'nm_haunted_10', 'nm_pale_deal', 'nm_pale_refuse', 'nm_ash', 'nm_reckoning', 'nm_calm', 'nm_edge',
-  'nm_omens_10', 'nm_taken_3', 'nm_wards', 'nm_debt', 'nm_secret_eyes', 'nm_secret_666', 'nm_lucid',
+  'nm_omens_10', 'nm_taken_3', 'nm_wards', 'nm_debt', 'nm_woke', 'nm_secret_eyes', 'nm_secret_666', 'nm_secret_fond', 'nm_lucid',
 ];
 const ACHIEVEMENT_DEFS = [
   { id: 'first_sale',          icon: ACH_ICONS.tag,        name: 'First Deal Done',        desc: 'Complete your first car sale.',
@@ -1545,9 +1558,11 @@ const ACHIEVEMENT_DEFS = [
   { id: 'nm_debt', icon: ACH_ICONS.creditcard, name: "The Collector's Nightmare", desc: 'Pay down $50,000 of credit line balance on Nightmare.',
     check: s => nmOnly(s) && (s.totalLoanPaidDown||0) >= 50000,
     progress: s => nmOnly(s) ? formatCurrency(Math.min(s.totalLoanPaidDown||0,50000)) + '/$50k' : 'Nightmare only' },
-  { id: 'nm_lucid', icon: ACH_ICONS.trophy, name: 'Lucid Dreamer', desc: 'Unlock every other Nightmare achievement. You know it is a dream. It knows you know.',
+  { id: 'nm_lucid', icon: ACH_ICONS.trophy, name: 'Lucid Dreamer', desc: 'Unlock every other Nightmare achievement. You know it is a dream. It knows you know. The question is which side is the dream: the lot, or the sleep.',
     check: s => NIGHTMARE_ACH_IDS.every(id => id === 'nm_lucid' || (s.achievementsUnlocked||{})[id] || globalAchievements[id]),
     progress: s => NIGHTMARE_ACH_IDS.filter(id => id !== 'nm_lucid' && ((s.achievementsUnlocked||{})[id] || globalAchievements[id])).length + '/' + (NIGHTMARE_ACH_IDS.length - 1) },
+  { id: 'nm_woke', icon: ACH_ICONS.moon, name: 'Rise and Shine', desc: 'Reach the dawn and wake up. Winning was never going to free you.',
+    check: s => nmOnly(s) && nmCount(s, 'wokeUp') >= 1 },
   // Secret achievements
   { id: 'secret_konami',       icon: ACH_ICONS.zap,        name: '🔒 Power User',           desc: '???',
     check: s => !!(s.konamiActivated) },
@@ -1565,6 +1580,8 @@ const ACHIEVEMENT_DEFS = [
     check: s => nmCount(s, 'eyesClicked') >= 1 },
   { id: 'nm_secret_666', icon: ACH_ICONS.skull, name: '🔒 Number of the Beast', desc: '???',
     check: s => nmOnly(s) && (s.salesHistory||[]).some(h => Math.round(h.salePrice||0) % 1000 === 666) },
+  { id: 'nm_secret_fond', icon: ACH_ICONS.eye, name: '🔒 Gracious in Defeat', desc: '???',
+    check: s => nmOnly(s) && nmCount(s, 'fondEnding') >= 1 },
 ];
 
 const ACHIEVEMENT_ORDER = [
@@ -1585,8 +1602,8 @@ const ACHIEVEMENT_ORDER = [
   'sales_25', 'sales_250', 'sales_500', 'sales_1000', 'cash_50k', 'cash_250k', 'cash_2m', 'cash_5m', 'cash_10m', 'profit_10k', 'profit_50k', 'profit_100k', 'total_profit_100k', 'total_profit_1m', 'day_100', 'day_500', 'day_730', 'day_1000', 'rep_150', 'econ_10', 'sedan_10', 'suv_10', 'truck_10', 'sports_10', 'luxury_25', 'mint_10', 'rebuilt_sale', 'salvage_sale', 'factory_10', 'used_10', 'first_hire', 'staff_4', 'staff_8', 'garage_tier2', 'garage_tier3', 'showroom_built', 'showroom_max', 'showroom_five', 'detective_kit', 'locked_down', 'auction_five_wins', 'auction_five_sales', 'auction_quarter_mil', 'tradeins_10', 'tradeins_25', 'detail_50', 'service_50', 'leases_10', 'clean_streak_10', 'stolen_first', 'stolen_25', 'rebuilder_first', 'rebuilder_15', 'paperwork_10', 'eagle_eye_5', 'police_5', 'grand_theft_lot', 'insured_claim', 'loan_paid_100k', 'credit_800', 'credit_850', 'fire_sale_10', 'hard_day_100', 'hard_million',
   'nm_night_7', 'nm_night_30', 'nm_night_100', 'nm_night_200', 'nm_first_sale', 'nm_sales_25', 'nm_sales_100', 'nm_cash_250k', 'nm_million',
   'nm_candle_1', 'nm_candle_25', 'nm_exorcist', 'nm_exorcist_5', 'nm_cursed_sale', 'nm_haunted_10', 'nm_pale_deal', 'nm_pale_refuse', 'nm_ash',
-  'nm_reckoning', 'nm_calm', 'nm_edge', 'nm_omens_10', 'nm_taken_3', 'nm_wards', 'nm_debt', 'nm_lucid',
-  'secret_logo', 'secret_konami', 'secret_nice', 'secret_day69', 'secret_palindrome', 'secret_breakeven', 'nm_secret_eyes', 'nm_secret_666',
+  'nm_reckoning', 'nm_calm', 'nm_edge', 'nm_omens_10', 'nm_taken_3', 'nm_wards', 'nm_debt', 'nm_woke', 'nm_lucid',
+  'secret_logo', 'secret_konami', 'secret_nice', 'secret_day69', 'secret_palindrome', 'secret_breakeven', 'nm_secret_eyes', 'nm_secret_666', 'nm_secret_fond',
 ];
 
 const ACHIEVEMENT_MAP = new Map(ACHIEVEMENT_DEFS.map(ach => [ach.id, ach]));
@@ -3939,12 +3956,18 @@ function showGameOverScreen() {
   const nightmare = isNightmare();
   const consumed = state.gameOverCause === 'consumed';
   const asleep = state.gameOverCause === 'sleep';
+  const woke = state.gameOverCause === 'woke';
+  const fond = state.gameOverCause === 'fond';
   const titleEl = document.getElementById('game-over-title-text');
   const subEl   = document.getElementById('game-over-subtitle');
-  if (titleEl) titleEl.textContent = nightmare ? (asleep ? 'YOU FELL ASLEEP' : consumed ? 'YOU NEVER WOKE UP' : 'THE LOT GOES DARK') : 'GAME OVER';
+  if (titleEl) titleEl.textContent = nightmare ? (woke ? 'YOU WOKE UP' : fond ? 'HE IS HAPPY' : asleep ? 'YOU FELL ASLEEP' : consumed ? 'YOU NEVER WOKE UP' : 'THE LOT GOES DARK') : 'GAME OVER';
   if (subEl) {
     subEl.textContent = nightmare
-      ? (asleep
+      ? (woke
+          ? 'Sunlight. A desk. Old coffee. You are awake, and the lot is exactly where you left it. The door chimes. A customer steps in, smiling a little too wide. "Good morning," he says. "Shall we begin?" Winning never freed you. It only woke you up.'
+          : fond
+          ? 'The Pale Man lost, and he is glad of it. He sits beside you and hums. He has stopped asking you to choose. Nobody has ever been this safe, or this kept.'
+          : asleep
           ? 'Your eyes closed, just for a moment. The Pale Man had been patient all night. He was only ever waiting for you to stop watching.'
           : consumed
           ? 'The third Reckoning took everything. The dealership is still open. Nobody remembers who runs it.'
@@ -3952,6 +3975,7 @@ function showGameOverScreen() {
       : 'Hard mode bankruptcy — your dealership has closed its doors.';
   }
   el.classList.toggle('nm-over', nightmare);
+  el.classList.toggle('nm-ending', nightmare && (woke || fond));
   const diffRow = nightmare
     ? '<strong class="text-red">Nightmare 💀</strong>'
     : '<strong class="text-red">Hard 💪</strong>';
@@ -5251,6 +5275,7 @@ function runAchievementChecks() {
     dirty = true;
     addNote(`🏆 Achievement unlocked: ${ach.name}`, 'success');
     showToast(`🏆 ${ach.name}`, 'achievement', 'achievement');
+    if (ach.id === 'nm_lucid' && isNightmare() && !state.gameOver) onLucidDreamer();
   }
   if (dirty) saveGlobalAchievements();
 }
@@ -5275,6 +5300,7 @@ function nextDay() {
   processLoanAndDelinquency();// daily debt service and delinquency ladder
   processMarketVolatility();  // segment index drift + random events
   processNightmareNight();    // Dread, hauntings, the Pale Customer (Nightmare only)
+  processNormalLore();        // Story beats (every difficulty except Nightmare)
   processMarketDepreciation();// value changes on inventory
   resolveCustomerOfferCounters();
   resolveTradeInCounters();
@@ -11383,6 +11409,33 @@ function menuSetDifficulty(_level) {
  *                  e.g. to pick a recommended car and pre-select it in a picker
  */
 
+// ------------------------------------------------------------
+// STORY — normal (non-Nightmare) lore
+// ------------------------------------------------------------
+const NORMAL_LORE_INTRO = '👋 Welcome to DealerSim! Last month your mom finally kicked you out of her basement ("Honey, you are thirty-one. The casserole is in the fridge."). The next day a lawyer called: a great-uncle you barely remember left you his old, rundown used car dealership. The roof leaks, the sign is crooked, and the lot is full of tired cars. But the keys are in your hand, and it is yours.';
+
+/** Small story beats shown in the activity log as days pass (every difficulty except Nightmare). */
+const NORMAL_LORE_BEATS = [
+  { day: 2,   text: "In the office desk you find a shoebox of receipts. Your great-uncle kept every deal he ever made, the bad ones most of all." },
+  { day: 5,   text: "Mom texts: \"Eating okay?\" You send a photo of a gas-station burrito. She replies with a thumbs-up and a casserole emoji. Progress." },
+  { day: 12,  text: "A neighbor stops by to say they thought the lot had closed for good years ago. They seem pleasantly surprised." },
+  { day: 25,  text: "Someone has been leaving the crooked sign alone and the weeds trimmed. Nobody on your payroll admits to it. You decide not to ask." },
+  { day: 45,  text: "Mom drives past the lot without stopping, slows down, then comes back around and honks. You choose to take this as pride." },
+  { day: 75,  text: "You find a faded Polaroid taped inside a desk drawer: your great-uncle, grinning in front of the first car he ever sold. The lot looks the same. So does the sign." },
+  { day: 120, text: "A customer says your great-uncle sold their dad a car in 1987 and never once lied about it. You resolve to be the kind of dealer people say that about." },
+  { day: 200, text: "The roof no longer leaks. The sign is straight. Mom comes for Sunday dinner at the lot office and, grudgingly, admits the basement was holding you back." },
+];
+
+/** Shows the next unseen story beat whose day has arrived. Does nothing on Nightmare. */
+function processNormalLore() {
+  if (!state || isNightmare() || state.gameOver) return;
+  if (!state.loreSeen) state.loreSeen = {};
+  const beat = NORMAL_LORE_BEATS.find(b => state.day >= b.day && !state.loreSeen[b.day]);
+  if (!beat) return;
+  state.loreSeen[beat.day] = true;
+  addNote('📖 ' + beat.text, 'info');
+}
+
 /** Pick the cheapest currently-orderable factory car — the recommended first buy. */
 function _tutorialPickRecommendedFactoryCar() {
   let best = null;
@@ -11419,7 +11472,9 @@ function getTutorialSteps() {
   return [
     {
       // Step 0: Welcome — no spotlight, centered modal
-      message: '👋 Welcome to DealerSim! This walkthrough covers buying a factory car, listing it for sale, and buying from the Used Market — everything you need for your first flip.\n\nWhile the tutorial is running, only the glowing highlighted element will respond to clicks. Follow the glow!',
+      message: isNightmare()
+        ? '👋 Welcome to DealerSim! This walkthrough covers buying a factory car, listing it for sale, and buying from the Used Market — everything you need for your first flip.\n\nWhile the tutorial is running, only the glowing highlighted element will respond to clicks. Follow the glow!'
+        : NORMAL_LORE_INTRO + '\n\nThis walkthrough covers buying a factory car, listing it for sale, and buying from the Used Market — everything you need for your first flip. While it runs, only the glowing highlighted element will respond to clicks. Follow the glow!',
       target: null,
       tab: null,
     },
@@ -11516,7 +11571,7 @@ function getTutorialSteps() {
     },
     {
       // Step 10: Finish — no spotlight, points toward the rest of the game
-      message: '🏁 You\'re all set! You now know how to buy from the Factory, buy Used, and list cars for sale. From here, check out Service (repairs & detailing), Finance (loans), Staff, Upgrades, and Achievements to grow your dealership. Good luck!',
+      message: '🏁 You\'re all set! You now know how to buy from the Factory, buy Used, and list cars for sale. From here, check out Service (repairs & detailing), Finance (loans), Staff, Upgrades, and Achievements to grow your dealership.' + (isNightmare() ? ' Good luck!' : ' Make the old place proud — and maybe prove to Mom that the basement was a phase.'),
       target: null,
       tab: null,
     },
@@ -11988,6 +12043,66 @@ const NIGHTMARE_WHISPERS = [
   'A customer you do not remember lingers by the gate, smiling. The suit is a little too big. He is wearing it, not the other way round.',
 ];
 
+// One-sentence hints at the lot's history. Mixed into the whisper pool.
+const NIGHTMARE_HISTORY_WHISPERS = [
+  'The lot has had other owners. Their names are still on the oldest invoices, in the same cramped handwriting.',
+  'The concrete under the showroom is newer than the building above it.',
+  'The first sale in the ledger is dated before the lot was built.',
+  'The sign out front has been repainted so many times the letters are standing out like scar tissue.',
+  'Somebody before you kept a tally on the inside of the office door. It stops mid-row.',
+  'The security tapes from before you arrived are all the same ten minutes of an empty lot.',
+  'Every car on the lot has been sold before. Not by you.',
+  'The previous dealer left in a hurry. His coffee is still warm.',
+];
+NIGHTMARE_WHISPERS.push(...NIGHTMARE_HISTORY_WHISPERS);
+
+// Whispers that only make sense once you have unlocked Lucid Dreamer.
+const NIGHTMARE_LUCID_WHISPERS = [
+  'You wake up. You are on the lot. You wake up again.',
+  'The lot feels more real every night. That is not a comfort.',
+  'You try to remember your mother\'s basement. It is only a color now.',
+  'You pinch yourself. He pinches back.',
+];
+function nmWhisperPool() {
+  return globalAchievements.nm_lucid ? NIGHTMARE_WHISPERS.concat(NIGHTMARE_LUCID_WHISPERS) : NIGHTMARE_WHISPERS;
+}
+
+/**
+ * Story beats delivered during play, one per night at most, in order.
+ * { night, text, modal? } — modal beats also pop a dramatic dialog.
+ */
+const NIGHTMARE_LORE_BEATS = [
+  { night: 2,  title: '🗝️ The Office Board', modal: true,
+    text: 'There is a pegboard of keys behind the desk. One key has a paper tag, and the tag has your name on it. The ink is brown and old. It was written before you arrived.' },
+  { night: 4,  text: 'You try to remember the last time you really slept. Not dozed. Slept. Before you signed. You cannot.' },
+  { night: 7,  text: 'He has never touched you. You are beginning to understand that he cannot. Everything the Pale Man does, he does inside a rule. That is why he plays.' },
+  { night: 10, title: '🎲 Why He Plays', modal: true,
+    text: 'He could kill you. You know it, he knows it. But he is bound by his own rules, and the rules say you have to choose. He does not want your death. He wants to watch you decide.' },
+  { night: 14, text: 'The papers you signed had a clause you did not read. It said the dealership would always have a dealer.' },
+  { night: 18, text: 'A pattern: the too-wide smile, the above-market offer. Whoever he is dressed as this time, that is the tell.' },
+  { night: 22, text: 'The money turns to ash because it was never money. It is dream currency, and it wears off the moment you stop dreaming it.' },
+  { night: 26, text: 'You woke up this morning. You are almost sure. You woke up again to check.' },
+  { night: 40, text: 'Hope is the cruelest thing here. He lets you win a little, so that you will keep deciding.' },
+  { night: 70, text: 'The tag with your name was written first. Everything else on the lot was written after.' },
+];
+
+function processNightmareLore() {
+  if (_tutorialStep >= 0) return;   // the tutorial stays spoiler-free; beats wait until it ends
+  const n = nm();
+  const beat = NIGHTMARE_LORE_BEATS[n.loreIdx || 0];
+  if (!beat || state.day < beat.night) return;
+  n.loreIdx = (n.loreIdx || 0) + 1;
+  addNote('🕯️ ' + beat.text, 'whisper');
+  if (beat.modal) {
+    showNightmareModal({
+      title: beat.title,
+      tone: 'nm-modal-red',
+      html: `<p>${beat.text}</p>`,
+      actions: [{ label: 'Hang it back up', cls: 'btn-primary' }],
+    });
+  }
+}
+
 const NIGHTMARE_SWEEP_LINES = [
   'You are not alone.', 'Do not look in the mirrors.', 'It is later than you think.',
   'The lot remembers.', 'Keep the lights on.', 'Count the cars. Count them again.',
@@ -12063,7 +12178,7 @@ function processNightmareNight() {
     state.cash -= lost;
     n.ashCount = (n.ashCount || 0) + 1;
     changeDread(8);
-    addNote(`🔥 The Pale Customer's cash crumbled to ash overnight. −${formatCurrency(lost)}.`, 'error');
+    addNote(`🔥 The Pale Customer's cash crumbled to ash overnight. −${formatCurrency(lost)}. Dream money only lasts while you are still dreaming it.`, 'error');
     showToast(`🔥 The money turned to ash. −${formatCurrency(lost)}`, 'error', 'ash');
   }
 
@@ -12096,11 +12211,17 @@ function processNightmareNight() {
   } else if (tier < tierBefore) {
     addNote('You can breathe again. For now.', 'whisper');
   } else if (tier >= 1 && Math.random() < 0.22 + tier * 0.12) {
-    addNote(randomFrom(NIGHTMARE_WHISPERS), 'whisper');
+    addNote(randomFrom(nmWhisperPool()), 'whisper');
   }
+
+  // 5b. The lot tells you things, a little at a time.
+  processNightmareLore();
 
   // 6. The Reckoning.
   if (n.dread >= 100) { triggerReckoning(); if (state.gameOver) return; }
+
+  // 6b. The dawn: the Pale Man offers you the way out.
+  maybeOfferDawn();
 
   // 7. A stranger at the gate.
   maybeSpawnPaleCustomer();
@@ -12197,6 +12318,108 @@ function triggerReckoning() {
   });
 }
 
+/** The pegboard behind the desk. The tag with your name changes as the run goes on. */
+function openOfficeBoard() {
+  if (!isNightmare()) return;
+  const n = nm();
+  const tally = n.reckonings ? `<p>Under your name, in fresher ink, ${n.reckonings === 1 ? 'a single tally mark' : n.reckonings + ' tally marks'}.</p>` : '';
+  const others = globalAchievements.nm_woke
+    ? '<p>There are other tags on the board now. Dozens. Every one of them has your name on it, and every one has a different date.</p>' : '';
+  showNightmareModal({
+    title: '🗝️ The Office Board',
+    tone: 'nm-modal-red',
+    html: `<p>A pegboard behind the desk. Thirty-nine keys, one empty hook. Each key has a paper tag in the same cramped hand.</p>
+           <p>Most of the tags are stock numbers. One reads your name. The ink is brown and curled at the edges. It was written before you arrived.</p>
+           ${tally}${others}`,
+    actions: [{ label: 'Hang it back up', cls: 'btn-primary' }],
+  });
+}
+
+/** Offered at Night 30, then again at Night 100 and 200 if you keep dreaming. */
+const NIGHTMARE_DAWN_NIGHTS = [30, 100, 200];
+function maybeOfferDawn() {
+  const n = nm();
+  if (state.gameOver) return;
+  const due = NIGHTMARE_DAWN_NIGHTS.filter(d => state.day >= d && (n.dawnOffered || 0) < d).pop();
+  if (!due) return;
+  n.dawnOffered = due;
+  addNote('🌅 The sky over the lot turns gold. The Pale Man is standing at the gate with his hat in his hands.', 'whisper');
+  showNightmareModal({
+    title: '🌅 The Dawn',
+    tone: 'nm-modal-pale',
+    html: `<p>For the first time the sky over the lot is the wrong color: gold. The fog lifts. The lights stop humming.</p>
+           <p>The Pale Man stands at the gate, hat in his hands. He is not smiling.</p>
+           <p>"You have won," he says. "That is the rule. When you win, you wake up."</p>
+           <p>You notice he said <em>wake up</em>. He did not say <em>go free</em>.</p>
+           <p class="nm-modal-warn">⚠️ Waking up ends this run. You can stay and keep dreaming instead. He will be here either way.</p>`,
+    actions: [
+      { label: 'Wake up', cls: 'btn-primary', fn: nightmareWakeUp },
+      { label: 'Keep dreaming', cls: 'btn-secondary' },
+    ],
+  });
+}
+
+/** Main ending: winning does not free you, it just wakes you up. */
+function nightmareWakeUp() {
+  if (!isNightmare() || state.gameOver) return;
+  stopSleepClock();
+  const n = nm();
+  n.wokeUp = (n.wokeUp || 0) + 1;
+  state.gameOver = true;
+  state.gameOverCause = 'woke';
+  addNote('🌅 You woke up. Sunlight, a desk, old coffee. The key with your name on it is still on the board.', 'success');
+  document.querySelectorAll('.nm-modal-overlay').forEach(el => el.remove());
+  _nmModalQueue = []; _nmModalOpen = false;
+  saveState();
+  clearActiveSession();
+  runAchievementChecks();
+  showGameOverScreen();
+}
+
+/** Secret ending: he has lost enough times that he is almost happy about it. */
+const NIGHTMARE_FOND_WINS = 10;
+function nightmareFondPrompt() {
+  showNightmareModal({
+    title: '🎲 He Loses',
+    tone: 'nm-modal-pale',
+    html: `<p>You win again. The Pale Man looks at his open hand for a long time.</p>
+           <p>Then he smiles. Not the too-wide smile. A small one, crooked, a little surprised, the kind a person makes before they remember to hide it.</p>
+           <p>"Oh," he says. "Oh, that is <em>new</em>."</p>
+           <p>He has played a thousand dealers and never once been beaten often enough to be glad of it. He is glad. He is almost <em>fond</em>. That is worse.</p>
+           <p>"Stay," he says gently. "Lose to me a little longer. I will never ask you to choose again."</p>`,
+    actions: [{ label: 'Close your eyes', cls: 'btn-primary', fn: nightmareFondEnding }],
+  });
+}
+
+function nightmareFondEnding() {
+  if (!isNightmare() || state.gameOver) return;
+  stopSleepClock();
+  const n = nm();
+  n.fondEnding = (n.fondEnding || 0) + 1;
+  state.gameOver = true;
+  state.gameOverCause = 'fond';
+  addNote('🎲 The Pale Man lost, and was glad of it. He is humming.', 'success');
+  document.querySelectorAll('.nm-modal-overlay').forEach(el => el.remove());
+  _nmModalQueue = []; _nmModalOpen = false;
+  saveState();
+  clearActiveSession();
+  runAchievementChecks();
+  showGameOverScreen();
+}
+
+/** Shown when Lucid Dreamer unlocks: which side is the real dream? */
+function onLucidDreamer() {
+  addNote('🏆 You know it is a dream. The question is which side of it.', 'whisper');
+  showNightmareModal({
+    title: '👁️ Lucid',
+    tone: 'nm-modal-pale',
+    html: `<p>You have woken up. You have gone back to sleep. You have done both so many times that you can no longer say which was the dream.</p>
+           <p>The lot, with its fog and its keys and its customers who smile too wide? Or the sleep: the basement, the casserole, the life you remember on the other side?</p>
+           <p>The Pale Man applauds, once, softly. "Now you are asking the right question," he says. He does not answer it.</p>`,
+    actions: [{ label: 'Keep asking', cls: 'btn-primary' }],
+  });
+}
+
 function nightmareConsumed() {
   state.gameOver = true;
   state.gameOverCause = 'consumed';
@@ -12230,6 +12453,8 @@ const PALE_OPEN_LINES = [
   'You look so tired. Let us play a little game, you and I.',
   'Every night you come back to me. I do love how you try.',
   'Win, and I will let you sleep. Lose, and I will keep you company.',
+  'I keep to my rules, little dealer. They are all I have. The rules say you choose.',
+  'I do not want you dead. I want to watch you decide.',
 ];
 const PALE_ROUND_WIN_LINES  = ['Lucky.', 'Hm. Do that again.', 'Enjoy it. It will not last.', 'I let you have that one.'];
 const PALE_ROUND_LOSE_LINES = ['Mine.', 'So easy. So tired.', 'I could do this all night. You cannot.', 'Your hands are slow.'];
@@ -12342,7 +12567,7 @@ function updateSleepUi() {
       const pct = sleepDisplay();
       chip.querySelector('.nm-sleep-mini i').style.width = pct + '%';
       chip.querySelector('.nm-sleep-pct').textContent = pct + '%';
-      chip.title = `Sleep ${pct}% — drains ${SLEEP_DRAIN_PER_MIN}% a minute. At 0 you fall asleep for good. Click to play the Pale Man for +${SLEEP_WIN_GAIN}%.`;
+      chip.title = `Sleep ${pct}% — you haven't really slept since you signed. It drains ${SLEEP_DRAIN_PER_MIN}% a minute. At 0 you fall asleep for good. Click to play the Pale Man for +${SLEEP_WIN_GAIN}%.`;
       chip.classList.toggle('sleep-low',  getSleep() <= 30);
       chip.classList.toggle('sleep-crit', getSleep() <= 10);
     }
@@ -12683,6 +12908,9 @@ function paleDuelFinish(won) {
     addNote(`😴 You beat the Pale Man and slept. +${gained}% sleep. He watched the whole time.`, 'whisper');
     playSfx('candle');
     nightmareFx('candle', 1800);
+    if (n.sleepDuelsWon >= NIGHTMARE_FOND_WINS && !n.fondEnding) {
+      paleDuelSay('Again. Please. Again.');
+    }
   } else {
     n.sleepDuelsLost = (n.sleepDuelsLost || 0) + 1;
     n.duelCooldownUntil = Date.now() + PALE_LOSS_COOLDOWN_SEC * 1000;
@@ -12696,7 +12924,9 @@ function paleDuelFinish(won) {
   saveState();
   updateSleepUi();
   const actions = [];
-  if (won) {
+  if (won && n.sleepDuelsWon >= NIGHTMARE_FOND_WINS && !n.fondEnding) {
+    actions.push({ label: 'Look at him', cls: 'btn-primary', fn: () => { paleDuelWalkAway(); nightmareFondPrompt(); } });
+  } else if (won) {
     actions.push({ label: 'Wake up', cls: 'btn-primary', fn: paleDuelWalkAway });
     if (getSleep() < 99.5) actions.push({ label: 'Play again', fn: () => paleDuelReset(true) });
   } else {
@@ -12805,7 +13035,7 @@ function paleCustomerModalSpec(v) {
     html: `<p>A customer stands at the edge of the lot, in a suit that fits him badly. Nobody saw him arrive. He does not blink.</p>
            <p>"That one," he says, pointing at your <strong>${v.carLabel}</strong>. "I'll pay <strong>${formatCurrency(v.offer)}</strong>."</p>
            <p>The smile is too wide. The skin is too pale. You know this face from your sleep. <strong>It is the Pale Man, dressed as a customer.</strong> He could take everything. He would rather make a deal.</p>
-           <p>That's <strong>${pct}%</strong> of what it's worth. The bills smell faintly of smoke.</p>
+           <p>That's <strong>${pct}%</strong> of what it's worth. The bills smell faintly of smoke. A smile too wide, an offer above market: it is always the same tell.</p>
            <p class="nm-modal-warn">⚠️ Taking the deal adds +18 Dread, and there's a 1 in 4 chance the money is gone by morning. The offer stands for tonight only.</p>`,
     actions: [
       { label: 'Take the money', cls: 'btn-danger', fn: acceptPaleCustomer },
@@ -12917,7 +13147,7 @@ function renderNightmarePanel() {
           <div class="nm-actions">
             <button class="btn btn-primary nm-sleep-btn" onclick="openPaleDuel()" ${paleCooldownLeft() > 0 ? 'disabled' : ''} title="Best of three. Win to sleep (+${SLEEP_WIN_GAIN}%). Lose and you gain nothing, and he makes you wait ${PALE_LOSS_COOLDOWN_SEC}s.">${sleepBtnLabel()}</button>
           </div>
-          <p class="nm-pale-toy">He could kill you where you stand. He would rather play.</p>
+          <p class="nm-pale-toy">He could kill you where you stand. His own rules say he has to let you choose.</p>
           <div class="stat-row"><span>Reckonings</span><strong class="${n.reckonings ? 'text-red' : 'text-muted'}">${n.reckonings || 0} / ${NIGHTMARE_MAX_RECKONINGS} <small>(the last is final)</small></strong></div>
           <div class="stat-row"><span>Cursed cars on the lot</span><strong class="${cursedOnLot ? 'text-red' : 'text-muted'}">${cursedOnLot}</strong></div>
           <div class="stat-row"><span>Tonight's drift</span><strong class="${driftCls}">${drift.total > 0 ? '+' : ''}${drift.total} Dread</strong></div>
@@ -12927,12 +13157,13 @@ function renderNightmarePanel() {
               title="One per night. Costs ${formatCurrency(NIGHTMARE_CANDLE_COST)}.">🕯️ ${candleUsed ? 'Candle lit tonight' : `Light a Candle · −${NIGHTMARE_CANDLE_RELIEF} Dread · ${formatCurrency(NIGHTMARE_CANDLE_COST)}`}</button>
           </div>
           ${ashHtml}
+          ${state.day >= 2 ? `<div class="nm-actions"><button class="btn btn-secondary" onclick="openOfficeBoard()" title="The pegboard of keys behind the desk.">🗝️ Office board</button></div>` : ''}
         </div>
         <ul class="nm-rules">
           <li><strong>Sell cars</strong> to keep the dark back (−4 Dread each, up to −16 a night).</li>
           <li>At <strong>100 Dread</strong> the dark collects: cash, your best car, and a step closer to the end.</li>
           <li><strong>Cursed cars</strong> sell cheap — inspect first. Exorcise them, or sell them fast.</li>
-          <li><strong>Sleep</strong> drains ${SLEEP_DRAIN_PER_MIN}% every minute. At <strong>0</strong> you pass out and the run is over.</li>
+          <li><strong>Sleep</strong> drains ${SLEEP_DRAIN_PER_MIN}% every minute. You haven't really slept since you signed. At <strong>0</strong> you pass out and the run is over.</li>
           <li>Beat the <strong>Pale Man</strong> at rock-paper-scissors (best of three) to sleep: +${SLEEP_WIN_GAIN}%. Lose and you gain nothing, and he makes you wait ${PALE_LOSS_COOLDOWN_SEC}s. He is only toying with you.</li>
           <li>The <strong>Pale Customer</strong> is the Pale Man in disguise. He pays far too much. Money can burn.</li>
           <li>Buy <strong>Wards</strong> in Upgrades to push the night back for good.</li>
