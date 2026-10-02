@@ -21,6 +21,7 @@ const PATCH_NOTES = [
       { type: 'feature', text: "New difficulty: NIGHTMARE. Pick it when creating a save slot. The whole game turns red — fog, film grain, a pulsing vignette, and now and then, something watching from the edge of the screen. Overhead is double, staff are paid 25% extra for night shifts, loans are 24% APR with 2% minimum principal, buyers are pickier, and bankruptcy ends the run for good." },
       { type: 'feature', text: "Dread: a new 0–100 meter on Nightmare. It creeps up every night and is pushed back by sales (−4 each), candles, and Wards. Cursed cars, empty tills and overdue debts push it forward. As it climbs the dark gets louder — more fog, flickering numbers, a heartbeat in the soundtrack. Hit 100 and a Reckoning takes cash and your best car; the third Reckoning is final." },
       { type: 'feature', text: "Cursed cars: some used-market listings on Nightmare are suspiciously cheap. Inspect them to confirm the curse. Owned cursed cars add Dread, haunt the lot (breakdowns, odometers that move on their own, the occasional vanishing), and are harder to sell — or pay to exorcise them." },
+      { type: 'balance', text: "Nightmare economy: market values no longer collapse. Segments stay above 88% of normal and recover quickly, and owned cars don't keep losing value through dips. The nightly Dread gain is now 2 instead of 3, so selling cars can keep it down." },
       { type: 'feature', text: "Sleep (Nightmare): a new meter that drains 10% every minute. At 0 you fall asleep and the run is over. To rest, play the Pale Man at rock-paper-scissors — best of three. Win and you sleep (+50%); lose and you gain nothing. He could kill you any time. He'd rather play. Lose a match and he makes you wait 20 seconds. The Pale Customer is him, too, wearing a customer's face." },
       { type: 'feature', text: "The Pale Customer: now and then a stranger offers far above market value for one of your cars. The money might be ash by morning. +18 Dread if you take it." },
       { type: 'feature', text: "Wards: three Nightmare-only upgrades — Salt Lines, Floodlight Array and Lot Chapel — that push the night back for good. Plus ten Nightmare-only omens in the market-event pool, and \"Night N\" replaces \"Day N\" with a creeping line of text between nights." },
@@ -3894,23 +3895,27 @@ function gameOverNewGame() {
 function processMarketVolatility() {
   const nightmare = isNightmare();
   const isHard = state.difficulty === 'hard';
-  const diffMultiplier = nightmare ? 1.7 : isHard ? 1.4 : 1.0;
+  // Nightmare is scary, not ruinous: its swings are only a little bigger than Normal and it recovers quickly,
+  // so segment values stay in a workable band (never below ~88%) and cars remain sellable.
+  const diffMultiplier = nightmare ? 1.2 : isHard ? 1.4 : 1.0;
+  const idxMin = nightmare ? NIGHTMARE_MARKET_MIN : 0.60;
+  const idxMax = nightmare ? NIGHTMARE_MARKET_MAX : 1.50;
   for (const seg of Object.keys(state.marketIndices)) {
     // Daily drift ±0–1.5% on Normal, ±0–2.1% on Hard, ±0–2.6% on Nightmare
     const drift = (Math.random() - 0.5) * 0.03 * diffMultiplier;
     // Mean reversion: gently pull index back toward 1.0 each day
     // Normal: 3% of the excess per day; Hard: 1.5%; Nightmare: 1% (slower reversion = more volatility)
-    const reversionStrength = nightmare ? 0.010 : isHard ? 0.015 : 0.030;
+    const reversionStrength = nightmare ? 0.040 : isHard ? 0.015 : 0.030;
     const reversion = (1.0 - state.marketIndices[seg]) * reversionStrength;
-    state.marketIndices[seg] = clamp(state.marketIndices[seg] * (1 + drift) + reversion, 0.60, 1.50);
+    state.marketIndices[seg] = clamp(state.marketIndices[seg] * (1 + drift) + reversion, idxMin, idxMax);
   }
   // Random market event — 5% on Normal, 12% on Hard, 20% on Nightmare (which also adds its own omens)
-  const eventChance = nightmare ? 0.20 : isHard ? 0.12 : 0.05;
+  const eventChance = nightmare ? 0.15 : isHard ? 0.12 : 0.05;
   if (Math.random() < eventChance) {
     const evt = randomFrom(nightmare ? MARKET_EVENTS.concat(NIGHTMARE_EVENTS) : MARKET_EVENTS);
     for (const [seg, delta] of Object.entries(evt.effects)) {
       if (state.marketIndices[seg] !== undefined) {
-        state.marketIndices[seg] = clamp(state.marketIndices[seg] + delta * diffMultiplier, 0.60, 1.50);
+        state.marketIndices[seg] = clamp(state.marketIndices[seg] + delta * diffMultiplier, idxMin, idxMax);
       }
     }
     if (nightmare && evt.dread) {
@@ -3935,7 +3940,7 @@ function processMarketDepreciation() {
 
     // If the segment is below baseline, cars slowly lose value (partial daily adjustment)
     if (idx < 0.95) {
-      const loss = car.marketValue * (0.95 - idx) * 0.18;
+      const loss = car.marketValue * (0.95 - idx) * (isNightmare() ? 0.06 : 0.18);   // Nightmare: dips don't permanently eat your stock
       car.marketValue = Math.max(1000, Math.round(car.marketValue - loss));
     } else if (idx > 1.05) {
       // Market is hot — value gains slightly
@@ -11827,6 +11832,8 @@ const NIGHTMARE_MAX_RECKONINGS = 3;       // the third Reckoning ends the run
 const NIGHTMARE_CANDLE_COST    = 750;
 const NIGHTMARE_CANDLE_RELIEF  = 20;
 const NIGHTMARE_EXORCISM_COST  = 2500;
+const NIGHTMARE_MARKET_MIN     = 0.88;    // Nightmare market segments never sink below 88% of normal value
+const NIGHTMARE_MARKET_MAX     = 1.25;
 const NIGHTMARE_CURSE_CHANCE   = 0.16;    // share of used-market listings that are cursed
 const NIGHTMARE_HAUNT_CHANCE   = 0.12;    // per cursed car, per night
 const NIGHTMARE_ASH_CHANCE     = 0.25;    // the Pale Customer's money may not survive the night
@@ -11916,7 +11923,7 @@ function computeNightlyDreadDrift() {
   const parts = [];
   let total = 0;
   const add = (label, v) => { if (v) { parts.push({ label, v }); total += v; } };
-  add('The night closes in', 3);
+  add('The night closes in', 2);
   const cursedCount = state.garage.filter(c => c.cursed).length;
   add('Cursed cars on the lot', Math.min(8, cursedCount * (hasWard('wardLights') ? 1 : 2)));
   if (state.cash < 0) add('Empty tills', 2);
