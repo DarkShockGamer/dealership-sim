@@ -11,9 +11,17 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.21.0';
+const GAME_VERSION = '1.21.1';
 
 const PATCH_NOTES = [
+  {
+    version: '1.21.1',
+    date: 'October 2026',
+    notes: [
+      { type: 'fix', text: "Office board: the Day 75 Polaroid is now an actual snapshot pinned on top of its note (your great-uncle grinning next to a faded red sedan, 'first one sold' scrawled underneath) with its own push pin, instead of a plain brown rectangle." },
+      { type: 'fix', text: "Office board: red string now only runs from each note to the next one in order, instead of criss-crossing between notes." },
+    ],
+  },
   {
     version: '1.21.0',
     date: 'October 2026',
@@ -12375,6 +12383,50 @@ function _bbNormalNotes() {
   return out;
 }
 
+/** A faded snapshot of the great-uncle grinning beside the first car he ever sold. */
+function _bbPolaroid() {
+  const wrap = document.createElement('div');
+  wrap.className = 'bb-photo';
+  wrap.innerHTML = `<span class="bb-pinspot2"></span>
+    <div class="bb-photo-img">
+      <svg viewBox="0 0 120 92" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <defs>
+          <linearGradient id="bbSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#bcd3df"/><stop offset="1" stop-color="#eadfc2"/></linearGradient>
+          <radialGradient id="bbVig" cx="50%" cy="50%" r="70%"><stop offset="0.55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#2a1a08" stop-opacity=".55"/></radialGradient>
+        </defs>
+        <rect width="120" height="92" fill="url(#bbSky)"/>
+        <rect y="62" width="120" height="30" fill="#8b8068"/>
+        <rect y="61" width="120" height="3" fill="#6f6650"/>
+        <g stroke="#6a5c46" stroke-width="1.2"><path d="M96 20v42"/><path d="M82 28h30"/></g>
+        <rect x="82" y="22" width="30" height="14" rx="2" fill="#f1ead4" stroke="#6a5c46" stroke-width="1"/>
+        <text x="97" y="32" font-size="8" text-anchor="middle" fill="#7a2a22" font-family="Georgia,serif" font-weight="700">CARS</text>
+        <g>
+          <path d="M44 66c0-8 2-12 9-14l10-8c3-2 6-3 10-3h18c5 0 8 2 11 5l7 6c6 1 9 4 9 10v4H44z" fill="#b8402f"/>
+          <path d="M66 46h16c3 0 5 1 7 4l4 5H61l3-6c1-2 2-3 2-3z" fill="#d9e6ea"/>
+          <path d="M80 46v9" stroke="#b8402f" stroke-width="2"/>
+          <rect x="44" y="64" width="78" height="3" fill="#8e2f22"/>
+          <circle cx="64" cy="70" r="8" fill="#2a2a2a"/><circle cx="64" cy="70" r="3.6" fill="#c9c5b8"/>
+          <circle cx="108" cy="70" r="8" fill="#2a2a2a"/><circle cx="108" cy="70" r="3.6" fill="#c9c5b8"/>
+          <rect x="116" y="60" width="5" height="4" rx="1" fill="#f3e29a"/>
+        </g>
+        <g>
+          <ellipse cx="26" cy="86" rx="14" ry="2.6" fill="#000" opacity=".2"/>
+          <path d="M20 84l2-22h8l2 22z" fill="#46506a"/>
+          <path d="M17 62c0-6 4-10 9-10s9 4 9 10l-1 3H18z" fill="#c9b27a"/>
+          <path d="M17 62l-6 12" stroke="#c9b27a" stroke-width="4" stroke-linecap="round"/>
+          <path d="M35 62l6-8" stroke="#c9b27a" stroke-width="4" stroke-linecap="round"/>
+          <circle cx="26" cy="44" r="7.5" fill="#e0b894"/>
+          <path d="M18.6 42c1-6 5-8 8-8s7 2 8 8c-3-3-6-3-8-3s-5 0-8 3z" fill="#e8e3d8"/>
+          <path d="M22 47c1.5 3 6.5 3 8 0" stroke="#7a3a2a" stroke-width="1.4" fill="#fff" stroke-linecap="round"/>
+          <circle cx="23.2" cy="43.5" r=".9" fill="#2a1a10"/><circle cx="28.8" cy="43.5" r=".9" fill="#2a1a10"/>
+        </g>
+        <rect width="120" height="92" fill="url(#bbVig)"/>
+      </svg>
+    </div>
+    <div class="bb-photo-cap">first one sold</div>`;
+  return wrap;
+}
+
 function openBulletinBoard() {
   if (!state || document.querySelector('.bb-overlay')) return;
   const nmode = isNightmare();
@@ -12424,7 +12476,9 @@ function openBulletinBoard() {
     const txt = document.createElement('div');
     txt.className = 'bb-text';
     txt.textContent = nt.text;
-    el.append(spot, lab, txt);
+    el.append(spot, lab);
+    if (nt.kind === 'polaroid') el.appendChild(_bbPolaroid());
+    el.appendChild(txt);
     grid.appendChild(el);
   });
   const pinLayer = document.createElement('div');
@@ -12456,11 +12510,14 @@ function openBulletinBoard() {
       th.setAttribute('d', d); th.setAttribute('class', 'bb-string');
       svg.append(sh, th);
     };
+    // One string from each note to the next one in order, nothing else.
     const live = pts.filter(p => !p.locked);
-    for (let i = 0; i < live.length - 1; i++) {
-      link(live[i], live[i + 1]);
-      if (i % 3 === 0 && i + 2 < live.length) link(live[i], live[i + 2]);
-    }
+    for (let i = 0; i < live.length - 1; i++) link(live[i], live[i + 1]);
+    // Photos get their own pin but no string.
+    grid.querySelectorAll('.bb-pinspot2').forEach(sp => {
+      const r = sp.getBoundingClientRect();
+      pts.push({ x: r.left - sr.left + r.width / 2, y: r.top - sr.top + r.height / 2 });
+    });
     pts.forEach(p => {
       const pin = document.createElement('span');
       pin.className = 'bb-pin';
