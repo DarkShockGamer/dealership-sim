@@ -11,9 +11,23 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.21.1';
+const GAME_VERSION = '1.21.3';
 
 const PATCH_NOTES = [
+  {
+    version: '1.21.3',
+    date: 'October 2026',
+    notes: [
+      { type: 'balance', text: "Early-game overhead no longer eats your first flip. The starting lot's daily overhead is cut from $125 to $40 (Hard $60, Nightmare $80). A factory car takes 2-3 days to arrive and a few more to sell, and a Good-condition one only clears about $0-1,300 profit, so the old rent could turn selling at market value into a loss, worst of all on Nightmare. A whole first flip now costs roughly $240 in overhead on Normal, $360 on Hard and $480 on Nightmare. Applies to existing saves too. Bigger lots and Easy mode are unchanged." },
+    ],
+  },
+  {
+    version: '1.21.2',
+    date: 'October 2026',
+    notes: [
+      { type: 'fix', text: "Office board: every note whose day has already arrived is now pinned up right away. Older saves used to get just one new note per day, so a save on Day 90 could be missing most of the board. Now it shows everything you've reached, on every difficulty." },
+    ],
+  },
   {
     version: '1.21.1',
     date: 'October 2026',
@@ -918,10 +932,12 @@ function displayVin(car) {
 const PERF_ELIGIBLE = ['Sports', 'SUV', 'Truck']; // categories eligible for parts upgrade
 
 // Daily garage overhead costs by garage level
-// Tier 1 (the default starting lot) is much lighter than before — a factory car bought
-// at invoice and sold at market value only clears a ~12-13% margin, so heavy day-one
-// overhead was quietly eating the whole profit before the car even sold.
-const OVERHEAD_BY_LEVEL = { 1: 125, 2: 450, 3: 1200, 4: 1800, 5: 2600, 6: 3800, 7: 5400 };
+// Tier 1 (the default starting lot) is deliberately tiny. A factory car in Good condition
+// bought at invoice and sold to a haggling buyer clears roughly $0-1,300, and it takes
+// 2-3 days to arrive plus a few more to sell, so even $125/day (x2 on Nightmare) could
+// turn a normal first flip into a loss. At $40/day a whole first flip costs about
+// $240 (Normal), $360 (Hard) or $480 (Nightmare).
+const OVERHEAD_BY_LEVEL = { 1: 40, 2: 450, 3: 1200, 4: 1800, 5: 2600, 6: 3800, 7: 5400 };
 
 // Legal / VIN / stolen car mechanics
 const LEGAL_STATUSES = ['clean', 'noTitle', 'stolen'];
@@ -12357,7 +12373,10 @@ function _bbNightmareNotes() {
     { label: 'Behind the desk', kind: 'tag', text: 'Thirty-nine keys, one empty hook. Each key has a paper tag in the same cramped hand.' },
     { label: 'Your key', kind: 'tag', text: 'One tag reads your name. The ink is brown and curled at the edges. It was written before you arrived.' },
   ];
-  const seen = Math.min(n.loreIdx || 0, NIGHTMARE_LORE_BEATS.length);
+  // A note is pinned once its night has arrived, even if the log hasn't delivered it yet
+  // (older saves only get one beat per night, so they would otherwise lag behind).
+  const reached = NIGHTMARE_LORE_BEATS.filter(b => state.day >= b.night).length;
+  const seen = Math.min(Math.max(n.loreIdx || 0, reached), NIGHTMARE_LORE_BEATS.length);
   for (let i = 0; i < seen; i++) {
     const b = NIGHTMARE_LORE_BEATS[i];
     if (b.night === 2) continue;   // the pegboard beat is already the first two notes
@@ -12376,7 +12395,7 @@ function _bbNormalNotes() {
   ];
   let lockedDay = null;
   NORMAL_LORE_BEATS.forEach((b, i) => {
-    if (seenMap[b.day]) out.push({ label: 'Day ' + b.day, kind: b.text.includes('Polaroid') ? 'polaroid' : (i % 3 === 1 ? 'card' : 'paper'), text: b.text });
+    if (seenMap[b.day] || state.day >= b.day) out.push({ label: 'Day ' + b.day, kind: b.text.includes('Polaroid') ? 'polaroid' : (i % 3 === 1 ? 'card' : 'paper'), text: b.text });
     else if (lockedDay === null) lockedDay = b.day;
   });
   if (lockedDay !== null) out.push({ label: 'Day ' + lockedDay, kind: 'locked', text: 'Nothing pinned here yet. Keep the lot open.' });
