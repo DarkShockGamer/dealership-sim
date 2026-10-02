@@ -320,3 +320,7 @@ body.reduce-motion .rps-hand-wrap, body.reduce-motion .rps-box, body.reduce-moti
 @media (prefers-reduced-motion: reduce) { .rps-hand-wrap, .rps-box, #stat-sleep.sleep-crit { animation: none !important; } }
 .rps-actions .btn:disabled { opacity: .5; cursor: not-allowed; }
 .nm-sleep-btn:disabled { opacity: .6; cursor: not-allowed; }
+
+/* v1.20.0 — ending screens (woke up / he is happy): softer, paler than a loss */
+#game-over-screen.nm-over.nm-ending { background: radial-gradient(ellipse at center, #2a2330, #050408); }
+#game-over-screen.nm-over.nm-ending .game-over-title { color: #efe6d2; text-shadow: 0 0 30px rgba(255,240,200,.45); }
