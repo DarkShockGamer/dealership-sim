@@ -12234,22 +12234,71 @@ function updateSleepUi() {
   document.querySelectorAll('.nm-sleep-bar').forEach(el => el.setAttribute('aria-valuenow', String(pct)));
 }
 
-// ---- Hand art (SVG, drawn pointing up; colour comes from --hand) ----
-function rpsHandSvg(kind) {
-  const art = {
-    rock: `<rect x="24" y="30" width="15" height="34" rx="7.5"/><rect x="38" y="26" width="15" height="38" rx="7.5"/>
-           <rect x="52" y="28" width="15" height="36" rx="7.5"/><rect x="66" y="34" width="14" height="30" rx="7"/>
-           <rect x="22" y="48" width="60" height="58" rx="18"/><rect x="14" y="72" width="44" height="17" rx="8.5" transform="rotate(-8 36 80)"/>`,
-    paper: `<rect x="12" y="62" width="34" height="14" rx="7" transform="rotate(-40 29 69)"/>
-            <rect x="24" y="14" width="13" height="62" rx="6.5"/><rect x="38" y="6" width="13" height="68" rx="6.5"/>
-            <rect x="52" y="12" width="13" height="64" rx="6.5"/><rect x="66" y="26" width="12" height="50" rx="6"/>
-            <rect x="22" y="58" width="58" height="48" rx="16"/>`,
-    scissors: `<rect x="30" y="8" width="13" height="64" rx="6.5" transform="rotate(-14 36 72)"/>
-               <rect x="52" y="8" width="13" height="64" rx="6.5" transform="rotate(14 58 72)"/>
-               <rect x="62" y="52" width="14" height="30" rx="7"/><rect x="74" y="56" width="12" height="26" rx="6"/>
-               <rect x="22" y="62" width="62" height="44" rx="16"/><rect x="14" y="80" width="42" height="16" rx="8" transform="rotate(-8 35 88)"/>`,
-  };
-  return `<svg class="rps-svg" viewBox="0 0 100 120" aria-hidden="true"><g class="rps-skin">${art[kind] || art.rock}</g></svg>`;
+// ---- Hand art: layered SVG (palm, four jointed fingers, thumb, sleeve). Poses are pure CSS (see nightmare.css), so
+// ---- fingers genuinely curl and uncurl when the pose class changes. Colours come from CSS vars on the wrapper.
+let _rpsUid = 0;
+const RPS_FINGERS = {
+  pinky:  { x: 33, y: 67, len: 42, w: 14.5 },
+  ring:   { x: 50, y: 64, len: 54, w: 16 },
+  middle: { x: 68, y: 62, len: 60, w: 17 },
+  index:  { x: 86, y: 64, len: 53, w: 16.5 },
+};
+const THUMB_DEF = { len: 47, w: 19 };
+
+function rpsTube(len, w, taper = 0.88) {
+  const hw = w / 2, tw = hw * taper, r = tw;
+  const f = n => +n.toFixed(2);
+  return `M ${f(-hw)} 0 C ${f(-hw)} ${f(-len * .35)} ${f(-tw - .6)} ${f(-len * .62)} ${f(-tw)} ${f(-len + r)} `
+       + `A ${f(tw)} ${f(r * 1.08)} 0 0 1 ${f(tw)} ${f(-len + r)} `
+       + `C ${f(tw + .6)} ${f(-len * .62)} ${f(hw)} ${f(-len * .35)} ${f(hw)} 0 `
+       + `A ${f(hw)} ${f(hw * .7)} 0 0 1 ${f(-hw)} 0 Z`;
+}
+function rpsNail(len, w, thumb, claw) {
+  const nw = w * (thumb ? .34 : .3), top = -len + 2.2, h = thumb ? 15 : 12.5, f = n => +n.toFixed(2);
+  if (claw) return `<path class="f-nail-shape" d="M ${f(-nw)} ${f(top + h)} L ${f(-nw * .9)} ${f(top + 3)} Q ${f(-nw * .3)} ${f(top - 2)} 0 ${f(top - 8)} Q ${f(nw * .3)} ${f(top - 2)} ${f(nw * .9)} ${f(top + 3)} L ${f(nw)} ${f(top + h)} Q 0 ${f(top + h + 2.2)} ${f(-nw)} ${f(top + h)} Z"/>`
+       + `<path class="f-nail-shine" d="M ${f(-nw * .4)} ${f(top + 5)} L ${f(-nw * .4)} ${f(top + h * .6)}"/>`;
+  return `<path class="f-nail-shape" d="M ${f(-nw)} ${f(top + h)} L ${f(-nw)} ${f(top + nw * .9)} Q ${f(-nw)} ${f(top)} 0 ${f(top)} Q ${f(nw)} ${f(top)} ${f(nw)} ${f(top + nw * .9)} L ${f(nw)} ${f(top + h)} Q 0 ${f(top + h + 2.2)} ${f(-nw)} ${f(top + h)} Z"/>`
+       + `<path class="f-nail-shine" d="M ${f(-nw * .45)} ${f(top + 3.4)} L ${f(-nw * .45)} ${f(top + h * .62)}"/>`;
+}
+function rpsFingerSvg(name, d0, id, claw) {
+  const d = claw ? { ...d0, len: d0.len * 1.09, w: d0.w * .94 } : d0;
+  const hw = d.w / 2, f = n => +n.toFixed(2);
+  const body = rpsTube(d.len, d.w);
+  const c1 = -d.len * .36, c2 = -d.len * .66;
+  const cw = hw * .62;
+  return `<g class="f f-${name}">`
+    + `<path class="f-skin" d="${body}"/>`
+    + `<path d="${body}" fill="url(#fs${id})"/>`
+    + `<path class="f-crease" d="M ${f(-cw)} ${f(c1)} q ${f(cw)} 1.8 ${f(cw * 2)} 0 M ${f(-cw * .9)} ${f(c2)} q ${f(cw * .9)} 1.6 ${f(cw * 1.8)} 0"/>`
+    + `<path class="f-fold" d="M ${f(-hw * .78)} ${f(-d.len * .8)} q ${f(hw * .78)} 2.4 ${f(hw * 1.56)} 0"/>`
+    + `<g class="f-nail">${rpsNail(d.len, d.w, false, claw)}</g>`
+    + `<g class="f-web"><path class="f-webfill" d="M ${f(-hw + 1.1)} -5 L ${f(hw - 1.1)} -5 L ${f(hw - 1.1)} 9 L ${f(-hw + 1.1)} 9 Z"/><path d="M ${f(-hw + 1.1)} -5 L ${f(hw - 1.1)} -5 L ${f(hw - 1.1)} 9 L ${f(-hw + 1.1)} 9 Z" fill="url(#fs${id})"/></g>`
+    + `</g>`;
+}
+function rpsHandSvg(pose, opts = {}) {
+  const id = ++_rpsUid;
+  const claw = !!opts.claw;
+  const sleeve = opts.sleeve !== false;
+  const h = sleeve ? 160 : 134;
+  const palm = 'M 22 70 C 20 62 25 58 31 58 L 93 58 C 99 58 104 62 103 70 C 104 88 99 106 91 117 C 86 124 82 128 79 131 L 45 131 C 42 128 38 124 33 117 C 25 106 20 88 22 70 Z';
+  const thumbBody = rpsTube(THUMB_DEF.len, THUMB_DEF.w, .9);
+  const thumbSvg = which => `<g class="f f-thumb f-thumb-${which}"><path class="f-skin" d="${thumbBody}"/><path d="${thumbBody}" fill="url(#fs${id})"/>
+  <path class="f-crease" d="M -6 ${-THUMB_DEF.len * .45} q 6 1.8 12 0"/><g class="f-nail">${rpsNail(THUMB_DEF.len, THUMB_DEF.w, true, claw)}</g></g>`;
+  return `<svg class="rps-svg pose-${pose}${sleeve ? '' : ' no-sleeve'}" viewBox="0 0 124 ${h}" aria-hidden="true">
+<defs>
+  <linearGradient id="fs${id}" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#000" stop-opacity=".30"/><stop offset=".22" stop-color="#000" stop-opacity=".04"/><stop offset=".42" stop-color="#fff" stop-opacity=".26"/><stop offset=".68" stop-color="#000" stop-opacity=".05"/><stop offset="1" stop-color="#000" stop-opacity=".34"/></linearGradient>
+  <radialGradient id="ps${id}" cx=".42" cy=".36" r=".75"><stop offset="0" stop-color="#fff" stop-opacity=".30"/><stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".34"/></radialGradient>
+  <linearGradient id="ws${id}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".4"/></linearGradient>
+  <linearGradient id="sl${id}" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#000" stop-opacity=".45"/><stop offset=".4" stop-color="#fff" stop-opacity=".08"/><stop offset="1" stop-color="#000" stop-opacity=".5"/></linearGradient>
+</defs>
+${thumbSvg('under')}
+<g class="rps-palm"><path class="f-skin" d="${palm}"/><path d="${palm}" fill="url(#ps${id})"/><path d="M 30 100 C 44 112 70 114 94 104" fill="url(#ws${id})" stroke="none" opacity="0"/>
+  <g class="rps-palm-lines"><path d="M 34 90 Q 48 108 58 126"/><path d="M 40 80 Q 66 90 98 84"/><path d="M 52 86 Q 74 98 96 100"/></g></g>
+${['pinky', 'ring', 'middle', 'index'].map(n => rpsFingerSvg(n, RPS_FINGERS[n], id, claw)).join('')}
+${thumbSvg('over')}
+${sleeve ? `<g class="rps-sleeve"><path class="rps-sleeve-body" d="M 33 136 L 91 136 L 101 160 L 23 160 Z"/><path d="M 33 136 L 91 136 L 101 160 L 23 160 Z" fill="url(#sl${id})"/>
+  <path class="rps-cuff" d="M 32 131 L 92 131 L 93.5 141 L 30.5 141 Z"/></g>` : ''}
+</svg>`;
 }
 
 function rpsOutcome(you, him) {
@@ -12283,14 +12332,15 @@ function openPaleDuel() {
         <div class="rps-side rps-side-him"><span class="rps-pips" data-side="him"></span><span>Pale Man</span></div>
       </div>
       <div class="rps-stage">
-        <div class="rps-hand-wrap rps-you"></div>
+        <div class="rps-hand-wrap rps-you hand-you"></div>
         <div class="rps-vs">VS</div>
-        <div class="rps-hand-wrap rps-him"></div>
+        <div class="rps-hand-wrap rps-him hand-him"></div>
+        <div class="rps-word" aria-hidden="true"></div>
       </div>
       <p class="rps-status" aria-live="polite"></p>
       <p class="rps-say"></p>
       <div class="rps-choices">
-        ${RPS_MOVES.map(m => `<button type="button" class="rps-choice" data-move="${m}" aria-label="${RPS_LABELS[m]}">${rpsHandSvg(m)}<span>${RPS_LABELS[m]}</span></button>`).join('')}
+        ${RPS_MOVES.map(m => `<button type="button" class="rps-choice hand-you" data-move="${m}" aria-label="${RPS_LABELS[m]}">${rpsHandSvg(m, { sleeve: false })}<span>${RPS_LABELS[m]}</span></button>`).join('')}
       </div>
       <div class="nm-sleep-bar rps-sleepbar" role="progressbar" aria-label="Sleep" aria-valuemin="0" aria-valuemax="100">
         <div class="nm-sleep-fill"></div><span class="nm-sleep-num"></span>
@@ -12311,7 +12361,7 @@ function paleDuelEls() {
     ov, status: ov.querySelector('.rps-status'), say: ov.querySelector('.rps-say'),
     you: ov.querySelector('.rps-you'), him: ov.querySelector('.rps-him'),
     choices: ov.querySelectorAll('.rps-choice'), actions: ov.querySelector('.rps-actions'),
-    hands: ov.querySelector('.rps-stage'),
+    hands: ov.querySelector('.rps-stage'), word: ov.querySelector('.rps-word'), box: ov.querySelector('.rps-box'),
   } : null;
 }
 
@@ -12325,12 +12375,18 @@ function paleDuelPips() {
 
 function paleDuelSay(text) { const e = paleDuelEls(); if (e) e.say.textContent = text ? `"${text}"` : ''; }
 
+function rpsSetPose(wrap, pose) {
+  const svg = wrap && wrap.querySelector('svg');
+  if (svg) svg.setAttribute('class', svg.getAttribute('class').replace(/pose-\w+/, 'pose-' + pose));
+}
+
+/** Both hands back to relaxed fists, idling (his sways; yours breathes). */
 function paleDuelShowFists() {
   const e = paleDuelEls(); if (!e) return;
-  e.you.innerHTML = rpsHandSvg('rock');
-  e.him.innerHTML = rpsHandSvg('rock');
-  [e.you, e.him].forEach(h => h.classList.remove('won', 'lost', 'reveal', 'pumping'));
-  e.hands.classList.remove('pumping');
+  if (!e.you.querySelector('svg')) e.you.innerHTML = rpsHandSvg('rock');
+  if (!e.him.querySelector('svg')) e.him.innerHTML = rpsHandSvg('rock', { claw: true });
+  [e.you, e.him].forEach(h => { h.classList.remove('won', 'lost', 'draw'); h.classList.add('idle'); rpsSetPose(h, 'rock'); });
+  e.word.textContent = '';
 }
 
 function paleDuelWalkAway() {
@@ -12372,41 +12428,97 @@ function paleDuelReset(newMatch) {
   paleDuelSetActions([{ label: 'Walk away', fn: paleDuelWalkAway }]);
 }
 
+/** Web Animations helper: resolves when done; collapses to a short wait with Reduce Motion. */
+function rpsAnim(el, frames, opts) {
+  const total = (opts.duration || 0) + (opts.delay || 0);
+  if (!el || !el.animate || shouldReduceMotion()) return new Promise(r => setTimeout(r, Math.min(total, 60)));
+  try { el.animate(frames, { fill: 'none', ...opts }); } catch (_) { /* animation is decoration only */ }
+  // Timer-driven (not animation.finished) so the duel can never stall in a throttled or hidden tab.
+  return new Promise(r => setTimeout(r, total + 30));
+}
+
+/** One drumming stroke of "Rock… Paper… Scissors…": wind up, slam down, rebound. `slam` is where the hands hit (0–1). */
+function rpsStroke(el, lean, { rise = 34, drop = 20, ms = 520, delay = 0 } = {}) {
+  const t = (y, rot, sx = 1, sy = 1) => `translateY(${y}px) rotate(${rot}deg) scale(${sx}, ${sy})`;
+  return rpsAnim(el, [
+    { transform: t(0, lean), offset: 0 },
+    { transform: t(-rise, lean * 1.7, 1.02, 1.02), offset: .36, easing: 'cubic-bezier(.2,.7,.3,1)' },
+    { transform: t(-rise - 4, lean * 1.7, 1.02, 1.02), offset: .44, easing: 'cubic-bezier(.7,0,1,.6)' },
+    { transform: t(drop, lean * .3, 1.12, .9), offset: .64, easing: 'cubic-bezier(.2,.9,.3,1)' },
+    { transform: t(0, lean), offset: 1 },
+  ], { duration: ms, delay, easing: 'linear' });
+}
+
+function rpsImpact(e, strong) {
+  const ring = document.createElement('div');
+  ring.className = 'rps-impact';
+  e.hands.appendChild(ring);
+  rpsAnim(ring, [
+    { transform: 'translate(-50%, 50%) scale(.2)', opacity: strong ? .95 : .6 },
+    { transform: `translate(-50%, 50%) scale(${strong ? 3.2 : 2})`, opacity: 0 },
+  ], { duration: strong ? 620 : 420, easing: 'ease-out' }).then(() => ring.remove());
+  if (e.box) {
+    e.box.classList.remove('rps-shake', 'rps-shake-big'); void e.box.offsetWidth;
+    e.box.classList.add(strong ? 'rps-shake-big' : 'rps-shake');
+  }
+}
+
+function rpsWord(e, text, shoot) {
+  const w = e.word; if (!w) return;
+  w.textContent = text;
+  w.classList.toggle('shoot', !!shoot);
+  rpsAnim(w, [
+    { transform: 'translateX(-50%) scale(2.1)', opacity: 0 },
+    { transform: 'translateX(-50%) scale(1)', opacity: 1, offset: .35 },
+    { transform: 'translateX(-50%) scale(.96)', opacity: 1, offset: .8 },
+    { transform: 'translateX(-50%) scale(.9)', opacity: shoot ? 1 : 0 },
+  ], { duration: shoot ? 700 : 480, easing: 'ease-out', fill: 'forwards' });
+}
+
 async function paleDuelPick(move) {
   const d = _paleDuel;
   if (!d || d.busy || d.over) return;
   const e = paleDuelEls();
   d.busy = true;
   const him = randomFrom(RPS_MOVES);
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const alive = () => _paleDuel === d;
 
   // Locked in: no more changing your mind, and no walking away mid-match.
   e.choices.forEach(b => { b.disabled = true; b.classList.toggle('picked', b.dataset.move === move); });
   e.actions.innerHTML = '';
   paleDuelShowFists();
-  void e.hands.offsetWidth;
-  e.hands.classList.add('pumping');
-  e.you.classList.add('pumping');
-  e.him.classList.add('pumping');
-  const wait = ms => new Promise(r => setTimeout(r, ms));
-  const alive = () => _paleDuel === d;
+  [e.you, e.him].forEach(h => h.classList.remove('idle'));
+  const leanYou = 7, leanHim = -7;
 
-  const beats = ['Rock...', 'Paper...', 'Scissors...'];
-  for (const text of beats) {
-    e.status.textContent = text;
+  // Rock… Paper… Scissors… — both fists pump on the beat; he is a hair late, like he's savouring it.
+  const beats = [['ROCK', 'Rock...'], ['PAPER', 'Paper...'], ['SCISSORS', 'Scissors...']];
+  for (let i = 0; i < beats.length; i++) {
+    e.status.textContent = beats[i][1];
+    const stroke = Promise.all([rpsStroke(e.you, leanYou), rpsStroke(e.him, leanHim, { delay: 38 })]);
+    await wait(520 * .64);               // the moment the fists land
+    if (!alive()) return;
+    rpsWord(e, beats[i][0], false);
+    rpsImpact(e, false);
     playSfx('tab');
-    await wait(450);
+    await stroke;
     if (!alive()) return;
   }
-  // Reveal: his hand bright red, yours white.
-  e.hands.classList.remove('pumping');
-  [e.you, e.him].forEach(h => h.classList.remove('pumping'));
+
+  // SHOOT — a bigger wind-up, and the hands open into their gestures as they land.
   e.status.textContent = 'SHOOT!';
-  e.you.innerHTML = rpsHandSvg(move);
-  e.him.innerHTML = rpsHandSvg(him);
-  void e.you.offsetWidth;
-  [e.you, e.him].forEach(h => h.classList.add('reveal'));
+  const big = { rise: 52, drop: 28, ms: 600 };
+  const shootStroke = Promise.all([rpsStroke(e.you, leanYou, big), rpsStroke(e.him, leanHim, { ...big, delay: 38 })]);
+  await wait(600 * .6);
+  if (!alive()) return;
+  rpsSetPose(e.you, move);
+  rpsSetPose(e.him, him);
+  rpsWord(e, 'SHOOT!', true);
+  rpsImpact(e, true);
   playSfx('curse');
-  await wait(800);
+  await shootStroke;
+  if (!alive()) return;
+  await wait(450);
   if (!alive()) return;
 
   const result = rpsOutcome(move, him);
@@ -12419,7 +12531,7 @@ async function paleDuelPick(move) {
                        : `Both chose ${RPS_LABELS[move].toLowerCase()}. A draw. Again.`;
   paleDuelSay(randomFrom(result === 1 ? PALE_ROUND_WIN_LINES : result === -1 ? PALE_ROUND_LOSE_LINES : PALE_DRAW_LINES));
   playSfx(result === 1 ? 'success' : result === -1 ? 'error' : 'whisper');
-  await wait(1500);
+  await wait(1700);
   if (!alive()) return;
 
   if (d.you >= PALE_WINS_NEEDED || d.him >= PALE_WINS_NEEDED) { paleDuelFinish(d.you >= PALE_WINS_NEEDED); return; }
