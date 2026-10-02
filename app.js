@@ -11,9 +11,16 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.19.1';
+const GAME_VERSION = '1.19.2';
 
 const PATCH_NOTES = [
+  {
+    version: '1.19.2',
+    date: 'October 2026',
+    notes: [
+      { type: 'fix', text: "Big money now reads properly. Save slots and compact buttons showed amounts like $3943.4M; they now roll over to billions ($3.9B). Trillions are supported too, so $1,200,000,000,000 shows as $1.2T." },
+    ],
+  },
   {
     version: '1.19.1',
     date: 'October 2026',
@@ -2154,12 +2161,25 @@ const TI_FAIRNESS_EXPONENT   = 3;    // cubic curve steepness (higher = harsher 
 const TI_BASE_ACCEPT_RATE    = 0.85; // max acceptance rate at perfect fairness
 const TI_MIN_ACCEPT_PROB     = 0.03; // floor so there is always a tiny chance even on bad counters
 const formatCurrency = n => '$' + Math.round(n).toLocaleString();
-// Compact form for tight spaces (buttons): $1,500,000 -> $1.5M, $45,000 -> $45K.
+// Compact form for tight spaces (buttons): $1,500,000 -> $1.5M, $3.9B, $1.2T, $45,000 -> $45K.
+// Shortens amounts of $1M and up: 1,500,000 -> 1.5M, 3,943,400,000 -> 3.9B, 1.2e12 -> 1.2T.
+// Rolls over to the next unit when rounding would show 1000 (e.g. 999,960,000 -> 1B).
+function compactBigNumber(abs) {
+  const units = [[1e12, 'T'], [1e9, 'B'], [1e6, 'M']];
+  const fmt = (v, suffix) => String(parseFloat(v.toFixed(1))) + suffix;
+  for (let i = 0; i < units.length; i++) {
+    const [size, suffix] = units[i];
+    if (abs < size) continue;
+    if (Math.round(abs / size * 10) / 10 >= 1000 && i > 0) return fmt(abs / units[i - 1][0], units[i - 1][1]);
+    return fmt(abs / size, suffix);
+  }
+  return null;
+}
 const formatCurrencyCompact = n => {
   n = Math.round(n);
   const sign = n < 0 ? '-' : '';
   const abs  = Math.abs(n);
-  if (abs >= 1000000) return sign + '$' + (abs % 1000000 === 0 ? abs / 1000000 : (abs / 1000000).toFixed(1)) + 'M';
+  if (abs >= 1000000) return sign + '$' + compactBigNumber(abs);
   if (abs >= 10000)   return sign + '$' + Math.round(abs / 1000) + 'K';
   return formatCurrency(n);
 };
@@ -11103,7 +11123,7 @@ function initHomeScreen() {
 
 /** Format a dollar amount for the save-slot display. */
 function fmtSlotMoney(n) {
-  if (n >= 1_000_000) return '$' + (n / 1_000_000).toFixed(1) + 'M';
+  if (n >= 1_000_000) return '$' + compactBigNumber(n);
   if (n >= 1_000)     return '$' + (n / 1_000).toFixed(1) + 'K';
   return '$' + Math.round(n).toLocaleString();
 }
