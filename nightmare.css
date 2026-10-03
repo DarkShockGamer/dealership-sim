@@ -338,3 +338,55 @@ body.reduce-motion .rps-hand-wrap, body.reduce-motion .rps-box, body.reduce-moti
 .bb-photo:hover .bb-near, .bb-photo.bb-revealed .bb-near { opacity: 1; }
 .bb-photo:hover .bb-far,  .bb-photo.bb-revealed .bb-far  { opacity: 0; }
 @media (prefers-reduced-motion: reduce) { .bb-photo .bb-near, .bb-photo .bb-far { transition: none; } }
+
+
+/* ── Candle lighting animation (v1.21.6) ─────────────────────
+   Transform + opacity only, so it stays on the GPU compositor and costs almost nothing. */
+.cd-scene { position: fixed; inset: 0; z-index: 10045; pointer-events: none; display: flex; align-items: center; justify-content: center; animation: cdScene 3.7s linear forwards; }
+@keyframes cdScene { 0%, 88% { opacity: 1; } 100% { opacity: 0; } }
+.cd-dim { position: absolute; inset: 0; background: rgba(8, 2, 2, .55); animation: cdDim 3.7s ease-in-out forwards; }
+@keyframes cdDim { 0% { opacity: 0; } 14% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
+.cd-glow {
+  position: absolute; left: 50%; top: 50%; width: 120vmax; height: 120vmax; margin: -60vmax 0 0 -60vmax;
+  background: radial-gradient(circle at center, rgba(255, 170, 70, .5) 0%, rgba(255, 120, 40, .22) 14%, transparent 34%);
+  transform: scale(.05); opacity: 0; will-change: transform, opacity;
+  animation: cdGlow 3.7s ease-out forwards;
+}
+@keyframes cdGlow { 0%, 24% { transform: scale(.05); opacity: 0; } 34% { transform: scale(.6); opacity: 1; } 42%, 80% { transform: scale(.75); opacity: .9; } 100% { transform: scale(.85); opacity: 0; } }
+.cd-stage { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; will-change: transform, opacity; animation: cdRise .7s cubic-bezier(.2, .8, .3, 1) both; }
+@keyframes cdRise { from { transform: translateY(40px) scale(.9); opacity: 0; } to { transform: none; opacity: 1; } }
+.cd-svg { width: clamp(120px, 22vmin, 190px); height: auto; overflow: visible; }
+.cd-svg * { transform-box: fill-box; }
+
+.cd-flame-wrap { transform-origin: 50% 100%; }
+.cd-flame, .cd-flame-core { transform-origin: 50% 100%; transform: scale(0); }
+.cd-flame { animation: cdIgnite .55s cubic-bezier(.3, 1.6, .5, 1) 1.15s forwards, cdFlicker .42s ease-in-out 1.7s infinite alternate; }
+.cd-flame-core { animation: cdIgnite .5s cubic-bezier(.3, 1.6, .5, 1) 1.22s forwards, cdFlicker .31s ease-in-out 1.75s infinite alternate-reverse; }
+@keyframes cdIgnite { from { transform: scale(0); } to { transform: scale(1); } }
+@keyframes cdFlicker { 0% { transform: scale(1, 1) skewX(0deg); } 50% { transform: scale(.94, 1.07) skewX(3deg); } 100% { transform: scale(1.04, .95) skewX(-3deg); } }
+
+.cd-match { opacity: 0; transform: translate(46px, -34px) rotate(14deg); animation: cdMatch 1.7s ease-in-out .35s forwards; }
+@keyframes cdMatch {
+  0% { opacity: 0; transform: translate(46px, -34px) rotate(14deg); }
+  22% { opacity: 1; transform: translate(0, 0) rotate(0deg); }
+  62% { opacity: 1; transform: translate(0, 0) rotate(0deg); }
+  100% { opacity: 0; transform: translate(40px, -30px) rotate(12deg); }
+}
+.cd-match-flame { transform-origin: 50% 100%; animation: cdFlicker .2s ease-in-out infinite alternate; }
+
+.cd-ember { opacity: 0; will-change: transform, opacity; }
+.cd-ember.e1 { animation: cdEmber 1.5s ease-out 1.5s forwards; }
+.cd-ember.e2 { animation: cdEmber 1.7s ease-out 1.8s forwards; --dx: 14px; }
+.cd-ember.e3 { animation: cdEmber 1.4s ease-out 2.1s forwards; --dx: -12px; }
+@keyframes cdEmber { 0% { opacity: 0; transform: translate(0, 0); } 15% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--dx, -8px), -70px); } }
+
+.cd-drip { transform-origin: 50% 0; transform: scaleY(.1); animation: cdDrip 1.4s ease-in 2s forwards; }
+@keyframes cdDrip { to { transform: scaleY(1); } }
+
+.cd-text { display: flex; flex-direction: column; align-items: center; opacity: 0; animation: cdText .7s ease-out 1.6s forwards; text-shadow: 0 2px 10px rgba(0, 0, 0, .8); }
+.cd-text strong { font-family: var(--font-display); font-size: clamp(1.3rem, 4.5vmin, 1.9rem); color: #ffd98a; letter-spacing: .5px; }
+.cd-text span { font-size: .85rem; color: #e8c9a0; opacity: .85; }
+@keyframes cdText { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) { .cd-scene { display: none; } }
+body.reduce-motion .cd-scene { display: none; }
