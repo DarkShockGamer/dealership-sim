@@ -12714,9 +12714,10 @@ function sleepBtnLabel() {
 /** Keeps every cooldown-aware button in step (runs even while a duel is open). */
 function updateSleepCooldownUi() {
   const cd = paleCooldownLeft();
-  document.querySelectorAll('.nm-sleep-btn').forEach(b => { b.disabled = cd > 0; b.textContent = sleepBtnLabel(); });
+  const label = sleepBtnLabel();
+  document.querySelectorAll('.nm-sleep-btn').forEach(b => { if (b.disabled !== (cd > 0)) b.disabled = cd > 0; if (b.textContent !== label) b.textContent = label; });
   const retry = document.querySelector('.rps-retry');
-  if (retry) { retry.disabled = cd > 0; retry.textContent = cd > 0 ? `Try again in ${cd}s` : 'Try again'; }
+  if (retry) { const t = cd > 0 ? `Try again in ${cd}s` : 'Try again'; if (retry.disabled !== (cd > 0)) retry.disabled = cd > 0; if (retry.textContent !== t) retry.textContent = t; }
 }
 
 function getSleep() {
@@ -12793,15 +12794,19 @@ function updateSleepUi() {
   const chip = document.getElementById('stat-sleep');
   const on = isNightmare();
   if (chip) {
-    if (!on) { chip.innerHTML = ''; chip.className = 'stat-chip nm-chip'; }
+    if (!on) { chip.innerHTML = ''; chip.className = 'stat-chip nm-chip'; chip._nmPct = undefined; }
     else {
       if (!chip.querySelector('.nm-sleep-mini')) {
         chip.innerHTML = '<span>😴 Sleep</span><span class="nm-sleep-mini"><i></i></span><span class="nm-sleep-pct"></span>';
+        chip._nmPct = undefined;
       }
       const pct = sleepDisplay();
+      if (chip._nmPct !== pct) {
+      chip._nmPct = pct;
       chip.querySelector('.nm-sleep-mini i').style.width = pct + '%';
       chip.querySelector('.nm-sleep-pct').textContent = pct + '%';
       chip.title = `Sleep ${pct}% — you haven't really slept since you signed. It drains ${SLEEP_DRAIN_PER_MIN}% a minute. At 0 you fall asleep for good. Click to play the Pale Man for +${SLEEP_WIN_GAIN}%.`;
+      }
       chip.classList.toggle('sleep-low',  getSleep() <= 30);
       chip.classList.toggle('sleep-crit', getSleep() <= 10);
     }
