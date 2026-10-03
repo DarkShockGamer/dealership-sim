@@ -1,7 +1,7 @@
 /* ============================================================
    NIGHTMARE MODE (v1.19.0) — only active under body.nightmare
    ============================================================ */
-.nm-chip:empty { display: none; }
+.nm-chip:empty, #stat-sleep:empty { display: none; }   /* #stat-sleep sets display below, so it needs its own :empty rule */
 
 /* ── Red skies: override the theme tokens ─────────────────── */
 body.nightmare {
