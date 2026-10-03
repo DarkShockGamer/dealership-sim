@@ -123,7 +123,6 @@ h1, h2, h3, h4, h5,
   border-bottom: 1px solid var(--border);
   box-shadow: var(--shadow);
   flex-wrap: wrap;
-  backdrop-filter: blur(10px);
 }
 
 .header-brand {
@@ -304,7 +303,6 @@ h1, h2, h3, h4, h5,
   overflow-x: auto;
   scrollbar-width: none;
   box-shadow: var(--shadow-sm);
-  backdrop-filter: blur(8px);
 }
 .tab-nav::-webkit-scrollbar { display: none; }
 
@@ -345,7 +343,6 @@ h1, h2, h3, h4, h5,
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  backdrop-filter: blur(10px);
   box-shadow: var(--shadow);
   padding: 24px 20px;
   max-width: 1400px;
