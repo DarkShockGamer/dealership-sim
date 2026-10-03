@@ -11,9 +11,17 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.21.3';
+const GAME_VERSION = '1.21.4';
 
 const PATCH_NOTES = [
+  {
+    version: '1.21.4',
+    date: 'October 2026',
+    notes: [
+      { type: 'fix', text: "Big performance fix: the game no longer drags the rest of Chrome down with it. The header, tab bar and every tab panel were each blurring whatever sat behind them on every frame, which hammers the GPU that all your tabs share (that's why YouTube in other tabs dropped to a crawl). Those panels are already nearly opaque over a smooth gradient, so removing the blur looks identical and runs far lighter." },
+      { type: 'fix', text: "Nightmare mode is much smoother. The drifting fog no longer uses a 30px blur filter (its soft gradient already fades out on its own), and the film grain no longer uses a full-screen blend mode that forced the whole page to be re-composited on every grain step. The look is the same, just a touch subtler on the grain." },
+    ],
+  },
   {
     version: '1.21.3',
     date: 'October 2026',
