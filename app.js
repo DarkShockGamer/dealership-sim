@@ -12223,6 +12223,52 @@ const NIGHTMARE_LORE_BEATS = [
   { night: 26, text: 'You woke up this morning. You are almost sure. You woke up again to check.' },
   { night: 40, text: 'Hope is the cruelest thing here. He lets you win a little, so that you will keep deciding.' },
   { night: 70, text: 'The tag with your name was written first. Everything else on the lot was written after.' },
+
+  // ── The long middle (v1.22): the keys, the clause, and who the Pale Man really is ──
+  { night: 100, title: '🗝️ The Empty Hook', modal: true,
+    text: 'You count the keys again. Forty. The empty hook is not empty any more, and you did not hang anything there. The tag is blank except for tomorrow\'s date, in the same cramped hand as all the others.' },
+  { night: 115, text: 'The coffee on the desk is always warm. You have never seen anyone make it. You have never seen the pot.' },
+  { night: 132, text: 'There is a second page stapled behind the papers you signed. It is a list of dates, a very long one. The last line is blank, and waiting.' },
+  { night: 150, text: 'The customers who smile too wide never haggle. They have already decided what you will say. So has whoever is wearing them.' },
+  { night: 168, title: '📜 The Clause', modal: true,
+    text: 'You finally read the clause. "The Dealership shall at all times have a Dealer. The Dealer shall be released when the Dealership is won." Underneath, in a different hand, small and cramped: "Won is not the same as free."' },
+  { night: 188, text: 'The sales ledger goes back further than the lot does. Every entry is in the same cramped hand as the tags. One person has been writing down this dealership\'s sales for a very, very long time.' },
+  { night: 208, title: '🏷️ Other Names', modal: true,
+    text: 'By candlelight the other tags can finally be read. Hollis. Marguerite. A dealer who only signed with an X. Dates going back past anything you would believe. Every key hung neatly, every tag in the same brown ink. Not one of them is on the lot now.' },
+  { night: 226, text: 'On the back of Marguerite\'s tag, in small careful writing: "Do not let the sleep reach zero. I let it. Do not wake up either. That was worse."' },
+  { night: 244, text: 'You asked the Pale Man his name. He thought about it for a long time. "I used to know," he said, and for a moment he looked like someone.' },
+  { night: 262, text: 'The lowest key on the board, the one nearest the desk, has a tag with no name at all. The ink has faded to nothing, as if the writer wanted to be forgotten. It is the only key that is warm.' },
+  { night: 282, title: '🔑 The First Key', modal: true,
+    text: 'You lift the warm key. The tag has only four words left on it: "I won. I woke up." The rest has been torn off, cleanly, a long time ago. You hang it back on its hook. Your hand will not stop shaking.' },
+  { night: 300, text: 'The torn half of a tag was folded small inside the till. "...and the Dealership was open. Someone was already at the desk. I smiled at them. I could not stop smiling."' },
+  { night: 318, text: 'Every dealer who ever woke up is still on this lot. They are the customers who smile too wide. They have forgotten everything except the offer.' },
+  { night: 336, text: 'He is not cruel. You can see it now. Every time he stands at the gate with his hat in his hands, he is hoping you will say no.' },
+  { night: 345, title: '🌅 Which Side of the Desk', modal: true,
+    text: 'There is no way out of the Dealership, only ways to change your place in it. The dealer who wins wakes up on the other side of the desk, with a customer\'s money and a smile that will not come off, and one sentence they cannot stop saying: "Shall we begin?" The Pale Man was the first dealer. He won. He woke. He has been waking up ever since. "When you win, you wake up." He never said you would wake up as yourself.' },
+  { night: 358, text: 'The sky is the wrong color at the edge of the lot. He is already at the gate, holding his hat in both hands, like someone about to say a thing he has rehearsed for a very long time.' },
+
+  // ── Only for those who keep dreaming past the dawn ──
+  { night: 380, text: 'You said no, and he put his hat back on. "Thank you," he said. He has never said that to you before.' },
+  { night: 470, text: 'The tags have started to fade. All of them. Even yours. You are not sure whether that is better.' },
+  { night: 600, title: '🕯️ A Very Long Night', modal: true,
+    text: 'You have been here longer than anyone. Hollis did not last a hundred nights. Marguerite did not last two. The Pale Man stopped counting a while ago. He watches you now the way you watch something you hope will never end.' },
+  { night: 760, text: 'He does not ask you to choose any more. He sits on the hood of the nearest car and lets you play. Whatever he was waiting for, he has decided he would rather have this.' },
+];
+
+/**
+ * Scary snapshots pinned to the Nightmare board once their night arrives. Each one is a tiny SVG scene
+ * (see NM_PHOTO_ART). Hover one, and sometimes one will change on its own.
+ */
+const NIGHTMARE_POLAROIDS = [
+  { night: 3,   id: 'desk',     stamp: '03:07 AM',  cap: 'my desk. i did not take this.' },
+  { night: 12,  id: 'lot',      stamp: 'NIGHT 12',  cap: 'the lot, from the office. every light was off.' },
+  { night: 33,  id: 'between',  stamp: 'NIGHT 33',  cap: 'count the cars again.' },
+  { night: 58,  id: 'asleep',   stamp: 'NIGHT 58',  cap: 'i do not remember lying down.' },
+  { night: 96,  id: 'customer', stamp: 'NIGHT 96',  cap: 'he paid cash. he was smiling.' },
+  { night: 135, id: 'keys',     stamp: 'NIGHT 135', cap: 'forty. i counted thirty-nine.' },
+  { night: 190, id: 'gate',     stamp: 'NIGHT 190', cap: 'he waited all night.' },
+  { night: 272, id: 'firstkey', stamp: 'NIGHT 272', cap: 'the warm one. do not pick it up.' },
+  { night: 350, id: 'dawn',     stamp: 'NIGHT 350', cap: 'soon.' },
 ];
 
 function processNightmareLore() {
@@ -12525,11 +12571,13 @@ function _bbNightmareNotes() {
   // (older saves only get one beat per night, so they would otherwise lag behind).
   const reached = NIGHTMARE_LORE_BEATS.filter(b => state.day >= b.night).length;
   const seen = Math.min(Math.max(n.loreIdx || 0, reached), NIGHTMARE_LORE_BEATS.length);
-  for (let i = 0; i < seen; i++) {
-    const b = NIGHTMARE_LORE_BEATS[i];
-    if (b.night === 2) continue;   // the pegboard beat is already the first two notes
-    out.push({ label: b.title || ('Night ' + b.night), kind: i % 3 === 1 ? 'card' : 'paper', text: b.text });
-  }
+  const pinned = NIGHTMARE_LORE_BEATS.slice(0, seen)
+    .filter(b => b.night !== 2)   // the pegboard beat is already the first two notes
+    .map(b => ({ night: b.night, label: b.title || ('Night ' + b.night), kind: 'paper', text: b.text }))
+    .concat(NIGHTMARE_POLAROIDS.filter(ph => state.day >= ph.night)
+      .map(ph => ({ night: ph.night, label: ph.stamp, kind: 'nmphoto', photo: ph.id, stamp: ph.stamp, text: ph.cap })))
+    .sort((a, b) => a.night - b.night);
+  pinned.forEach((x, i) => { if (x.kind !== 'nmphoto' && i % 3 === 1) x.kind = 'card'; out.push(x); });
   if (n.reckonings) out.push({ label: 'Tally', kind: 'card', text: `Under your name, in fresher ink, ${n.reckonings === 1 ? 'a single tally mark' : n.reckonings + ' tally marks'}.` });
   if (globalAchievements.nm_woke) out.push({ label: 'More tags', kind: 'tag', text: 'There are other tags on the board now. Dozens. Every one of them has your name on it, and every one has a different date.' });
   if (seen < NIGHTMARE_LORE_BEATS.length) out.push({ label: 'A bare hook', kind: 'locked', text: 'Nothing hangs here yet.' });
@@ -12548,6 +12596,105 @@ function _bbNormalNotes() {
   });
   if (lockedDay !== null) out.push({ label: 'Day ' + lockedDay, kind: 'locked', text: 'Nothing pinned here yet. Keep the lot open.' });
   return out;
+}
+
+// ---- Nightmare board: the mess, the scraps, and the scary photos --------------------------------
+const NM_SCRAPS = ['he reads these', 'still here', '39', 'don\'t', 'count them', 'behind you', 'who wrote this?', 'not asleep', 'listen', 'he knows', 'NO', 'wake up?', 'again', 'it\'s warm'];
+const NM_SCRAWLS = ['no.', 'he reads these.', 'i know.', 'that is my handwriting', 'don\'t trust the smile', 'it is true', 'who is writing this', 'again', 'still here'];
+const NM_GRAFFITI = [
+  { t: 'DON\'T SLEEP', x: 5, y: 3, r: -6, s: 2.3 }, { t: '39', x: 80, y: 10, r: 8, s: 2.8 },
+  { t: 'HE COUNTS', x: 58, y: 46, r: -4, s: 2.1 }, { t: 'LOOK BEHIND YOU', x: 8, y: 70, r: 5, s: 2.1 },
+  { t: 'IT IS WARM', x: 52, y: 90, r: -7, s: 2.2 },
+];
+/** Deterministic pseudo-random in [0,1): the board is messy, but the same mess every time you open it. */
+function _bbRand(i, salt) { const x = Math.sin((i + 1) * 12.9898 + salt * 78.233) * 43758.5453; return x - Math.floor(x); }
+
+/** Nightmare board: sprinkle torn scraps between the notes, and give some notes a second hand scribbling on them. */
+function _bbMessUp(notes) {
+  const out = [];
+  notes.forEach((nt, i) => {
+    const scrawl = ['paper', 'card', 'tag'].includes(nt.kind) && _bbRand(i, 10) < 0.38
+      ? NM_SCRAWLS[Math.floor(_bbRand(i, 14) * NM_SCRAWLS.length)] : null;
+    out.push(Object.assign({}, nt, { scrawl }));
+    if (nt.kind !== 'locked' && _bbRand(i, 11) < 0.42) {
+      out.push({ kind: 'scrap', label: '', text: NM_SCRAPS[Math.floor(_bbRand(i, 12) * NM_SCRAPS.length)] });
+    }
+  });
+  return out;
+}
+
+/** Tilt, shove, scale, stain, tape and fold a pinned note so the board looks lived in (and slept on). */
+function _bbApplyMess(el, nt, i) {
+  const r = salt => _bbRand(i, salt);
+  const slipped = r(13) < 0.16;   // one pin gave way; it hangs crooked
+  el.style.setProperty('--tilt', ((r(1) - 0.5) * (slipped ? 30 : 15)).toFixed(1) + 'deg');
+  el.style.setProperty('--dx', ((r(2) - 0.5) * 26).toFixed(0) + 'px');
+  el.style.setProperty('--dy', ((r(3) - 0.5) * 20).toFixed(0) + 'px');
+  el.style.setProperty('--sc', (0.93 + r(4) * 0.14).toFixed(2));
+  el.style.setProperty('--z', String(Math.floor(r(5) * 10)));
+  if (nt.kind === 'nmphoto') { if (r(8) < 0.55) el.classList.add('bb-taped'); return; }
+  if (nt.kind === 'scrap' || nt.kind === 'locked') return;
+  if (r(6) < 0.30) el.classList.add('bb-stain');
+  if (r(8) < 0.30) el.classList.add('bb-taped');
+  if (nt.kind === 'paper' && r(7) < 0.28) el.classList.add('bb-fold');
+  const ink = r(9);
+  if (ink < 0.18) el.classList.add('bb-ink-pencil'); else if (ink < 0.30) el.classList.add('bb-ink-red');
+}
+
+// Each scene is 120x92. `.bb-far` shows normally; `.bb-near` fades in when you hover (or when the board decides to).
+const _nmCar = (x, y = 70, lights = true) => `<g transform="translate(${x} ${y - 70})"><path d="M2 70c0-5 2-8 7-9l7-6c2-1 4-2 7-2h10c3 0 5 1 7 3l5 5c4 1 6 3 6 7v4H2z" fill="#1a1f27"/><path d="M18 56h12c2 0 4 1 5 3l2 3H14z" fill="#0b0f15"/><circle cx="12" cy="74" r="5" fill="#0a0a0c"/><circle cx="36" cy="74" r="5" fill="#0a0a0c"/>${lights ? '<circle cx="47" cy="66" r="9" fill="#ffe9a0" opacity=".22"/><circle cx="47" cy="66" r="2.2" fill="#ffefb8"/>' : ''}</g>`;
+const NM_PHOTO_ART = {
+  desk: () => `<rect width="120" height="92" fill="#1c2427"/><rect width="120" height="60" fill="#233035"/>
+    <rect x="66" y="10" width="42" height="42" fill="#070b12" stroke="#4b545a" stroke-width="2.5"/><path d="M87 10v42M66 31h42" stroke="#4b545a" stroke-width="2"/>
+    <g fill="#cfd6de" opacity=".7"><circle cx="74" cy="18" r=".8"/><circle cx="99" cy="23" r=".8"/><circle cx="80" cy="44" r=".7"/></g>
+    <g class="bb-far" fill="#e8e4d8"><rect x="92.5" y="30" width="3" height="17"/><circle cx="94" cy="28.6" r="2.4"/><rect x="91" y="25.4" width="6" height="1.6"/></g>
+    <g class="bb-near"><ellipse cx="80" cy="32" rx="11" ry="14" fill="#ece8dc"/><ellipse cx="76" cy="30" rx="2.6" ry="3.6" fill="#050505"/><ellipse cx="85" cy="30" rx="2.6" ry="3.6" fill="#050505"/><path d="M73 40q7 8 14 0" stroke="#050505" stroke-width="1.4" fill="none"/></g>
+    <rect y="62" width="120" height="30" fill="#3a2b1f"/><rect y="60" width="120" height="3" fill="#2a1e15"/>
+    <path d="M26 46L6 92h44z" fill="#ffe9a8" opacity=".12"/><path d="M22 62l4-22h10l4 22z" fill="#c9a24a"/>
+    <rect x="52" y="54" width="9" height="8" fill="#8b8b82"/><path d="M61 56h3v4h-3" stroke="#8b8b82" fill="none" stroke-width="1.5"/>
+    <rect x="2" y="44" width="14" height="42" rx="4" fill="#0c1012"/><rect x="30" y="68" width="24" height="12" fill="#e8dfc4" transform="rotate(-6 42 74)"/>`,
+  lot: () => `<rect width="120" height="92" fill="#0e131b"/><g fill="#cfd6de" opacity=".6"><circle cx="14" cy="10" r=".7"/><circle cx="52" cy="6" r=".7"/><circle cx="96" cy="14" r=".7"/><circle cx="108" cy="30" r=".6"/></g>
+    <rect y="64" width="120" height="28" fill="#242424"/><path d="M0 44h120" stroke="#3b4148" stroke-width="1.6"/><path d="${Array.from({ length: 13 }, (_, i) => `M${5 + i * 9.5} 44v22`).join('')}" stroke="#3b4148" stroke-width="1.3"/>
+    ${_nmCar(2)}${_nmCar(42)}${_nmCar(80)}
+    <g class="bb-far" fill="#ece8dc"><rect x="58.5" y="46" width="3" height="18"/><circle cx="60" cy="44.4" r="2.5"/><rect x="57.5" y="41.4" width="5" height="1.5"/></g>
+    <g class="bb-near"><rect x="48" y="26" width="24" height="58" fill="#d9d5c8"/><ellipse cx="60" cy="20" rx="8" ry="10" fill="#ece8dc"/><rect x="49" y="9" width="22" height="3" fill="#0a0a0c"/><rect x="53" y="1" width="14" height="9" fill="#0a0a0c"/><ellipse cx="56" cy="19" rx="1.8" ry="2.6" fill="#000"/><ellipse cx="64" cy="19" rx="1.8" ry="2.6" fill="#000"/></g>`,
+  between: () => `<rect width="120" height="92" fill="#131a20"/><rect y="70" width="120" height="22" fill="#222"/>
+    <path d="M0 40h48c4 0 6 3 6 6v32H0z" fill="#1d2430"/><path d="M8 44h34l4 10H4z" fill="#0b0f15"/><circle cx="14" cy="78" r="7" fill="#0a0a0c"/>
+    <path d="M120 40H72c-4 0-6 3-6 6v32h54z" fill="#1d2430"/><path d="M112 44H78l-4 10h44z" fill="#0b0f15"/><circle cx="106" cy="78" r="7" fill="#0a0a0c"/>
+    <g fill="#ece8dc"><rect x="56" y="34" width="8" height="42"/><ellipse cx="60" cy="27" rx="6.5" ry="9"/><path d="M56 42l-4 34M64 42l4 36" stroke="#ece8dc" stroke-width="2" fill="none"/></g>
+    <g class="bb-near"><ellipse cx="57.5" cy="26" rx="1.3" ry="2.4" fill="#000"/><ellipse cx="62.5" cy="26" rx="1.3" ry="2.4" fill="#000"/><path d="M55 32q5 5 10 0" stroke="#000" stroke-width="1.2" fill="none"/></g>`,
+  asleep: () => `<rect width="120" height="92" fill="#1b1f26"/><rect y="58" width="120" height="34" fill="#3a2c20"/><path d="M40 40L10 92h60z" fill="#ffe9a8" opacity=".08"/>
+    <path d="M20 62c0-14 10-22 22-22s22 8 22 22z" fill="#46506a"/><ellipse cx="42" cy="44" rx="8" ry="8" fill="#d9b894"/><path d="M34 42c1-6 5-8 8-8s7 2 8 8z" fill="#3a2a1a"/><rect x="22" y="56" width="40" height="6" rx="3" fill="#46506a"/>
+    <g><rect x="78" y="20" width="18" height="46" fill="#0b0b0e"/><ellipse cx="87" cy="14" rx="6" ry="8" fill="#ece8dc"/><circle cx="84.5" cy="12.5" r="1" fill="#000"/><circle cx="89.5" cy="12.5" r="1" fill="#000"/><path d="M81 16q6 9 12 0" stroke="#050505" stroke-width="1.2" fill="#fff"/></g>
+    <g class="bb-near"><ellipse cx="42" cy="47" rx="8" ry="7" fill="#e8d2b8"/><circle cx="38.5" cy="46" r="2.5" fill="#fff"/><circle cx="45.5" cy="46" r="2.5" fill="#fff"/><circle cx="38.5" cy="46" r="1" fill="#000"/><circle cx="45.5" cy="46" r="1" fill="#000"/><path d="M39 52h6" stroke="#6a3a2a" fill="none"/></g>`,
+  customer: () => `<rect width="120" height="92" fill="#cdbf9d"/><path d="M10 92c0-18 18-26 50-26s50 8 50 26z" fill="#1c1c24"/><path d="M52 66l8 14 8-14z" fill="#e8e4d8"/><path d="M58 70l2 18 2-18z" fill="#7a0f18"/>
+    <ellipse cx="60" cy="38" rx="20" ry="26" fill="#ece8dc"/><path d="M40 28c2-14 12-18 20-18s18 4 20 18c-6-6-14-8-20-8s-14 2-20 8z" fill="#2a2a2a"/>
+    <circle cx="51" cy="34" r="2.2" fill="#111"/><circle cx="69" cy="34" r="2.2" fill="#111"/><path d="M42 46q18 22 36 0z" fill="#fff" stroke="#111" stroke-width="1.4"/><path d="M46 49v5M51 52v6M56 54v6M60 54.5v6M64 54v6M69 52v6M74 49v5" stroke="#111" stroke-width=".6"/>
+    <g class="bb-near"><ellipse cx="51" cy="34" rx="4.8" ry="6.5" fill="#000"/><ellipse cx="69" cy="34" rx="4.8" ry="6.5" fill="#000"/></g>`,
+  keys: () => `<rect width="120" height="92" fill="#3a2a1e"/>${Array.from({ length: 40 }, (_, i) => { const c = i % 8, rw = Math.floor(i / 8), x = 10 + c * 14, y = 10 + rw * 15, hot = i === 39; return `<g>${hot ? `<circle cx="${x}" cy="${y + 6}" r="9" fill="#ffb347" opacity=".35"/>` : ''}<circle cx="${x}" cy="${y}" r="2.2" fill="${hot ? '#ffcf7a' : '#b69a55'}"/><rect x="${x - .6}" y="${y + 2}" width="1.2" height="7" fill="${hot ? '#ffcf7a' : '#b69a55'}"/><rect x="${x - 3}" y="${y + 9}" width="6" height="4" fill="${hot ? '#fff1c4' : '#e8d5a0'}"/></g>`; }).join('')}
+    <g class="bb-near"><path d="M121 86L110 78" stroke="#0b0b0e" stroke-width="9"/><circle cx="108" cy="76" r="5" fill="#ece8dc"/></g>`,
+  firstkey: () => `<rect width="120" height="92" fill="#0f0f12"/><rect y="62" width="120" height="30" fill="#1e1612"/><circle cx="58" cy="56" r="16" fill="#ffb347" opacity=".13"/>
+    <path d="M120 38L80 52l-2 14 42 6z" fill="#0b0b0e"/><ellipse cx="72" cy="58" rx="9" ry="6" fill="#ece8dc"/>
+    <rect x="20" y="54.5" width="34" height="3" fill="#c7a24a"/><rect x="22" y="57" width="3" height="5" fill="#c7a24a"/><rect x="28" y="57" width="3" height="3" fill="#c7a24a"/><circle cx="58" cy="56" r="6" fill="none" stroke="#c7a24a" stroke-width="3"/>
+    <path d="M58 62l-4 14 12 4 4-14z" fill="#e8dfc4"/><path d="M57 70l6 2" stroke="#b9ad8e" stroke-width="1"/>
+    <g class="bb-near"><circle cx="55.8" cy="54.6" r=".9" fill="#ece8dc"/><circle cx="60.2" cy="54.6" r=".9" fill="#ece8dc"/><path d="M54.6 57.4q3.4 3 6.8 0" stroke="#ece8dc" stroke-width="1" fill="none"/></g>`,
+  gate: () => `<rect width="120" height="92" fill="#2a2a31"/><rect y="46" width="120" height="14" fill="#3a3a42"/><rect y="64" width="120" height="28" fill="#1c1c1c"/>
+    <g><rect x="50" y="26" width="20" height="48" fill="#0a0a0c"/><ellipse cx="60" cy="20" rx="7.5" ry="9" fill="#ece8dc"/><ellipse cx="60" cy="48" rx="10" ry="2.6" fill="#030304"/><rect x="55" y="40" width="10" height="8" rx="1" fill="#030304"/></g>
+    <g class="bb-near"><circle cx="56.5" cy="18.5" r="1.3" fill="#000"/><circle cx="63.5" cy="18.5" r="1.3" fill="#000"/><path d="M52 23q8 10 16 0z" stroke="#050505" stroke-width="1.3" fill="#fff"/></g>
+    <g stroke="#0b0b0d" stroke-width="2.2">${Array.from({ length: 14 }, (_, i) => `<path d="M${4 + i * 8.6} 8v72"/>`).join('')}<path d="M0 14h120M0 70h120"/></g>`,
+  dawn: () => `<rect width="120" height="42" fill="#e4b95e"/><rect y="42" width="120" height="22" fill="#caa24b"/><rect y="62" width="120" height="30" fill="#3a3326"/>
+    <g stroke="#2a2418" stroke-width="2"><path d="M0 44h120"/>${Array.from({ length: 13 }, (_, i) => `<path d="M${6 + i * 9.5} 44v20"/>`).join('')}</g>
+    <ellipse cx="60" cy="84" rx="28" ry="4.5" fill="#8a7640" opacity=".7"/><ellipse cx="60" cy="76" rx="10" ry="2.6" fill="#0b0b0d"/><rect x="54" y="66" width="12" height="10" rx="2" fill="#0b0b0d"/>
+    <g class="bb-near"><rect x="58" y="82" width="4" height="6" fill="#0b0b0d"/><ellipse cx="60" cy="90" rx="2.6" ry="3" fill="#ece8dc"/></g>`,
+};
+function _bbNmPhoto(id, caption, stamp) {
+  const art = NM_PHOTO_ART[id] || NM_PHOTO_ART.desk;
+  const wrap = document.createElement('div');
+  wrap.className = 'bb-photo bb-ph-' + id;
+  wrap.innerHTML = `<div class="bb-photo-img"><svg viewBox="0 0 120 92" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${art()}</svg><span class="bb-photo-stamp"></span></div><div class="bb-photo-cap"></div>`;
+  wrap.querySelector('.bb-photo-stamp').textContent = stamp || '';
+  wrap.querySelector('.bb-photo-cap').textContent = caption || '';
+  return wrap;
 }
 
 /** A faded snapshot of the great-uncle grinning beside the first car he ever sold. */
@@ -12599,6 +12746,7 @@ function openBulletinBoard() {
   const nmode = isNightmare();
   const notes = nmode ? _bbNightmareNotes() : _bbNormalNotes();
   const found = notes.filter(x => x.kind !== 'locked').length;
+  const list = nmode ? _bbMessUp(notes) : notes;
   const tilts = [-2.6, 1.8, -1.2, 2.8, -2, 1.2, -3, 2.2];
 
   const ov = document.createElement('div');
@@ -12630,11 +12778,21 @@ function openBulletinBoard() {
   svg.setAttribute('aria-hidden', 'true');
   const grid = document.createElement('div');
   grid.className = 'bb-grid';
-  notes.forEach((nt, i) => {
+  if (nmode) {
+    NM_GRAFFITI.slice(0, Math.min(NM_GRAFFITI.length, Math.floor(found / 3))).forEach(g => {
+      const d = document.createElement('div');
+      d.className = 'bb-graf';
+      d.textContent = g.t;
+      d.style.cssText = `top:${g.y}%;left:${g.x}%;--r:${g.r}deg;font-size:${g.s}rem`;
+      surface.appendChild(d);
+    });
+  }
+  list.forEach((nt, i) => {
     const el = document.createElement('div');
     el.className = `bb-note bb-${nt.kind}`;
     el.style.setProperty('--tilt', tilts[i % tilts.length] + 'deg');
     el.style.setProperty('--drop', ((i * 17) % 5) * 7 + 'px');
+    if (nmode) _bbApplyMess(el, nt, i);
     const spot = document.createElement('span');
     spot.className = 'bb-pinspot';
     const lab = document.createElement('div');
@@ -12645,7 +12803,8 @@ function openBulletinBoard() {
     txt.textContent = nt.text;
     el.append(spot, lab);
     if (nt.kind === 'polaroid') el.appendChild(_bbPolaroid());
-    el.appendChild(txt);
+    if (nt.kind === 'nmphoto') el.appendChild(_bbNmPhoto(nt.photo, nt.text, nt.stamp)); else el.appendChild(txt);
+    if (nt.scrawl) { const sc = document.createElement('div'); sc.className = 'bb-scrawl'; sc.textContent = nt.scrawl; el.appendChild(sc); }
     grid.appendChild(el);
   });
   const pinLayer = document.createElement('div');
@@ -12663,31 +12822,43 @@ function openBulletinBoard() {
     pinLayer.innerHTML = '';
     const pts = [...grid.children].map(el => {
       const r = el.querySelector('.bb-pinspot').getBoundingClientRect();
-      return { x: r.left - sr.left + r.width / 2, y: r.top - sr.top + r.height / 2, locked: el.classList.contains('bb-locked') };
+      return { x: r.left - sr.left + r.width / 2, y: r.top - sr.top + r.height / 2, locked: el.classList.contains('bb-locked'), scrap: el.classList.contains('bb-scrap') };
     });
-    const link = (a, b) => {
+    const link = (a, b, sagMul = 1, extra = '') => {
       const dx = b.x - a.x, dy = b.y - a.y;
-      const sag = 16 + Math.hypot(dx, dy) * 0.07;
+      const sag = (16 + Math.hypot(dx, dy) * 0.07) * sagMul;
       const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2 + sag;
       const d = `M${a.x} ${a.y} Q${mx} ${my} ${b.x} ${b.y}`;
       const sh = document.createElementNS(svgNS, 'path');
       sh.setAttribute('d', d); sh.setAttribute('class', 'bb-string-shadow');
       sh.setAttribute('transform', 'translate(2 4)');
       const th = document.createElementNS(svgNS, 'path');
-      th.setAttribute('d', d); th.setAttribute('class', 'bb-string');
+      th.setAttribute('d', d); th.setAttribute('class', 'bb-string' + (extra ? ' ' + extra : ''));
       svg.append(sh, th);
     };
     // One string from each note to the next one in order, nothing else.
-    const live = pts.filter(p => !p.locked);
-    for (let i = 0; i < live.length - 1; i++) link(live[i], live[i + 1]);
+    const live = pts.filter(p => !p.locked && !p.scrap);
+    for (let i = 0; i < live.length - 1; i++) link(live[i], live[i + 1], nmode ? 0.8 + _bbRand(i, 20) * 1.6 : 1);
+    if (nmode) {
+      // Tangled extras: strings that skip notes, and a few that go nowhere.
+      for (let i = 0; i < live.length - 3; i++) if (_bbRand(i, 21) < 0.32) link(live[i], live[i + 3], 1.9, 'thin');
+      live.forEach((p, i) => {
+        if (_bbRand(i, 22) >= 0.14) return;
+        const ex = p.x + (_bbRand(i, 23) - 0.5) * 120, ey = p.y + 50 + _bbRand(i, 24) * 50;
+        const d = `M${p.x} ${p.y} Q${(p.x + ex) / 2} ${ey + 30} ${ex} ${ey}`;
+        const dg = document.createElementNS(svgNS, 'path');
+        dg.setAttribute('d', d); dg.setAttribute('class', 'bb-string thin dangle');
+        svg.append(dg);
+      });
+    }
     // Photos get their own pin but no string.
     grid.querySelectorAll('.bb-pinspot2').forEach(sp => {
       const r = sp.getBoundingClientRect();
       pts.push({ x: r.left - sr.left + r.width / 2, y: r.top - sr.top + r.height / 2 });
     });
-    pts.forEach(p => {
+    pts.forEach((p, pi) => {
       const pin = document.createElement('span');
-      pin.className = 'bb-pin';
+      pin.className = 'bb-pin' + (nmode ? (_bbRand(pi, 30) < 0.22 ? ' dark' : _bbRand(pi, 31) < 0.12 ? ' rust' : '') : '');
       pin.style.left = p.x + 'px';
       pin.style.top = p.y + 'px';
       pinLayer.appendChild(pin);
@@ -12712,6 +12883,11 @@ function openBulletinBoard() {
   requestAnimationFrame(layout);
   setTimeout(layout, 120);
   try { closeBtn.focus(); } catch (_) {}
+  // Sometimes, while you read, one of the photos changes on its own.
+  if (nmode && Math.random() < 0.4) {
+    const shots = ov.querySelectorAll('.bb-photo');
+    if (shots.length) setTimeout(() => { if (ov.isConnected) shots[Math.floor(Math.random() * shots.length)].classList.add('bb-revealed'); }, 1800 + Math.random() * 3200);
+  }
 }
 
 /** Nightmare dashboard button keeps its old name. */
