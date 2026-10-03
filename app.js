@@ -695,7 +695,8 @@ const NIGHTMARE_DEFAULTS = {
   visitorsAccepted: 0, visitorsDeclined: 0, ashCount: 0, ashDue: 0, ashDay: 0,
   eventsSeen: 0, salesToday: 0, totalSales: 0, eyesClicked: 0, visitor: null,
   sleep: 100, sleepDuelsWon: 0, sleepDuelsLost: 0, duelCooldownUntil: 0,   // Sleep meter + Pale Man duels
-  loreIdx: 0, dawnOffered: 0, wokeUp: 0, fondEnding: 0, depthNoted: 0,                     // v1.20.0 — story beats + endings
+  loreIdx: 0, dawnOffered: 0, wokeUp: 0, fondEnding: 0, depthNoted: 0,
+  candlesTonight: 0, hourglassUntil: 0, hourglassDay: 0, lastRitesUsed: 0,   // Ward upgrades                     // v1.20.0 — story beats + endings
 };
 
 // ============================================================
@@ -777,6 +778,8 @@ const DEFAULT_STATE = {
     wardSalt: false,
     wardLights: false,
     wardChapel: false,
+    wardVotive: false, wardDream: false, wardHourglass: false, wardMusicBox: false, wardLastRites: false,
+    nmNeon: false, nmCurio: false, nmUnion: false, nmTour: false,
   },
   salesHistory: [],
   notifications: [],
@@ -1676,7 +1679,7 @@ const UPGRADE_STAGES = {
 const UPGRADE_CATEGORY_ORDER = [
   'Car Lot', 'Sourcing', 'Marketing', 'Luxury Clientele', 'Tools & Inspection',
   'Reconditioning', 'Factory', 'Management', 'Finance', 'Leasing',
-  'Legal & Compliance', 'Security', 'Service Garage', 'Wards',
+  'Legal & Compliance', 'Security', 'Service Garage', 'Wards', 'Dark Bargains',
 ];
 
 // Tunable upgrade constants
@@ -2012,6 +2015,71 @@ const UPGRADES_CONFIG = [
     level: u => (u.wardChapel ? 1 : 0),
     lock: u => (u.wardLights ? null : 'Needs Floodlights'),
     apply: s => { s.upgrades.wardChapel = true; },
+  },
+
+  // ── Wards, part 2 (Nightmare only) ────────────────────────
+  {
+    id: 'wardVotive', name: 'Votive Rack', icon: 'candle', category: 'Wards', stage: 2, cost: 35000, nightmareOnly: true,
+    desc: 'Rows of candles that never quite go out. You may light TWO candles a night, and every candle costs 25% less.',
+    level: u => (u.wardVotive ? 1 : 0),
+    lock: u => (u.wardSalt ? null : 'Needs Salt Lines'),
+    apply: s => { s.upgrades.wardVotive = true; },
+  },
+  {
+    id: 'wardDream', name: 'Dreamcatcher', icon: 'moon', category: 'Wards', stage: 3, cost: 60000, nightmareOnly: true,
+    desc: 'Hung over the office door. Sleep drains 35% slower, for good. The Pale Man pretends not to notice it.',
+    level: u => (u.wardDream ? 1 : 0),
+    lock: u => (u.wardVotive ? null : 'Needs Votive Rack'),
+    apply: s => { s.upgrades.wardDream = true; },
+  },
+  {
+    id: 'wardHourglass', name: 'The Hourglass', icon: 'gauge', category: 'Wards', stage: 3, cost: 90000, nightmareOnly: true,
+    desc: 'A brass hourglass with sand that falls upward. Once a night, turn it: Sleep stops draining for 5 minutes.',
+    level: u => (u.wardHourglass ? 1 : 0),
+    lock: u => (u.wardDream ? null : 'Needs Dreamcatcher'),
+    apply: s => { s.upgrades.wardHourglass = true; },
+  },
+  {
+    id: 'wardMusicBox', name: 'Music Box', icon: 'music', category: 'Wards', stage: 4, cost: 120000, nightmareOnly: true,
+    desc: 'A little tune that makes him sentimental. Beating the Pale Man gives +75% Sleep instead of +50%, and he only makes you wait half as long after a loss.',
+    level: u => (u.wardMusicBox ? 1 : 0),
+    lock: u => (u.wardDream ? null : 'Needs Dreamcatcher'),
+    apply: s => { s.upgrades.wardMusicBox = true; },
+  },
+  {
+    id: 'wardLastRites', name: 'Last Rites', icon: 'shield', category: 'Wards', stage: 4, cost: 250000, nightmareOnly: true,
+    desc: 'The chapel keeps a priest on retainer. The final Reckoning, the one that would end the run, is turned aside ONE time. After that, he leaves.',
+    level: u => (u.wardLastRites ? 1 : 0),
+    lock: u => (u.wardChapel ? null : 'Needs Lot Chapel'),
+    apply: s => { s.upgrades.wardLastRites = true; },
+  },
+
+  // ── Dark Bargains (Nightmare only): deals that make the night pay ──
+  {
+    id: 'nmNeon', name: 'OPEN ALL NIGHT Sign', icon: 'megaphone', category: 'Dark Bargains', stage: 1, cost: 15000, nightmareOnly: true,
+    desc: 'A buzzing neon sign. Buyers are 15% more likely to stop, which cancels out most of the Nightmare buyer penalty.',
+    level: u => (u.nmNeon ? 1 : 0),
+    apply: s => { s.upgrades.nmNeon = true; },
+  },
+  {
+    id: 'nmUnion', name: 'Night Shift Union', icon: 'handshake', category: 'Dark Bargains', stage: 2, cost: 40000, nightmareOnly: true,
+    desc: 'Your staff sign something in the dark. The +25% night-shift pay surcharge disappears for good.',
+    level: u => (u.nmUnion ? 1 : 0),
+    apply: s => { s.upgrades.nmUnion = true; },
+  },
+  {
+    id: 'nmCurio', name: 'Curio Cabinet', icon: 'skull', category: 'Dark Bargains', stage: 2, cost: 35000, nightmareOnly: true,
+    desc: 'You learn to read the curse. New cursed listings are marked on sight, and buyers no longer shy away from cursed cars, so those 50-68% bargains become real profit.',
+    level: u => (u.nmCurio ? 1 : 0),
+    lock: u => (u.nmNeon ? null : 'Needs Open All Night Sign'),
+    apply: s => { s.upgrades.nmCurio = true; },
+  },
+  {
+    id: 'nmTour', name: 'Haunted Lot Tours', icon: 'ghost', category: 'Dark Bargains', stage: 3, cost: 75000, nightmareOnly: true,
+    desc: 'Tickets, $12 per Dread point, nobody asks why. Every night you earn cash based on how high your Dread is, and more the deeper the night gets. Dread finally pays.',
+    level: u => (u.nmTour ? 1 : 0),
+    lock: u => (u.nmNeon ? null : 'Needs Open All Night Sign'),
+    apply: s => { s.upgrades.nmTour = true; },
   },
 
   // ── Service Garage ────────────────────────────────────────
@@ -2352,7 +2420,7 @@ function ensureStaffCandidates() {
 
 function getTotalStaffWages() {
   const base = (state.staff || []).reduce((sum, s) => sum + s.wage, 0);
-  return isNightmare() ? Math.round(base * 1.25) : base;   // Nightmare: night-shift pay
+  return isNightmare() && !hasWard('nmUnion') ? Math.round(base * 1.25) : base;   // Nightmare: night-shift pay (Night Shift Union removes it)
 }
 
 // ============================================================
@@ -3156,7 +3224,7 @@ function buildUsedOffer(entry, condition, forceCursed) {
   car.sellerCounter  = null;
   car.patience       = randomInt(1, 3); // max counter rounds
   if (isNightmare()) {
-    if (cursedListing) { car.cursed = true; car.curseRevealed = false; }
+    if (cursedListing) { car.cursed = true; car.curseRevealed = hasWard('nmCurio'); }
     // Cursed cars often give themselves away… and a few perfectly normal ones just feel wrong.
     if (cursedListing ? Math.random() < 0.6 : Math.random() < 0.05) car.nmTell = randomFrom(NIGHTMARE_TELLS);
   }
@@ -3423,7 +3491,9 @@ function computeSaleChance(car) {
   const focusFactor = activeListings <= 2 ? 1.35 : activeListings <= 4 ? 1.15 : 1.0;
 
   // Nightmare: buyers are wary after dark, and cursed cars give them the creeps.
-  const nightmareFactor = isNightmare() ? (car.cursed ? 0.68 - 0.1 * nmDepth1() : 0.9 - 0.12 * nmDepth1()) : 1;
+  const nightmareFactor = isNightmare()
+    ? ((car.cursed && !hasWard('nmCurio') ? 0.68 - 0.1 * nmDepth1() : 0.9 - 0.12 * nmDepth1()) * (hasWard('nmNeon') ? 1.15 : 1))
+    : 1;
   chance = chance * priceAtt * condFactor * categoryFactor * priceTierFactor * crashFactor
          * lotFactor * marketingFactor * repFactor
          * repBoostFactor * demandFactor * washBonus * titleFactor * photoStudioFactor * certifiedFactor
@@ -8644,6 +8714,8 @@ const UPGRADE_TREE_NEEDS = {
   security2: ['security1'], security3: ['security2'], security4: ['security3'],
   serviceCapacity1: ['serviceBay'], serviceCapacity2: ['serviceCapacity1'], serviceCapacity3: ['serviceCapacity2'],
   wardLights: ['wardSalt'], wardChapel: ['wardLights'],
+  wardVotive: ['wardSalt'], wardDream: ['wardVotive'], wardHourglass: ['wardDream'], wardMusicBox: ['wardDream'], wardLastRites: ['wardChapel'],
+  nmCurio: ['nmNeon'], nmTour: ['nmNeon'],
 };
 const UPGRADE_TREE_COL_OVERRIDE = { certifiedProgram: 1 };
 const UPGRADE_STAGE_COLORS = { 1: '#2ed59f', 2: '#61b6ff', 3: '#b47bff', 4: '#ff9f43' };
@@ -12059,15 +12131,20 @@ function nmDepth(day) { return clamp((((day === undefined ? (state && state.day)
 function nmDepth1() { return Math.min(nmDepth(), 1); }                                   // the part of the climb that tops out at Night 360
 function getNightBaseDrift()   { return 2 + Math.round(nmDepth() * 5); }                 // 2 early, 7 at Night 360
 function getSaleDreadRelief()  { return Math.max(2, 4 - nmDepth() * 1.5); }              // 4 early, 2.5 at Night 360, 2 later
-function getCandleCost()       { return Math.round(NIGHTMARE_CANDLE_COST * (1 + nmDepth() * 3) / 50) * 50; }   // $750 early, $3,000 at Night 360
+function getCandleCost()       { return Math.round(NIGHTMARE_CANDLE_COST * (1 + nmDepth() * 3) * (hasWard('wardVotive') ? 0.75 : 1) / 50) * 50; }   // $750 early, $3,000 at Night 360
 function getCurseCap()         { return NIGHTMARE_CURSE_CHANCE + 0.14 * Math.min(nmDepth(), 1.5); }          // 16% early, 30% at Night 360
 function getMaxCursedListings(){ return Math.min(4, 2 + Math.floor(nmDepth() * 1.5)); } // 2 early, 3 at Night 360
 function getHauntChance()      { return NIGHTMARE_HAUNT_CHANCE * (1 + nmDepth() * 0.8); }
 function getAshChance()        { return NIGHTMARE_ASH_CHANCE + 0.15 * nmDepth1(); }
 function getMarketFloor()      { return NIGHTMARE_MARKET_MIN - 0.06 * nmDepth1(); }
-function getSleepDrain()       { return Math.round(SLEEP_DRAIN_PER_MIN * (1 + 0.5 * Math.min(nmDepth(), 1.6)) * 10) / 10; }  // 10%/min early, 15 at Night 360
+function getSleepDrain()       { return Math.round(SLEEP_DRAIN_PER_MIN * (1 + 0.5 * Math.min(nmDepth(), 1.6)) * (hasWard('wardDream') ? 0.65 : 1) * 10) / 10; }  // 10%/min early, 15 at Night 360
 function getReckoningRate()    { return 0.20 + 0.10 * nmDepth1(); }
 function getReckoningDread()   { return 55 + Math.round(10 * nmDepth1()); }
+function getCandlesAllowed()   { return hasWard('wardVotive') ? 2 : 1; }
+function getCandlesLitTonight(){ const n = nm(); return n.candleDay === state.day ? (n.candlesTonight || 1) : 0; }
+function getSleepWinGain()     { return SLEEP_WIN_GAIN + (hasWard('wardMusicBox') ? 25 : 0); }
+function getLossCooldownSec()  { return Math.round(PALE_LOSS_COOLDOWN_SEC * (hasWard('wardMusicBox') ? 0.5 : 1)); }
+function getTourIncome()       { return hasWard('nmTour') ? Math.round(getDread() * 12 * (1 + nmDepth()) / 10) * 10 : 0; }
 
 /** Nightmare-only omens, mixed into the market-event pool. `dread` shifts the meter. */
 const NIGHTMARE_EVENTS = [
@@ -12257,6 +12334,14 @@ function processNightmareNight() {
     if (Math.random() < hauntChance) hauntDread += hauntCar(car).dread;
   }
 
+  // 3b. Haunted Lot Tours: Dread finally pays.
+  const tourIncome = getTourIncome();
+  if (tourIncome > 0) {
+    state.cash += tourIncome;
+    n.tourEarned = (n.tourEarned || 0) + tourIncome;
+    addNote(`🎟️ Haunted Lot Tours sold out again. +${formatCurrency(tourIncome)}. The guests did not leave the same way they came.`, 'success');
+  }
+
   // 4. The night itself.
   const drift = computeNightlyDreadDrift();
   changeDread(drift.total + hauntDread);
@@ -12373,7 +12458,29 @@ function triggerReckoning() {
   n.reckonings = (n.reckonings || 0) + 1;
   nightmareFx('reckoning', 2600);
   playSfx('reckoning');
-  if (n.reckonings >= NIGHTMARE_MAX_RECKONINGS) { nightmareConsumed(); return; }
+  if (n.reckonings >= NIGHTMARE_MAX_RECKONINGS) {
+    if (hasWard('wardLastRites') && !n.lastRitesUsed) {
+      // The priest takes the blow, once.
+      n.lastRitesUsed = 1;
+      n.reckonings = NIGHTMARE_MAX_RECKONINGS - 1;
+      const lost = clamp(Math.round(Math.max(0, state.cash) * 0.10), 2000, 150000);
+      state.cash -= lost;
+      n.dread = getReckoningDread();
+      n.lowestDread = Math.min(n.lowestDread ?? 100, n.dread);
+      addNote(`⛪ LAST RITES. The priest stood in the doorway and the dark went around him. −${formatCurrency(lost)}. He is gone now. The next one is final.`, 'error');
+      showNightmareModal({
+        title: '⛪ Last Rites',
+        tone: 'nm-modal-pale',
+        html: `<p>The lights go out. For the first time, something stands between you and the dark.</p>
+               <p>The priest does not speak. He walks into the black with his hands folded, and the black <em>stops</em>.</p>
+               <p>When the lights return he is gone, and so is <strong>${formatCurrency(lost)}</strong>. Your cars are untouched.</p>
+               <p class="nm-modal-warn">Last Rites cannot be used again. One Reckoning remains before the dark keeps you. Dread has settled at ${n.dread}.</p>`,
+        actions: [{ label: 'Keep going', cls: 'btn-primary' }],
+      });
+      return;
+    }
+    nightmareConsumed(); return;
+  }
 
   const chapel = hasWard('wardChapel');
   const loss = clamp(Math.round(Math.max(0, state.cash) * (chapel ? getReckoningRate() / 2 : getReckoningRate())), 2000, chapel ? 100000 : 200000 * (1 + nmDepth1()));
@@ -12750,7 +12857,7 @@ function paleCooldownLeft() {
 }
 function sleepBtnLabel() {
   const cd = paleCooldownLeft();
-  return cd > 0 ? `😴 The Pale Man is bored of you… ${cd}s` : `😴 Play the Pale Man · sleep +${SLEEP_WIN_GAIN}%`;
+  return cd > 0 ? `😴 The Pale Man is bored of you… ${cd}s` : `😴 Play the Pale Man · sleep +${getSleepWinGain()}%`;
 }
 /** Keeps every cooldown-aware button in step (runs even while a duel is open). */
 function updateSleepCooldownUi() {
@@ -12796,6 +12903,7 @@ function sleepTick() {
   if (document.hidden || _paleDuel || _tutorialStep >= 0) return;
 
   const n = nm();
+  if ((n.hourglassUntil || 0) > Date.now()) { updateSleepUi(); return; }   // The Hourglass: time stands still
   n.sleep = Math.max(0, getSleep() - dt * getSleepDrain() / 60000);
   const s = n.sleep;
 
@@ -12811,6 +12919,20 @@ function sleepTick() {
   updateSleepUi();
   if (s <= 0) { nightmareFellAsleep(); return; }
   if (now - _sleepLastSave > 15000) { _sleepLastSave = now; saveState(); }
+}
+
+function turnHourglass() {
+  if (!isNightmare() || state.gameOver || !hasWard('wardHourglass')) return;
+  const n = nm();
+  if (n.hourglassDay === state.day) { showToast('The sand has already fallen tonight.', 'warning'); return; }
+  n.hourglassDay = state.day;
+  n.hourglassUntil = Date.now() + 5 * 60 * 1000;
+  addNote('⏳ You turned the Hourglass. The sand falls upward. For five minutes, nothing in the lot grows tired.', 'success');
+  showToast('⏳ Time stands still for 5 minutes.', 'success', 'candle');
+  playSfx('candle');
+  nightmareFx('candle', 1800);
+  saveState();
+  renderAll();
 }
 
 function nightmareFellAsleep() {
@@ -12846,7 +12968,7 @@ function updateSleepUi() {
       chip._nmPct = pct;
       chip.querySelector('.nm-sleep-mini i').style.width = pct + '%';
       chip.querySelector('.nm-sleep-pct').textContent = pct + '%';
-      chip.title = `Sleep ${pct}% — you haven't really slept since you signed. It drains ${getSleepDrain()}% a minute. At 0 you fall asleep for good. Click to play the Pale Man for +${SLEEP_WIN_GAIN}%.`;
+      chip.title = `Sleep ${pct}% — you haven't really slept since you signed. It drains ${getSleepDrain()}% a minute. At 0 you fall asleep for good. Click to play the Pale Man for +${getSleepWinGain()}%.`;
       }
       chip.classList.toggle('sleep-low',  getSleep() <= 30);
       chip.classList.toggle('sleep-crit', getSleep() <= 10);
@@ -12959,7 +13081,7 @@ function openPaleDuel() {
   ov.innerHTML = `
     <div class="rps-box">
       <h3 class="rps-title">THE PALE MAN</h3>
-      <p class="rps-sub">Best of three. Win to sleep (+${SLEEP_WIN_GAIN}%). Lose and you gain nothing, and wait ${PALE_LOSS_COOLDOWN_SEC}s.</p>
+      <p class="rps-sub">Best of three. Win to sleep (+${getSleepWinGain()}%). Lose and you gain nothing, and wait ${getLossCooldownSec()}s.</p>
       <div class="rps-score">
         <div class="rps-side"><span>You</span><span class="rps-pips" data-side="you"></span></div>
         <div class="rps-side rps-side-him"><span class="rps-pips" data-side="him"></span><span>Pale Man</span></div>
@@ -13181,7 +13303,7 @@ function paleDuelFinish(won) {
   e.choices.forEach(b => { b.disabled = true; });
   e.ov.classList.add(won ? 'rps-won' : 'rps-lost');
   if (won) {
-    const gained = Math.round(changeSleep(SLEEP_WIN_GAIN));
+    const gained = Math.round(changeSleep(getSleepWinGain()));
     n.sleepDuelsWon = (n.sleepDuelsWon || 0) + 1;
     e.status.textContent = `You win the match. 💤 You sleep. +${gained}% sleep.`;
     paleDuelSay(randomFrom(PALE_MATCH_WIN_LINES));
@@ -13193,8 +13315,8 @@ function paleDuelFinish(won) {
     }
   } else {
     n.sleepDuelsLost = (n.sleepDuelsLost || 0) + 1;
-    n.duelCooldownUntil = Date.now() + PALE_LOSS_COOLDOWN_SEC * 1000;
-    e.status.textContent = `The Pale Man wins. You gain nothing. He will play again in ${PALE_LOSS_COOLDOWN_SEC}s.`;
+    n.duelCooldownUntil = Date.now() + getLossCooldownSec() * 1000;
+    e.status.textContent = `The Pale Man wins. You gain nothing. He will play again in ${getLossCooldownSec()}s.`;
     paleDuelSay(randomFrom(PALE_MATCH_LOSE_LINES));
     addNote('😴 You lost to the Pale Man. No sleep. He seemed pleased.', 'whisper');
     playSfx('ash');
@@ -13210,7 +13332,7 @@ function paleDuelFinish(won) {
     actions.push({ label: 'Wake up', cls: 'btn-primary', fn: paleDuelWalkAway });
     if (getSleep() < 99.5) actions.push({ label: 'Play again', fn: () => paleDuelReset(true) });
   } else {
-    actions.push({ label: `Try again in ${PALE_LOSS_COOLDOWN_SEC}s`, cls: 'btn-danger rps-retry', fn: () => { if (paleCooldownLeft() <= 0) paleDuelReset(true); } });
+    actions.push({ label: `Try again in ${getLossCooldownSec()}s`, cls: 'btn-danger rps-retry', fn: () => { if (paleCooldownLeft() <= 0) paleDuelReset(true); } });
     actions.push({ label: 'Leave', fn: paleDuelWalkAway });
   }
   paleDuelSetActions(actions);
@@ -13223,10 +13345,11 @@ function paleDuelFinish(won) {
 function lightCandle() {
   if (!isNightmare() || state.gameOver) return;
   const n = nm();
-  if (n.candleDay === state.day) { showToast('One candle a night is all the dark allows.', 'warning'); return; }
+  if (getCandlesLitTonight() >= getCandlesAllowed()) { showToast(getCandlesAllowed() > 1 ? 'Two candles a night is all the dark allows.' : 'One candle a night is all the dark allows.', 'warning'); return; }
   const candleCost = getCandleCost();
   if (state.cash < candleCost) { showToast('Not enough cash for a candle.', 'error'); return; }
   state.cash -= candleCost;
+  n.candlesTonight = (n.candleDay === state.day ? (n.candlesTonight || 1) : 0) + 1;
   n.candleDay = state.day;
   n.candlesLit = (n.candlesLit || 0) + 1;
   const eased = -changeDread(-NIGHTMARE_CANDLE_RELIEF);
@@ -13393,7 +13516,7 @@ function renderNightmarePanel() {
   const tier = getDreadTier(d);
   const cursedOnLot = state.garage.filter(c => c.cursed).length;
   const drift = computeNightlyDreadDrift();
-  const candleUsed = n.candleDay === state.day;
+  const candleUsed = getCandlesLitTonight() >= getCandlesAllowed();
   const v = n.visitor;
   const driftCls = drift.total > 0 ? 'text-red' : drift.total < 0 ? 'text-green' : 'text-muted';
   const driftRows = drift.parts.map(p =>
@@ -13426,7 +13549,8 @@ function renderNightmarePanel() {
           </div>
           <div class="stat-row"><span>Sleep drain</span><strong class="text-red">−${getSleepDrain()}% / minute</strong></div>
           <div class="nm-actions">
-            <button class="btn btn-primary nm-sleep-btn" onclick="openPaleDuel()" ${paleCooldownLeft() > 0 ? 'disabled' : ''} title="Best of three. Win to sleep (+${SLEEP_WIN_GAIN}%). Lose and you gain nothing, and he makes you wait ${PALE_LOSS_COOLDOWN_SEC}s.">${sleepBtnLabel()}</button>
+            <button class="btn btn-primary nm-sleep-btn" onclick="openPaleDuel()" ${paleCooldownLeft() > 0 ? 'disabled' : ''} title="Best of three. Win to sleep (+${getSleepWinGain()}%). Lose and you gain nothing, and he makes you wait ${getLossCooldownSec()}s.">${sleepBtnLabel()}</button>
+            ${hasWard('wardHourglass') ? `<button class="btn btn-secondary" onclick="turnHourglass()" ${n.hourglassDay === state.day ? 'disabled' : ''} title="Once a night. Sleep stops draining for 5 minutes.">${(n.hourglassUntil || 0) > Date.now() ? '⏳ Time stands still…' : n.hourglassDay === state.day ? '⏳ Hourglass spent tonight' : '⏳ Turn the Hourglass · freeze sleep 5 min'}</button>` : ''}
           </div>
           <p class="nm-pale-toy">He could kill you where you stand. His own rules say he has to let you choose.</p>
           <div class="stat-row"><span>Reckonings</span><strong class="${n.reckonings ? 'text-red' : 'text-muted'}">${n.reckonings || 0} / ${NIGHTMARE_MAX_RECKONINGS} <small>(the last is final)</small></strong></div>
@@ -13435,7 +13559,7 @@ function renderNightmarePanel() {
           <div class="nm-drift">${driftRows}</div>
           <div class="nm-actions">
             <button class="btn btn-primary" onclick="lightCandle()" ${candleUsed || state.cash < getCandleCost() ? 'disabled' : ''}
-              title="One per night. Costs ${formatCurrency(getCandleCost())}.">🕯️ ${candleUsed ? 'Candle lit tonight' : `Light a Candle · −${NIGHTMARE_CANDLE_RELIEF} Dread · ${formatCurrency(getCandleCost())}`}</button>
+              title="${getCandlesAllowed() > 1 ? 'Two per night' : 'One per night'}. Costs ${formatCurrency(getCandleCost())} each.">🕯️ ${candleUsed ? (getCandlesAllowed() > 1 ? 'Both candles lit tonight' : 'Candle lit tonight') : `Light a Candle · −${NIGHTMARE_CANDLE_RELIEF} Dread · ${formatCurrency(getCandleCost())}`}</button>
           </div>
           ${ashHtml}
           ${state.day >= 2 ? `<div class="nm-actions"><button class="btn btn-secondary" onclick="openOfficeBoard()" title="The pegboard of keys behind the desk.">🗝️ Office board</button></div>` : ''}
@@ -13445,7 +13569,7 @@ function renderNightmarePanel() {
           <li>At <strong>100 Dread</strong> the dark collects: cash, your best car, and a step closer to the end.</li>
           <li><strong>Cursed cars</strong> sell cheap — inspect first. Exorcise them, or sell them fast.</li>
           <li><strong>Sleep</strong> drains ${getSleepDrain()}% every minute. You haven't really slept since you signed. At <strong>0</strong> you pass out and the run is over.</li>
-          <li>Beat the <strong>Pale Man</strong> at rock-paper-scissors (best of three) to sleep: +${SLEEP_WIN_GAIN}%. Lose and you gain nothing, and he makes you wait ${PALE_LOSS_COOLDOWN_SEC}s. He is only toying with you.</li>
+          <li>Beat the <strong>Pale Man</strong> at rock-paper-scissors (best of three) to sleep: +${getSleepWinGain()}%. Lose and you gain nothing, and he makes you wait ${getLossCooldownSec()}s. He is only toying with you.</li>
           <li>The <strong>Pale Customer</strong> is the Pale Man in disguise. He pays far too much. Money can burn.</li>
           <li>Buy <strong>Wards</strong> in Upgrades to push the night back for good.</li>
           <li>Overhead ×${(2 * (1 + 0.3 * Math.min(nmDepth(), 2))).toFixed(1)}, staff pay +25%, buyers pickier, bankruptcy is permanent.</li>
