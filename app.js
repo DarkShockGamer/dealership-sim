@@ -11,9 +11,16 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.21.5';
+const GAME_VERSION = '1.21.6';
 
 const PATCH_NOTES = [
+  {
+    version: '1.21.6',
+    date: 'October 2026',
+    notes: [
+      { type: 'feature', text: "Nightmare: lighting a candle now plays a short animation. A candle rises into view, a match touches the wick, the flame catches and flickers, embers drift up, and the Dread it bought is shown beneath it. It never blocks the game (you can keep clicking through it), it only uses lightweight animation so it won't bring back the lag, and it is skipped if Reduce Motion is on." },
+    ],
+  },
   {
     version: '1.21.5',
     date: 'October 2026',
@@ -13637,6 +13644,53 @@ function lightCandle() {
   renderAll();
   showToast(`🕯️ The flame holds. Dread −${eased}.`, 'success', 'candle');
   nightmareFx('candle', 1800);
+  playCandleLighting(eased, candleCost);
+}
+
+/**
+ * A candle is lit on screen: it rises into view, a match touches the wick, the flame catches and
+ * flickers, embers drift up, and the Dread it bought is shown. Pure transform/opacity animation
+ * (see nightmare.css), click-through, and removed from the DOM when it ends.
+ */
+let _candleAnimTimer = null;
+function playCandleLighting(eased, cost) {
+  document.querySelectorAll('.cd-scene').forEach(el => el.remove());
+  clearTimeout(_candleAnimTimer);
+  const scene = document.createElement('div');
+  scene.className = 'cd-scene';
+  scene.setAttribute('aria-hidden', 'true');
+  scene.innerHTML =
+    '<div class="cd-dim"></div><div class="cd-glow"></div>' +
+    '<div class="cd-stage">' +
+      '<svg class="cd-svg" viewBox="0 0 120 230" xmlns="http://www.w3.org/2000/svg">' +
+        '<defs>' +
+          '<linearGradient id="cdWax" x1="0" x2="1"><stop offset="0" stop-color="#cdbf9f"/><stop offset=".45" stop-color="#f6ecd2"/><stop offset="1" stop-color="#b9a983"/></linearGradient>' +
+          '<linearGradient id="cdFlame" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#ff7a1a"/><stop offset=".55" stop-color="#ffb347"/><stop offset="1" stop-color="#fff2b0"/></linearGradient>' +
+          '<linearGradient id="cdDish" x1="0" x2="1"><stop offset="0" stop-color="#5b4a2e"/><stop offset=".5" stop-color="#a68a54"/><stop offset="1" stop-color="#4a3a22"/></linearGradient>' +
+        '</defs>' +
+        '<ellipse cx="60" cy="216" rx="48" ry="10" fill="url(#cdDish)"/>' +
+        '<ellipse cx="60" cy="212" rx="40" ry="7" fill="#7d6a42"/>' +
+        '<rect x="40" y="118" width="40" height="94" rx="5" fill="url(#cdWax)"/>' +
+        '<ellipse cx="60" cy="118" rx="20" ry="5" fill="#efe3c4"/>' +
+        '<path class="cd-drip" d="M72 120 q4 0 4 6 v26 q0 5 -4 5 q-4 0 -4 -5 v-26 q0 -6 4 -6z" fill="#fbf3dc"/>' +
+        '<rect x="58.8" y="104" width="2.4" height="15" rx="1" fill="#2a1d12"/>' +
+        '<g class="cd-flame-wrap">' +
+          '<path class="cd-flame" d="M60 104 C45 90 51 68 60 46 C69 68 75 90 60 104 Z" fill="url(#cdFlame)"/>' +
+          '<path class="cd-flame-core" d="M60 103 C54 95 57 83 60 74 C63 83 66 95 60 103 Z" fill="#fff8d6"/>' +
+        '</g>' +
+        '<g class="cd-match">' +
+          '<line x1="64" y1="94" x2="112" y2="30" stroke="#9a6b3a" stroke-width="3" stroke-linecap="round"/>' +
+          '<ellipse cx="63" cy="95" rx="3.6" ry="4.6" fill="#7a1f12" transform="rotate(-36 63 95)"/>' +
+          '<path class="cd-match-flame" d="M62 94 C56 88 58 80 62 72 C66 80 68 88 62 94 Z" fill="url(#cdFlame)"/>' +
+        '</g>' +
+        '<circle class="cd-ember e1" cx="56" cy="64" r="1.8" fill="#ffd27a"/>' +
+        '<circle class="cd-ember e2" cx="66" cy="60" r="1.5" fill="#ffb347"/>' +
+        '<circle class="cd-ember e3" cx="60" cy="56" r="1.3" fill="#fff2b0"/>' +
+      '</svg>' +
+      '<div class="cd-text"><strong>Dread −' + eased + '</strong><span>' + formatCurrency(cost) + '</span></div>' +
+    '</div>';
+  document.body.appendChild(scene);
+  _candleAnimTimer = setTimeout(() => scene.remove(), 3800);
 }
 
 function getExorcismCost() { return Math.round(NIGHTMARE_EXORCISM_COST * (hasWard('wardChapel') ? 0.5 : 1)); }
