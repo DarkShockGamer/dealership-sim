@@ -324,3 +324,99 @@ body.reduce-motion .rps-hand-wrap, body.reduce-motion .rps-box, body.reduce-moti
 /* v1.20.0 — ending screens (woke up / he is happy): softer, paler than a loss */
 #game-over-screen.nm-over.nm-ending { background: radial-gradient(ellipse at center, #2a2330, #050408); }
 #game-over-screen.nm-over.nm-ending .game-over-title { color: #efe6d2; text-shadow: 0 0 30px rgba(255,240,200,.45); }
+
+/* ── Nightmare office board: messy, crowded, and not alone ───────────────────────── */
+.bb-nm .bb-board {
+  background-color: #4a3122;
+  background-image:
+    radial-gradient(ellipse 140px 90px at 18% 22%, rgba(20,0,0,.40), transparent 70%),
+    radial-gradient(ellipse 190px 70px at 74% 62%, rgba(70,0,8,.32), transparent 70%),
+    radial-gradient(circle at 42% 88%, rgba(0,0,0,.40), transparent 42%),
+    repeating-linear-gradient(97deg, rgba(0,0,0,.10) 0 2px, transparent 2px 9px),
+    radial-gradient(rgba(0,0,0,.45) 1px, transparent 1.6px),
+    radial-gradient(rgba(255,230,180,.10) 1px, transparent 1.8px);
+  background-size: auto, auto, auto, auto, 11px 11px, 17px 17px;
+  box-shadow: inset 0 0 90px rgba(30,0,4,.9);
+}
+.bb-nm .bb-grid { grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); gap: 20px 2px; z-index: 1; }
+.bb-nm .bb-note {
+  transform: translate(var(--dx, 0px), var(--dy, 0px)) rotate(var(--tilt, 0deg)) scale(var(--sc, 1));
+  z-index: var(--z, 1);
+  transition: transform .18s ease;
+  border-radius: 2px 14px 3px 9px;
+}
+/* Overlapped notes are hard to read, so whatever you point at comes to the front. */
+.bb-nm .bb-note:hover { z-index: 60; transform: translate(var(--dx, 0px), var(--dy, 0px)) rotate(calc(var(--tilt, 0deg) * .3)) scale(calc(var(--sc, 1) * 1.06)); }
+
+/* ink: not everyone wrote with the same pen */
+.bb-nm .bb-ink-pencil .bb-text { color: #55524c; font-style: italic; opacity: .88; }
+.bb-nm .bb-ink-red .bb-text { color: #8c0f18; }
+
+/* coffee ring */
+.bb-nm .bb-stain::before {
+  content: ''; position: absolute; right: 12%; bottom: 10%; width: 46px; height: 44px; border-radius: 50%;
+  border: 3px solid rgba(90,45,10,.30); box-shadow: inset 0 0 8px rgba(90,45,10,.22);
+  transform: scaleY(.85) rotate(20deg); pointer-events: none;
+}
+/* tape across a corner */
+.bb-nm .bb-taped::after {
+  content: ''; position: absolute; top: -8px; right: -14px; width: 56px; height: 18px;
+  background: rgba(232,222,168,.55); transform: rotate(38deg); box-shadow: 0 1px 2px rgba(0,0,0,.25); pointer-events: none;
+}
+/* a corner torn off */
+.bb-nm .bb-paper.bb-fold {
+  background: linear-gradient(225deg, #4a3122 0 13px, rgba(0,0,0,.30) 13px 14px, transparent 14px),
+              linear-gradient(180deg, rgba(0,0,0,.03), transparent 30%), #fbf6e3;
+}
+/* a second hand, scribbling on someone else's note */
+.bb-scrawl {
+  margin-top: 8px; padding-top: 4px; font-size: 1.1rem; color: #a3121f; transform: rotate(-3deg);
+  border-top: 1px dashed rgba(163,18,31,.35); text-shadow: 0 0 1px rgba(120,0,10,.4);
+}
+/* torn scraps of paper */
+.bb-nm .bb-scrap {
+  min-height: 0; width: 64%; justify-self: center; align-self: start; padding: 14px 10px 10px; background: #efe3bd; box-shadow: none; border-radius: 0;
+  clip-path: polygon(0 5%, 12% 0, 38% 5%, 61% 0, 100% 3%, 96% 52%, 100% 97%, 70% 100%, 44% 94%, 18% 100%, 2% 94%, 5% 50%);
+}
+.bb-nm .bb-scrap .bb-label { display: none; }
+.bb-nm .bb-scrap .bb-text { font-size: 1.25rem; font-weight: 700; text-align: center; color: #9b0f1a; }
+/* marker written straight onto the cork */
+.bb-graf {
+  position: absolute; z-index: 0; pointer-events: none; font-family: 'Caveat', 'Segoe Print', 'Bradley Hand', cursive;
+  font-weight: 700; letter-spacing: .06em; color: rgba(150,12,22,.82); text-shadow: 0 0 2px rgba(80,0,0,.6);
+  transform: rotate(var(--r, 0deg)); white-space: nowrap;
+}
+
+/* strings: tangled, uneven, and a few that go nowhere */
+.bb-nm .bb-string { stroke: #9c1a24; }
+.bb-nm .bb-string.thin { stroke-width: 1.4; opacity: .85; }
+.bb-nm .bb-string.dangle { opacity: .7; }
+.bb-nm .bb-pin.dark { background: radial-gradient(circle at 35% 30%, #8a8a8a 0 12%, #2a2a2a 40%, #000 100%); }
+.bb-nm .bb-pin.rust { background: radial-gradient(circle at 35% 30%, #d9a070 0 12%, #8a4a22 40%, #3a1a08 100%); }
+
+/* ── Scary polaroids ───────────────────────────────────────────────────────────── */
+.bb-nm .bb-nmphoto { background: none; box-shadow: none; padding: 0; min-height: 0; border-radius: 0; }
+.bb-nm .bb-nmphoto .bb-label { display: none; }
+.bb-nm .bb-nmphoto .bb-photo { width: 100%; margin: 0; transform: none; background: #e9e1c8; box-shadow: 0 6px 12px rgba(0,0,0,.55), 0 0 0 1px rgba(0,0,0,.2); }
+.bb-nm .bb-nmphoto .bb-photo-img { position: relative; filter: sepia(.55) saturate(.65) contrast(1.15) brightness(.85); }
+.bb-nm .bb-nmphoto .bb-photo-img::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse at 50% 42%, rgba(255,235,200,.16), transparent 45%, rgba(0,0,0,.72) 100%);
+}
+.bb-nm .bb-nmphoto .bb-ph-dawn .bb-photo-img { filter: sepia(.35) saturate(.9) contrast(1.05) brightness(.95); }
+.bb-nm .bb-nmphoto .bb-photo-cap { color: #3b1410; font-size: 1.02rem; padding: 5px 4px 8px; }
+.bb-photo-stamp {
+  position: absolute; right: 5px; bottom: 4px; z-index: 2; font: 700 .58rem/1 ui-monospace, Menlo, monospace;
+  color: #ff9a3c; text-shadow: 0 0 3px rgba(255,120,0,.8); letter-spacing: .04em;
+}
+/* the thing in the picture moves when you look at it */
+.bb-photo .bb-near { opacity: 0; transition: opacity .8s ease; }
+.bb-photo .bb-far  { transition: opacity .8s ease; }
+.bb-photo:hover .bb-near, .bb-photo.bb-revealed .bb-near { opacity: 1; }
+.bb-photo:hover .bb-far,  .bb-photo.bb-revealed .bb-far  { opacity: 0; }
+
+@media (max-width: 560px) {
+  .bb-nm .bb-grid { grid-template-columns: 1fr 1fr; gap: 24px 4px; }
+  .bb-graf { font-size: 1.5rem !important; }
+}
+@media (prefers-reduced-motion: reduce) { .bb-nm .bb-note, .bb-photo .bb-near, .bb-photo .bb-far { transition: none; } }
