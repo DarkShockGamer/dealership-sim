@@ -57,7 +57,7 @@ const PATCH_NOTES = [
     notes: [
       { type: 'feature', text: "Story. On every difficulty except Nightmare, the tutorial now opens with how you got here: your mom finally kicked you out of her basement, and a great-uncle you barely knew left you his old, rundown used car dealership. A handful of small story beats then turn up in the activity log as the days go by." },
       { type: 'feature', text: "Nightmare lore, delivered only during play (the tutorial stays spoiler-free). Over the first few weeks the lot tells you why the Pale Man plays instead of killing you, what the Pale Customer's tell is, and what the ash really is. The Dashboard also gets an Office Board once you reach Night 2. One key on it has a tag with your name, written before you arrived." },
-      { type: 'feature', text: "Nightmare endings. Reach Night 30 (and again at Night 100 and 200) and the Pale Man offers you the dawn. Take it and you wake up, but winning does not free you. Choose to keep dreaming and the run carries on. There is also a secret ending for anyone who beats him often enough." },
+      { type: 'feature', text: "Nightmare endings. Reach Night 365, a full year of nights (and again at Night 730 and 1095), and the Pale Man offers you the dawn. Take it and you wake up, but winning does not free you. Choose to keep dreaming and the run carries on. There is also a secret ending for anyone who beats him 50 times." },
       { type: 'feature', text: "Two new Nightmare achievements: Rise and Shine and a secret one. Lucid Dreamer now needs both, and unlocking it asks which side was the real dream." },
       { type: 'chore', text: "Sleep drain now reads as what it is: you haven't really slept since you signed. New one-line whispers hint at the lot's history." },
     ],
@@ -1550,8 +1550,8 @@ const ACHIEVEMENT_DEFS = [
     check: s => nmOnly(s) && (s.day||1) >= 30, progress: s => nmProg(s, s.day||1, 30) },
   { id: 'nm_night_100', icon: ACH_ICONS.eye, name: 'Insomniac', desc: 'Reach Night 100 on Nightmare. Sleep is a rumour.',
     check: s => nmOnly(s) && (s.day||1) >= 100, progress: s => nmProg(s, s.day||1, 100) },
-  { id: 'nm_night_200', icon: ACH_ICONS.star, name: 'First Light', desc: 'Reach Night 200 on Nightmare. Is that... the sun?',
-    check: s => nmOnly(s) && (s.day||1) >= 200, progress: s => nmProg(s, s.day||1, 200) },
+  { id: 'nm_night_200', icon: ACH_ICONS.star, name: 'First Light', desc: 'Reach Night 365 on Nightmare. Is that... the sun?',
+    check: s => nmOnly(s) && (s.day||1) >= 365, progress: s => nmProg(s, s.day||1, 365) },
   { id: 'nm_first_sale', icon: ACH_ICONS.tag, name: 'Business After Dark', desc: 'Sell your first car on Nightmare.',
     check: s => nmOnly(s) && nmCount(s, 'totalSales') >= 1 },
   { id: 'nm_sales_25', icon: ACH_ICONS.trophy, name: 'Sold in the Dark', desc: 'Sell 25 cars on a Nightmare save.',
@@ -12569,8 +12569,8 @@ function openBulletinBoard() {
 /** Nightmare dashboard button keeps its old name. */
 function openOfficeBoard() { openBulletinBoard(); }
 
-/** Offered at Night 30, then again at Night 100 and 200 if you keep dreaming. */
-const NIGHTMARE_DAWN_NIGHTS = [30, 100, 200];
+/** Offered at Night 365 (a full year of nights), then again at Night 730 and 1095 if you keep dreaming. */
+const NIGHTMARE_DAWN_NIGHTS = [365, 730, 1095];
 function maybeOfferDawn() {
   const n = nm();
   if (state.gameOver) return;
@@ -12611,7 +12611,7 @@ function nightmareWakeUp() {
 }
 
 /** Secret ending: he has lost enough times that he is almost happy about it. */
-const NIGHTMARE_FOND_WINS = 10;
+const NIGHTMARE_FOND_WINS = 50;
 function nightmareFondPrompt() {
   showNightmareModal({
     title: '🎲 He Loses',
