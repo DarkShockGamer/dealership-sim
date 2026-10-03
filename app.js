@@ -11,9 +11,16 @@ import { CAR_CATALOG } from './data/cars.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.21.4';
+const GAME_VERSION = '1.21.5';
 
 const PATCH_NOTES = [
+  {
+    version: '1.21.5',
+    date: 'October 2026',
+    notes: [
+      { type: 'balance', text: "Nightmare: selling cars now lowers Dread the moment the sale happens, and the more cars you sell in a day, the more each one helps. Early on the first sale of the day is −4, then −5, −6, −7 and so on, climbing to 2.5x the base relief. A single day of sales can lift up to 30 Dread. The old end-of-night batch (−4 each, capped at −16) is gone, so a busy day is now clearly rewarded. The longer you stay in the night, the less each sale helps, same as before. The Dark panel on the dashboard shows today's sales, the Dread they've lifted so far, and what the next sale will do." },
+    ],
+  },
   {
     version: '1.21.4',
     date: 'October 2026',
@@ -701,7 +708,7 @@ const NIGHTMARE_DEFAULTS = {
   reckonings: 0, candlesLit: 0, candleDay: 0,
   exorcisms: 0, cursedBought: 0, cursedSold: 0, hauntings: 0, carsTaken: 0,
   visitorsAccepted: 0, visitorsDeclined: 0, ashCount: 0, ashDue: 0, ashDay: 0,
-  eventsSeen: 0, salesToday: 0, totalSales: 0, eyesClicked: 0, visitor: null,
+  eventsSeen: 0, salesToday: 0, saleReliefToday: 0, totalSales: 0, eyesClicked: 0, visitor: null,
   sleep: 100, sleepDuelsWon: 0, sleepDuelsLost: 0, duelCooldownUntil: 0,   // Sleep meter + Pale Man duels
   loreIdx: 0, dawnOffered: 0, wokeUp: 0, fondEnding: 0, depthNoted: 0,
   candlesTonight: 0, hourglassUntil: 0, hourglassDay: 0, lastRitesUsed: 0,   // Ward upgrades                     // v1.20.0 — story beats + endings
@@ -6404,7 +6411,7 @@ function renderStats() {
     if (isNightmare()) {
       const tier = getDreadTier();
       dreadChip.innerHTML = `${uiIcon('eye')} Dread ${getDread()}`;
-      dreadChip.title = `Dread ${getDread()}/100 — ${DREAD_TIER_LABELS[tier]}. Sell cars and light candles to push it back.`;
+      dreadChip.title = `Dread ${getDread()}/100 — ${DREAD_TIER_LABELS[tier]}. Every car sold pushes it back, and each sale in a day helps more. Candles help too.`;
       for (let t = 0; t < 4; t++) dreadChip.classList.toggle('nm-tier-' + t, t === tier);
     } else {
       dreadChip.innerHTML = '';
@@ -12139,6 +12146,14 @@ function nmDepth(day) { return clamp((((day === undefined ? (state && state.day)
 function nmDepth1() { return Math.min(nmDepth(), 1); }                                   // the part of the climb that tops out at Night 360
 function getNightBaseDrift()   { return 2 + Math.round(nmDepth() * 5); }                 // 2 early, 7 at Night 360
 function getSaleDreadRelief()  { return Math.max(2, 4 - nmDepth() * 1.5); }              // 4 early, 2.5 at Night 360, 2 later
+const NIGHTMARE_SALE_STREAK_STEP = 0.25;   // each extra sale in a day makes the next one help 25% more…
+const NIGHTMARE_SALE_STREAK_MAX  = 2.5;    // …up to 2.5x the base relief
+const NIGHTMARE_SALE_RELIEF_CAP  = 30;     // most Dread that a single day of sales can lift
+/** Dread lifted by the `k`th sale of the day (k = 1, 2, 3…). Every sale helps more than the last. */
+function getSaleReliefFor(k) {
+  const mult = Math.min(NIGHTMARE_SALE_STREAK_MAX, 1 + NIGHTMARE_SALE_STREAK_STEP * Math.max(0, k - 1));
+  return Math.max(1, Math.round(getSaleDreadRelief() * mult));
+}
 function getCandleCost()       { return Math.round(NIGHTMARE_CANDLE_COST * (1 + nmDepth() * 3) * (hasWard('wardVotive') ? 0.75 : 1) / 50) * 50; }   // $750 early, $3,000 at Night 360
 function getCurseCap()         { return NIGHTMARE_CURSE_CHANCE + 0.14 * Math.min(nmDepth(), 1.5); }          // 16% early, 30% at Night 360
 function getMaxCursedListings(){ return Math.min(4, 2 + Math.floor(nmDepth() * 1.5)); } // 2 early, 3 at Night 360
@@ -12349,7 +12364,6 @@ function computeNightlyDreadDrift() {
   add('Cursed cars on the lot', Math.min(8, cursedCount * (hasWard('wardLights') ? 1 : 2)));
   if (state.cash < 0) add('Empty tills', 2);
   if (state.loanBalance > 0 && (state.delinquencyLevel || 0) > 0) add('Overdue debts', 2);
-  add('Sales since last dusk', -Math.round(Math.min(16, (n.salesToday || 0) * getSaleDreadRelief())));
   if (hasWard('wardSalt'))   add('Salt Lines', -1);
   if (hasWard('wardLights')) add('Floodlight Array', -1);
   if (hasWard('wardChapel')) add('Lot Chapel', -3);
@@ -12400,6 +12414,7 @@ function processNightmareNight() {
   const drift = computeNightlyDreadDrift();
   changeDread(drift.total + hauntDread);
   n.salesToday = 0;
+  n.saleReliefToday = 0;
 
   // 5. Atmosphere in the activity log.
   const tier = getDreadTier();
@@ -13650,6 +13665,14 @@ function onNightmareSale(car) {
   const n = nm();
   n.salesToday = (n.salesToday || 0) + 1;
   n.totalSales = (n.totalSales || 0) + 1;
+  // Selling pushes the dark back right away, and every sale in a day helps more than the one before it.
+  const room = Math.max(0, NIGHTMARE_SALE_RELIEF_CAP - (n.saleReliefToday || 0));
+  const want = Math.min(room, getSaleReliefFor(n.salesToday));
+  if (want > 0 && getDread() > 0) {
+    const eased = -changeDread(-want);
+    n.saleReliefToday = (n.saleReliefToday || 0) + want;
+    if (eased > 0) addNote(`🚗 Sale #${n.salesToday} today. The lot feels lighter. Dread −${eased}.`, 'success');
+  }
   if (car && car.cursed) n.cursedSold = (n.cursedSold || 0) + 1;
   // The car he wanted just sold to someone else: the offer is off the table.
   if (car && n.visitor && n.visitor.carId === car.id) prunePaleVisitor(true);
@@ -13818,6 +13841,7 @@ function renderNightmarePanel() {
           <p class="nm-pale-toy">He could kill you where you stand. His own rules say he has to let you choose.</p>
           <div class="stat-row"><span>Reckonings</span><strong class="${n.reckonings ? 'text-red' : 'text-muted'}">${n.reckonings || 0} / ${NIGHTMARE_MAX_RECKONINGS} <small>(the last is final)</small></strong></div>
           <div class="stat-row"><span>Cursed cars on the lot</span><strong class="${cursedOnLot ? 'text-red' : 'text-muted'}">${cursedOnLot}</strong></div>
+          <div class="stat-row"><span>Sales today</span><strong class="${(n.salesToday || 0) ? 'text-green' : 'text-muted'}">${n.salesToday || 0} · −${n.saleReliefToday || 0} Dread so far${(n.saleReliefToday || 0) >= NIGHTMARE_SALE_RELIEF_CAP ? ' (max)' : ` · next sale −${Math.min(getSaleReliefFor((n.salesToday || 0) + 1), NIGHTMARE_SALE_RELIEF_CAP - (n.saleReliefToday || 0))}`}</strong></div>
           <div class="stat-row"><span>Tonight's drift</span><strong class="${driftCls}">${drift.total > 0 ? '+' : ''}${drift.total} Dread</strong></div>
           <div class="nm-drift">${driftRows}</div>
           <div class="nm-actions">
@@ -13828,7 +13852,7 @@ function renderNightmarePanel() {
           ${state.day >= 2 ? `<div class="nm-actions"><button class="btn btn-secondary" onclick="openOfficeBoard()" title="The pegboard of keys behind the desk.">🗝️ Office board</button></div>` : ''}
         </div>
         <ul class="nm-rules">
-          <li><strong>Sell cars</strong> to keep the dark back (−${Math.round(getSaleDreadRelief() * 10) / 10} Dread each, up to −16 a night).${nmDepth() > 0 ? ' <em>The longer you stay, the less each sale helps.</em>' : ''}</li>
+          <li><strong>Sell cars</strong> to keep the dark back. Dread drops the moment a car sells (−${getSaleReliefFor(1)} for the first), and <strong>every sale in a day helps more than the last</strong> (−${getSaleReliefFor(2)}, −${getSaleReliefFor(3)}, −${getSaleReliefFor(4)}…), up to −${NIGHTMARE_SALE_RELIEF_CAP} a day.${nmDepth() > 0 ? ' <em>The longer you stay, the less each sale helps.</em>' : ''}</li>
           <li>At <strong>100 Dread</strong> the dark collects: cash, your best car, and a step closer to the end.</li>
           <li><strong>Cursed cars</strong> sell cheap — inspect first. Exorcise them, or sell them fast.</li>
           <li><strong>Sleep</strong> drains ${getSleepDrain()}% every minute. You haven't really slept since you signed. At <strong>0</strong> you pass out and the run is over.</li>
