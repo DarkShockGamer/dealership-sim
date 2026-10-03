@@ -12598,104 +12598,207 @@ function _bbNormalNotes() {
   return out;
 }
 
-// ---- Nightmare board: the mess, the scraps, and the scary photos --------------------------------
-const NM_SCRAPS = ['he reads these', 'still here', '39', 'don\'t', 'count them', 'behind you', 'who wrote this?', 'not asleep', 'listen', 'he knows', 'NO', 'wake up?', 'again', 'it\'s warm'];
-const NM_SCRAWLS = ['no.', 'he reads these.', 'i know.', 'that is my handwriting', 'don\'t trust the smile', 'it is true', 'who is writing this', 'again', 'still here'];
-const NM_GRAFFITI = [
-  { t: 'DON\'T SLEEP', x: 5, y: 3, r: -6, s: 2.3 }, { t: '39', x: 80, y: 10, r: 8, s: 2.8 },
-  { t: 'HE COUNTS', x: 58, y: 46, r: -4, s: 2.1 }, { t: 'LOOK BEHIND YOU', x: 8, y: 70, r: 5, s: 2.1 },
-  { t: 'IT IS WARM', x: 52, y: 90, r: -7, s: 2.2 },
-];
-/** Deterministic pseudo-random in [0,1): the board is messy, but the same mess every time you open it. */
-function _bbRand(i, salt) { const x = Math.sin((i + 1) * 12.9898 + salt * 78.233) * 43758.5453; return x - Math.floor(x); }
+// ---- Nightmare board: the polaroids ---------------------------------------------------------------
+// Each scene is a 240x184 SVG. `.bb-far` shows normally; `.bb-near` fades in when you hover a photo
+// (or when the board decides to change one on its own while you read).
+let _nmPhotoSeq = 0;
+const _nmDefs = u => `<defs>
+  <radialGradient id="v${u}" cx="50%" cy="46%" r="74%"><stop offset=".5" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".8"/></radialGradient>
+  <filter id="gr${u}" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="9"/><feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1.1 -.42"/></filter>
+  <filter id="b2${u}" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="1.6"/></filter>
+  <filter id="b5${u}" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="5"/></filter>
+  <filter id="b12${u}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="12"/></filter>
+  <radialGradient id="warm${u}" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#ffd98a" stop-opacity=".8"/><stop offset="1" stop-color="#ffd98a" stop-opacity="0"/></radialGradient>
+  <radialGradient id="cold${u}" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#9fc4ff" stop-opacity=".55"/><stop offset="1" stop-color="#9fc4ff" stop-opacity="0"/></radialGradient>
+  <linearGradient id="brass${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f1d58a"/><stop offset=".5" stop-color="#b8923e"/><stop offset="1" stop-color="#6e5420"/></linearGradient>
+  <linearGradient id="wood${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6a4a32"/><stop offset="1" stop-color="#241810"/></linearGradient>
+  <linearGradient id="skin${u}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f1ece0"/><stop offset="1" stop-color="#b9b3a2"/></linearGradient>
+</defs>`;
+const _nmFinish = u => `<rect width="240" height="184" filter="url(#gr${u})" opacity=".5" style="mix-blend-mode:overlay"/><rect width="240" height="184" fill="url(#v${u})"/>`;
 
-/** Nightmare board: sprinkle torn scraps between the notes, and give some notes a second hand scribbling on them. */
-function _bbMessUp(notes) {
-  const out = [];
-  notes.forEach((nt, i) => {
-    const scrawl = ['paper', 'card', 'tag'].includes(nt.kind) && _bbRand(i, 10) < 0.38
-      ? NM_SCRAWLS[Math.floor(_bbRand(i, 14) * NM_SCRAWLS.length)] : null;
-    out.push(Object.assign({}, nt, { scrawl }));
-    if (nt.kind !== 'locked' && _bbRand(i, 11) < 0.42) {
-      out.push({ kind: 'scrap', label: '', text: NM_SCRAPS[Math.floor(_bbRand(i, 12) * NM_SCRAPS.length)] });
-    }
-  });
-  return out;
-}
+/** The Pale Man. (x,y) is his feet, s is scale (about 95 units tall at s=1). */
+const _nmPale = (x, y, s = 1, o = {}) => {
+  const face = (o.eyes ? '<ellipse cx="-2.7" cy="-77" rx="1.3" ry="2.1" fill="#000"/><ellipse cx="2.7" cy="-77" rx="1.3" ry="2.1" fill="#000"/>' : '')
+    + (o.smile ? '<path d="M-5 -72.5Q0 -66 5 -72.5Q0 -70.5 -5 -72.5Z" fill="#fff" stroke="#050507" stroke-width=".7"/>' : '');
+  const arms = o.hat
+    ? '<path d="M-9 -62L-13 -42L-3 -38M9 -62L13 -42L3 -38" stroke="#0b0b0e" stroke-width="4" fill="none" stroke-linecap="round"/><ellipse cx="0" cy="-38" rx="10" ry="2.6" fill="#050507"/><path d="M-6 -38L-5.5 -47H5.5L6 -38Z" fill="#050507"/><circle cx="-3.5" cy="-38" r="2" fill="#ece8dc"/><circle cx="3.5" cy="-38" r="2" fill="#ece8dc"/>'
+    : '<path d="M-9 -62L-16 -18M9 -62L16 -18" stroke="#0b0b0e" stroke-width="3.6" fill="none" stroke-linecap="round"/><circle cx="-16.4" cy="-15.5" r="2.4" fill="#e6e1d4"/><circle cx="16.4" cy="-15.5" r="2.4" fill="#e6e1d4"/>';
+  return `<g transform="translate(${x} ${y}) scale(${s})"${o.op ? ` opacity="${o.op}"` : ''}>
+    <path d="M-8 -67C-12 -65 -13 -50 -13 -34L-15 -2H15L13 -34C13 -50 12 -65 8 -67Z" fill="#0b0b0e"/>
+    <path d="M-3 -67L0 -58L3 -67Z" fill="#d8d3c6"/>${arms}
+    <ellipse cx="0" cy="-76" rx="6.4" ry="8.6" fill="${o.sil ? '#0b0b0e' : `url(#skin${o.u || ''})`}"/>${face}
+    <ellipse cx="0" cy="-83.5" rx="10.5" ry="2.3" fill="#050507"/><path d="M-6.2 -83.5L-5.6 -94H5.6L6.2 -83.5Z" fill="#050507"/><rect x="-6" y="-87" width="12" height="1.8" fill="#2b2b33"/></g>`;
+};
+const _nmCar = (x, y, s = 1, lights = true, u = '') => `<g transform="translate(${x} ${y}) scale(${s})">
+  <ellipse cx="42" cy="2" rx="46" ry="5" fill="#000" opacity=".5"/>
+  <path d="M0 -4C0 -14 3 -18 10 -20L22 -30C26 -34 31 -36 38 -36H58C65 -36 70 -33 74 -29L82 -21C90 -20 94 -16 94 -8V-2Q94 2 90 2H4Q0 2 0 -4Z" fill="#1b212b"/>
+  <path d="M26 -30C29 -33 33 -34 38 -34H56C61 -34 65 -32 68 -29L72 -23H20Z" fill="#070a10"/><path d="M30 -31L40 -23M46 -33L52 -23" stroke="#4d5b70" stroke-width="1.2" opacity=".6"/>
+  <path d="M4 -17C20 -20 70 -20 90 -15" stroke="#5c6b82" stroke-width="1" fill="none" opacity=".55"/>
+  <circle cx="20" cy="2" r="9" fill="#050507"/><circle cx="20" cy="2" r="4" fill="#3b4048"/><circle cx="74" cy="2" r="9" fill="#050507"/><circle cx="74" cy="2" r="4" fill="#3b4048"/>
+  ${lights ? `<ellipse cx="90" cy="-12" rx="22" ry="12" fill="#ffe9a8" opacity=".22" filter="url(#b5${u})"/><ellipse cx="91" cy="-12" rx="3.4" ry="2.6" fill="#fff3c8"/>` : ''}</g>`;
 
-/** Tilt, shove, scale, stain, tape and fold a pinned note so the board looks lived in (and slept on). */
-function _bbApplyMess(el, nt, i) {
-  const r = salt => _bbRand(i, salt);
-  const slipped = r(13) < 0.16;   // one pin gave way; it hangs crooked
-  el.style.setProperty('--tilt', ((r(1) - 0.5) * (slipped ? 30 : 15)).toFixed(1) + 'deg');
-  el.style.setProperty('--dx', ((r(2) - 0.5) * 26).toFixed(0) + 'px');
-  el.style.setProperty('--dy', ((r(3) - 0.5) * 20).toFixed(0) + 'px');
-  el.style.setProperty('--sc', (0.93 + r(4) * 0.14).toFixed(2));
-  el.style.setProperty('--z', String(Math.floor(r(5) * 10)));
-  if (nt.kind === 'nmphoto') { if (r(8) < 0.55) el.classList.add('bb-taped'); return; }
-  if (nt.kind === 'scrap' || nt.kind === 'locked') return;
-  if (r(6) < 0.30) el.classList.add('bb-stain');
-  if (r(8) < 0.30) el.classList.add('bb-taped');
-  if (nt.kind === 'paper' && r(7) < 0.28) el.classList.add('bb-fold');
-  const ink = r(9);
-  if (ink < 0.18) el.classList.add('bb-ink-pencil'); else if (ink < 0.30) el.classList.add('bb-ink-red');
-}
-
-// Each scene is 120x92. `.bb-far` shows normally; `.bb-near` fades in when you hover (or when the board decides to).
-const _nmCar = (x, y = 70, lights = true) => `<g transform="translate(${x} ${y - 70})"><path d="M2 70c0-5 2-8 7-9l7-6c2-1 4-2 7-2h10c3 0 5 1 7 3l5 5c4 1 6 3 6 7v4H2z" fill="#1a1f27"/><path d="M18 56h12c2 0 4 1 5 3l2 3H14z" fill="#0b0f15"/><circle cx="12" cy="74" r="5" fill="#0a0a0c"/><circle cx="36" cy="74" r="5" fill="#0a0a0c"/>${lights ? '<circle cx="47" cy="66" r="9" fill="#ffe9a0" opacity=".22"/><circle cx="47" cy="66" r="2.2" fill="#ffefb8"/>' : ''}</g>`;
 const NM_PHOTO_ART = {
-  desk: () => `<rect width="120" height="92" fill="#1c2427"/><rect width="120" height="60" fill="#233035"/>
-    <rect x="66" y="10" width="42" height="42" fill="#070b12" stroke="#4b545a" stroke-width="2.5"/><path d="M87 10v42M66 31h42" stroke="#4b545a" stroke-width="2"/>
-    <g fill="#cfd6de" opacity=".7"><circle cx="74" cy="18" r=".8"/><circle cx="99" cy="23" r=".8"/><circle cx="80" cy="44" r=".7"/></g>
-    <g class="bb-far" fill="#e8e4d8"><rect x="92.5" y="30" width="3" height="17"/><circle cx="94" cy="28.6" r="2.4"/><rect x="91" y="25.4" width="6" height="1.6"/></g>
-    <g class="bb-near"><ellipse cx="80" cy="32" rx="11" ry="14" fill="#ece8dc"/><ellipse cx="76" cy="30" rx="2.6" ry="3.6" fill="#050505"/><ellipse cx="85" cy="30" rx="2.6" ry="3.6" fill="#050505"/><path d="M73 40q7 8 14 0" stroke="#050505" stroke-width="1.4" fill="none"/></g>
-    <rect y="62" width="120" height="30" fill="#3a2b1f"/><rect y="60" width="120" height="3" fill="#2a1e15"/>
-    <path d="M26 46L6 92h44z" fill="#ffe9a8" opacity=".12"/><path d="M22 62l4-22h10l4 22z" fill="#c9a24a"/>
-    <rect x="52" y="54" width="9" height="8" fill="#8b8b82"/><path d="M61 56h3v4h-3" stroke="#8b8b82" fill="none" stroke-width="1.5"/>
-    <rect x="2" y="44" width="14" height="42" rx="4" fill="#0c1012"/><rect x="30" y="68" width="24" height="12" fill="#e8dfc4" transform="rotate(-6 42 74)"/>`,
-  lot: () => `<rect width="120" height="92" fill="#0e131b"/><g fill="#cfd6de" opacity=".6"><circle cx="14" cy="10" r=".7"/><circle cx="52" cy="6" r=".7"/><circle cx="96" cy="14" r=".7"/><circle cx="108" cy="30" r=".6"/></g>
-    <rect y="64" width="120" height="28" fill="#242424"/><path d="M0 44h120" stroke="#3b4148" stroke-width="1.6"/><path d="${Array.from({ length: 13 }, (_, i) => `M${5 + i * 9.5} 44v22`).join('')}" stroke="#3b4148" stroke-width="1.3"/>
-    ${_nmCar(2)}${_nmCar(42)}${_nmCar(80)}
-    <g class="bb-far" fill="#ece8dc"><rect x="58.5" y="46" width="3" height="18"/><circle cx="60" cy="44.4" r="2.5"/><rect x="57.5" y="41.4" width="5" height="1.5"/></g>
-    <g class="bb-near"><rect x="48" y="26" width="24" height="58" fill="#d9d5c8"/><ellipse cx="60" cy="20" rx="8" ry="10" fill="#ece8dc"/><rect x="49" y="9" width="22" height="3" fill="#0a0a0c"/><rect x="53" y="1" width="14" height="9" fill="#0a0a0c"/><ellipse cx="56" cy="19" rx="1.8" ry="2.6" fill="#000"/><ellipse cx="64" cy="19" rx="1.8" ry="2.6" fill="#000"/></g>`,
-  between: () => `<rect width="120" height="92" fill="#131a20"/><rect y="70" width="120" height="22" fill="#222"/>
-    <path d="M0 40h48c4 0 6 3 6 6v32H0z" fill="#1d2430"/><path d="M8 44h34l4 10H4z" fill="#0b0f15"/><circle cx="14" cy="78" r="7" fill="#0a0a0c"/>
-    <path d="M120 40H72c-4 0-6 3-6 6v32h54z" fill="#1d2430"/><path d="M112 44H78l-4 10h44z" fill="#0b0f15"/><circle cx="106" cy="78" r="7" fill="#0a0a0c"/>
-    <g fill="#ece8dc"><rect x="56" y="34" width="8" height="42"/><ellipse cx="60" cy="27" rx="6.5" ry="9"/><path d="M56 42l-4 34M64 42l4 36" stroke="#ece8dc" stroke-width="2" fill="none"/></g>
-    <g class="bb-near"><ellipse cx="57.5" cy="26" rx="1.3" ry="2.4" fill="#000"/><ellipse cx="62.5" cy="26" rx="1.3" ry="2.4" fill="#000"/><path d="M55 32q5 5 10 0" stroke="#000" stroke-width="1.2" fill="none"/></g>`,
-  asleep: () => `<rect width="120" height="92" fill="#1b1f26"/><rect y="58" width="120" height="34" fill="#3a2c20"/><path d="M40 40L10 92h60z" fill="#ffe9a8" opacity=".08"/>
-    <path d="M20 62c0-14 10-22 22-22s22 8 22 22z" fill="#46506a"/><ellipse cx="42" cy="44" rx="8" ry="8" fill="#d9b894"/><path d="M34 42c1-6 5-8 8-8s7 2 8 8z" fill="#3a2a1a"/><rect x="22" y="56" width="40" height="6" rx="3" fill="#46506a"/>
-    <g><rect x="78" y="20" width="18" height="46" fill="#0b0b0e"/><ellipse cx="87" cy="14" rx="6" ry="8" fill="#ece8dc"/><circle cx="84.5" cy="12.5" r="1" fill="#000"/><circle cx="89.5" cy="12.5" r="1" fill="#000"/><path d="M81 16q6 9 12 0" stroke="#050505" stroke-width="1.2" fill="#fff"/></g>
-    <g class="bb-near"><ellipse cx="42" cy="47" rx="8" ry="7" fill="#e8d2b8"/><circle cx="38.5" cy="46" r="2.5" fill="#fff"/><circle cx="45.5" cy="46" r="2.5" fill="#fff"/><circle cx="38.5" cy="46" r="1" fill="#000"/><circle cx="45.5" cy="46" r="1" fill="#000"/><path d="M39 52h6" stroke="#6a3a2a" fill="none"/></g>`,
-  customer: () => `<rect width="120" height="92" fill="#cdbf9d"/><path d="M10 92c0-18 18-26 50-26s50 8 50 26z" fill="#1c1c24"/><path d="M52 66l8 14 8-14z" fill="#e8e4d8"/><path d="M58 70l2 18 2-18z" fill="#7a0f18"/>
-    <ellipse cx="60" cy="38" rx="20" ry="26" fill="#ece8dc"/><path d="M40 28c2-14 12-18 20-18s18 4 20 18c-6-6-14-8-20-8s-14 2-20 8z" fill="#2a2a2a"/>
-    <circle cx="51" cy="34" r="2.2" fill="#111"/><circle cx="69" cy="34" r="2.2" fill="#111"/><path d="M42 46q18 22 36 0z" fill="#fff" stroke="#111" stroke-width="1.4"/><path d="M46 49v5M51 52v6M56 54v6M60 54.5v6M64 54v6M69 52v6M74 49v5" stroke="#111" stroke-width=".6"/>
-    <g class="bb-near"><ellipse cx="51" cy="34" rx="4.8" ry="6.5" fill="#000"/><ellipse cx="69" cy="34" rx="4.8" ry="6.5" fill="#000"/></g>`,
-  keys: () => `<rect width="120" height="92" fill="#3a2a1e"/>${Array.from({ length: 40 }, (_, i) => { const c = i % 8, rw = Math.floor(i / 8), x = 10 + c * 14, y = 10 + rw * 15, hot = i === 39; return `<g>${hot ? `<circle cx="${x}" cy="${y + 6}" r="9" fill="#ffb347" opacity=".35"/>` : ''}<circle cx="${x}" cy="${y}" r="2.2" fill="${hot ? '#ffcf7a' : '#b69a55'}"/><rect x="${x - .6}" y="${y + 2}" width="1.2" height="7" fill="${hot ? '#ffcf7a' : '#b69a55'}"/><rect x="${x - 3}" y="${y + 9}" width="6" height="4" fill="${hot ? '#fff1c4' : '#e8d5a0'}"/></g>`; }).join('')}
-    <g class="bb-near"><path d="M121 86L110 78" stroke="#0b0b0e" stroke-width="9"/><circle cx="108" cy="76" r="5" fill="#ece8dc"/></g>`,
-  firstkey: () => `<rect width="120" height="92" fill="#0f0f12"/><rect y="62" width="120" height="30" fill="#1e1612"/><circle cx="58" cy="56" r="16" fill="#ffb347" opacity=".13"/>
-    <path d="M120 38L80 52l-2 14 42 6z" fill="#0b0b0e"/><ellipse cx="72" cy="58" rx="9" ry="6" fill="#ece8dc"/>
-    <rect x="20" y="54.5" width="34" height="3" fill="#c7a24a"/><rect x="22" y="57" width="3" height="5" fill="#c7a24a"/><rect x="28" y="57" width="3" height="3" fill="#c7a24a"/><circle cx="58" cy="56" r="6" fill="none" stroke="#c7a24a" stroke-width="3"/>
-    <path d="M58 62l-4 14 12 4 4-14z" fill="#e8dfc4"/><path d="M57 70l6 2" stroke="#b9ad8e" stroke-width="1"/>
-    <g class="bb-near"><circle cx="55.8" cy="54.6" r=".9" fill="#ece8dc"/><circle cx="60.2" cy="54.6" r=".9" fill="#ece8dc"/><path d="M54.6 57.4q3.4 3 6.8 0" stroke="#ece8dc" stroke-width="1" fill="none"/></g>`,
-  gate: () => `<rect width="120" height="92" fill="#2a2a31"/><rect y="46" width="120" height="14" fill="#3a3a42"/><rect y="64" width="120" height="28" fill="#1c1c1c"/>
-    <g><rect x="50" y="26" width="20" height="48" fill="#0a0a0c"/><ellipse cx="60" cy="20" rx="7.5" ry="9" fill="#ece8dc"/><ellipse cx="60" cy="48" rx="10" ry="2.6" fill="#030304"/><rect x="55" y="40" width="10" height="8" rx="1" fill="#030304"/></g>
-    <g class="bb-near"><circle cx="56.5" cy="18.5" r="1.3" fill="#000"/><circle cx="63.5" cy="18.5" r="1.3" fill="#000"/><path d="M52 23q8 10 16 0z" stroke="#050505" stroke-width="1.3" fill="#fff"/></g>
-    <g stroke="#0b0b0d" stroke-width="2.2">${Array.from({ length: 14 }, (_, i) => `<path d="M${4 + i * 8.6} 8v72"/>`).join('')}<path d="M0 14h120M0 70h120"/></g>`,
-  dawn: () => `<rect width="120" height="42" fill="#e4b95e"/><rect y="42" width="120" height="22" fill="#caa24b"/><rect y="62" width="120" height="30" fill="#3a3326"/>
-    <g stroke="#2a2418" stroke-width="2"><path d="M0 44h120"/>${Array.from({ length: 13 }, (_, i) => `<path d="M${6 + i * 9.5} 44v20"/>`).join('')}</g>
-    <ellipse cx="60" cy="84" rx="28" ry="4.5" fill="#8a7640" opacity=".7"/><ellipse cx="60" cy="76" rx="10" ry="2.6" fill="#0b0b0d"/><rect x="54" y="66" width="12" height="10" rx="2" fill="#0b0b0d"/>
-    <g class="bb-near"><rect x="58" y="82" width="4" height="6" fill="#0b0b0d"/><ellipse cx="60" cy="90" rx="2.6" ry="3" fill="#ece8dc"/></g>`,
+  desk: u => `${_nmDefs(u)}
+    <linearGradient id="wl${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1c2b31"/><stop offset="1" stop-color="#0c1519"/></linearGradient>
+    <linearGradient id="sk${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#04070f"/><stop offset="1" stop-color="#1d2b40"/></linearGradient>
+    <rect width="240" height="184" fill="url(#wl${u})"/>
+    <rect x="122" y="14" width="92" height="92" fill="url(#sk${u})"/>
+    <circle cx="196" cy="34" r="16" fill="#dfe6f2" opacity=".35" filter="url(#b5${u})"/><circle cx="196" cy="34" r="6.5" fill="#e9eef6" opacity=".9"/>
+    <g fill="#cfd8e6" opacity=".7"><circle cx="136" cy="26" r=".9"/><circle cx="150" cy="46" r=".7"/><circle cx="178" cy="22" r=".8"/><circle cx="206" cy="58" r=".7"/></g>
+    <rect x="122" y="90" width="92" height="16" fill="#080c11"/><g fill="#ffd98a" opacity=".85"><circle cx="134" cy="96" r="1.5"/><circle cx="148" cy="98" r="1.5"/><circle cx="160" cy="95" r="1.4"/></g>
+    <g class="bb-far">${_nmPale(190, 106, .3, { u })}</g>
+    <path d="M168 14v92M122 60h92" stroke="#2a353b" stroke-width="4"/><rect x="122" y="14" width="92" height="92" fill="none" stroke="#2a353b" stroke-width="6"/>
+    <rect y="126" width="240" height="58" fill="url(#wood${u})"/><rect y="126" width="240" height="2" fill="#a07a56" opacity=".55"/>
+    <ellipse cx="54" cy="104" rx="70" ry="58" fill="url(#warm${u})"/><path d="M46 100L8 184H104L72 102Z" fill="#ffd98a" opacity=".1"/>
+    <ellipse cx="50" cy="130" rx="15" ry="3.6" fill="#141414"/><path d="M50 128L60 98L46 82" stroke="#2a2a2a" stroke-width="3.4" fill="none" stroke-linecap="round"/>
+    <path d="M30 84L60 75L68 94L38 100Z" fill="#c9a24a"/><path d="M30 84L60 75L62 80L33 89Z" fill="#e8c874" opacity=".7"/>
+    <rect x="104" y="112" width="17" height="17" rx="2" fill="#8d8d84"/><path d="M121 116h5a4 4 0 010 9h-5" stroke="#8d8d84" stroke-width="2.4" fill="none"/><rect x="104" y="112" width="17" height="3" fill="#2a1a10"/>
+    <path d="M110 106q-3-6 1-11t-1-9M116 106q3-6-1-11t1-9" stroke="#cfd6de" stroke-width="1.6" fill="none" opacity=".3" filter="url(#b2${u})"/>
+    <g transform="rotate(-7 92 153)"><rect x="68" y="140" width="46" height="28" fill="#e8dfc4"/><path d="M73 148h30M73 154h34M73 160h22" stroke="#9a8f74" stroke-width="1.2"/></g>
+    <g transform="translate(150 150) rotate(12)"><circle cx="0" cy="0" r="4" fill="none" stroke="url(#brass${u})" stroke-width="2.4"/><rect x="3.5" y="-1.2" width="20" height="2.4" fill="url(#brass${u})"/><rect x="18" y="1" width="2.4" height="4" fill="#b8923e"/><rect x="13" y="1" width="2.4" height="3" fill="#b8923e"/></g>
+    <path d="M0 68Q-6 130 6 184H36Q26 122 32 68Z" fill="#060a0c"/><path d="M30 72Q24 124 34 182" stroke="#2a3a42" stroke-width="1.5" fill="none"/>
+    <g class="bb-near"><ellipse cx="190" cy="68" rx="46" ry="46" fill="#fff" opacity=".1" filter="url(#b5${u})"/>
+      <ellipse cx="190" cy="34" rx="36" ry="5.5" fill="#050507"/><path d="M168 34L171 8H209L212 34Z" fill="#050507"/>
+      <ellipse cx="190" cy="64" rx="27" ry="35" fill="url(#skin${u})"/><ellipse cx="179" cy="56" rx="6.4" ry="9.5" fill="#000"/><ellipse cx="201" cy="56" rx="6.4" ry="9.5" fill="#000"/>
+      <path d="M172 78Q190 100 208 78Q190 84 172 78Z" fill="#120606" stroke="#000" stroke-width="2"/><path d="M178 80v6M184 83v7M190 84v8M196 83v7M202 80v6" stroke="#e8e4d8" stroke-width="1.3"/>
+      <g fill="#ece8dc"><ellipse cx="158" cy="86" rx="3" ry="9"/><ellipse cx="150" cy="82" rx="3" ry="9"/><ellipse cx="222" cy="86" rx="3" ry="9"/><ellipse cx="230" cy="82" rx="3" ry="9"/></g></g>
+    ${_nmFinish(u)}`,
+
+  lot: u => `${_nmDefs(u)}
+    <linearGradient id="sk${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#05080f"/><stop offset="1" stop-color="#232d3c"/></linearGradient>
+    <linearGradient id="gd${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#171c24"/><stop offset="1" stop-color="#0a0d12"/></linearGradient>
+    <pattern id="cl${u}" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0H7M0 0V7" stroke="#46505c" stroke-width=".7"/></pattern>
+    <rect width="240" height="184" fill="url(#sk${u})"/>
+    <circle cx="190" cy="30" r="20" fill="#dfe6f2" opacity=".3" filter="url(#b5${u})"/><circle cx="190" cy="30" r="7" fill="#e9eef6" opacity=".9"/>
+    <path d="M0 94Q18 78 36 92T76 88T116 94T160 86T200 92T240 84V104H0Z" fill="#06090d"/>
+    <rect y="100" width="240" height="84" fill="url(#gd${u})"/>
+    <g stroke="#3a4350" stroke-width="1.2" opacity=".6"><path d="M0 138H240M0 164H240"/></g>
+    <rect y="76" width="240" height="30" fill="url(#cl${u})" opacity=".9"/><path d="M0 76H240M0 106H240" stroke="#5a6572" stroke-width="1.6"/>
+    ${_nmCar(4, 138, 1.05, true, u)}${_nmCar(138, 136, 1.05, true, u)}${_nmCar(60, 124, .72, true, u)}${_nmCar(172, 122, .72, true, u)}
+    <rect x="118.4" y="14" width="3.2" height="92" fill="#202830"/><path d="M104 14h32" stroke="#202830" stroke-width="3"/>
+    <ellipse cx="120" cy="16" rx="26" ry="9" fill="#ffd98a" opacity=".7" filter="url(#b5${u})"/><path d="M110 16L72 112H168L130 16Z" fill="#ffd98a" opacity=".1"/>
+    <g fill="#c8d0dc" opacity=".14" filter="url(#b12${u})"><ellipse cx="60" cy="118" rx="70" ry="9"/><ellipse cx="180" cy="124" rx="74" ry="10"/><ellipse cx="120" cy="108" rx="60" ry="7"/></g>
+    <g class="bb-far">${_nmPale(120, 108, .62, { u })}</g>
+    <g class="bb-near">${_nmPale(120, 182, 1.7, { u, smile: true, eyes: true })}</g>
+    ${_nmFinish(u)}`,
+
+  between: u => `${_nmDefs(u)}
+    <linearGradient id="gd${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#101820"/><stop offset="1" stop-color="#060a0e"/></linearGradient>
+    <rect width="240" height="184" fill="url(#gd${u})"/>
+    <ellipse cx="120" cy="86" rx="44" ry="70" fill="url(#cold${u})"/>
+    <rect y="140" width="240" height="44" fill="#0a0f14"/><path d="M96 142h48M100 150h40M104 160h32" stroke="#9fc4ff" stroke-width="1.4" opacity=".16"/>
+    ${_nmPale(120, 156, 1.55, { u, op: .96 })}
+    <g class="bb-near"><g transform="translate(120 156) scale(1.55)"><ellipse cx="-2.7" cy="-77" rx="1.6" ry="2.7" fill="#000"/><ellipse cx="2.7" cy="-77" rx="1.6" ry="2.7" fill="#000"/><path d="M-5.4 -71.5Q0 -64 5.4 -71.5Q0 -69.5 -5.4 -71.5Z" fill="#fff" stroke="#000" stroke-width=".7"/></g></g>
+    <path d="M0 52H70Q96 52 98 70V150H0Z" fill="#1a212b"/><path d="M0 52H70Q96 52 98 70V150H0Z" fill="none" stroke="#3b485a" stroke-width="1.4"/>
+    <path d="M6 60H62Q80 60 88 78H6Z" fill="#05080d"/><path d="M14 64L30 76M40 62L52 76" stroke="#5c6f8a" stroke-width="1.6" opacity=".5"/><path d="M0 108Q50 98 98 104" stroke="#7a8aa4" stroke-width="1.2" fill="none" opacity=".5"/>
+    <circle cx="36" cy="150" r="22" fill="#050507"/><circle cx="36" cy="150" r="9" fill="#2d333c"/>
+    <path d="M240 52H170Q144 52 142 70V150H240Z" fill="#1a212b"/><path d="M240 52H170Q144 52 142 70V150H240Z" fill="none" stroke="#3b485a" stroke-width="1.4"/>
+    <path d="M234 60H178Q160 60 152 78H234Z" fill="#05080d"/><path d="M226 64L210 76M200 62L188 76" stroke="#5c6f8a" stroke-width="1.6" opacity=".5"/><path d="M240 108Q190 98 142 104" stroke="#7a8aa4" stroke-width="1.2" fill="none" opacity=".5"/>
+    <circle cx="204" cy="150" r="22" fill="#050507"/><circle cx="204" cy="150" r="9" fill="#2d333c"/>
+    ${_nmFinish(u)}`,
+
+  asleep: u => `${_nmDefs(u)}
+    <linearGradient id="wl${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1a1f28"/><stop offset="1" stop-color="#0b0e13"/></linearGradient>
+    <rect width="240" height="184" fill="url(#wl${u})"/>
+    <rect x="150" y="14" width="64" height="130" fill="#05070b"/><rect x="150" y="14" width="64" height="130" fill="none" stroke="#2a313c" stroke-width="5"/><ellipse cx="182" cy="90" rx="50" ry="70" fill="url(#cold${u})" opacity=".25"/>
+    ${_nmPale(182, 150, 1.5, { u, smile: true, eyes: true, op: .92 })}
+    <circle cx="48" cy="34" r="17" fill="#d9d4c4"/><circle cx="48" cy="34" r="15" fill="#15181e"/><path d="M48 34V22M48 34L58 38" stroke="#e8e4d8" stroke-width="1.8" stroke-linecap="round"/><g stroke="#e8e4d8" stroke-width="1"><path d="M48 20v2M48 46v2M34 34h2M60 34h2"/></g>
+    <rect y="128" width="240" height="56" fill="url(#wood${u})"/><rect y="128" width="240" height="2" fill="#a07a56" opacity=".5"/>
+    <ellipse cx="42" cy="112" rx="64" ry="50" fill="url(#warm${u})"/>
+    <path d="M22 132C22 108 34 92 54 86C66 83 78 86 84 94L110 110L116 128V132Z" fill="#43538a"/>
+    <path d="M30 120C32 102 42 94 56 90" stroke="#8a9ad0" stroke-width="2.2" fill="none" opacity=".55"/><path d="M66 90C74 92 80 98 82 106" stroke="#2a3560" stroke-width="2" fill="none" opacity=".7"/>
+    <path d="M84 100C92 104 104 108 112 116L118 126L104 132L92 122Z" fill="#4d5e9a"/>
+    <path d="M70 80C60 80 54 88 56 98C60 108 74 110 82 102C88 94 84 82 70 80Z" fill="#c9a888"/>
+    <path d="M54 94C52 82 60 72 72 74C84 74 90 84 86 94C80 86 74 84 66 85C60 85 56 88 54 94Z" fill="#2a1d14"/><ellipse cx="86" cy="96" rx="3" ry="5" fill="#b8967a"/>
+    <path d="M60 118C80 112 112 114 130 122V132H56Z" fill="#43538a"/><path d="M60 118C80 112 112 114 130 122" stroke="#8a9ad0" stroke-width="1.6" fill="none" opacity=".5"/>
+    <ellipse cx="132" cy="128" rx="9" ry="5" fill="#c9a888"/>
+    <rect x="134" y="118" width="14" height="14" rx="2" fill="#8d8d84"/><path d="M148 121h4a3.5 3.5 0 010 8h-4" stroke="#8d8d84" stroke-width="2" fill="none"/>
+    <g class="bb-near"><ellipse cx="74" cy="96" rx="16" ry="18" fill="#d9bda0"/><path d="M58 90C58 78 66 74 74 74S90 78 90 90C84 84 80 83 74 83S62 84 58 90Z" fill="#2a1d14"/><circle cx="68" cy="95" r="5" fill="#fff"/><circle cx="80" cy="95" r="5" fill="#fff"/><circle cx="68" cy="95" r="2.3" fill="#000"/><circle cx="80" cy="95" r="2.3" fill="#000"/><path d="M66 106Q74 110 82 106" stroke="#6a3a2a" stroke-width="1.8" fill="none"/></g>
+    ${_nmFinish(u)}`,
+
+  customer: u => `${_nmDefs(u)}
+    <linearGradient id="bg${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9a8760"/><stop offset="1" stop-color="#4a3c26"/></linearGradient>
+    <rect width="240" height="184" fill="url(#bg${u})"/>
+    <g filter="url(#b5${u})"><circle cx="30" cy="30" r="18" fill="#ffe9a8" opacity=".5"/><circle cx="212" cy="26" r="22" fill="#ffd98a" opacity=".45"/><circle cx="196" cy="86" r="12" fill="#ff9a6a" opacity=".35"/><circle cx="22" cy="92" r="14" fill="#a8d0ff" opacity=".3"/><circle cx="64" cy="14" r="9" fill="#fff" opacity=".35"/></g>
+    <path d="M18 184C18 146 52 134 120 134S222 146 222 184Z" fill="#17171f"/><path d="M96 134L120 166L144 134Z" fill="#e8e4d8"/><path d="M114 142L120 176L126 142Z" fill="#7a0f18"/><path d="M84 138L120 170L96 184H70Z M156 138L120 170L144 184H170Z" fill="#101016"/>
+    <rect x="104" y="118" width="32" height="24" fill="#d0cabb"/>
+    <ellipse cx="120" cy="82" rx="42" ry="52" fill="url(#skin${u})"/>
+    <path d="M78 66C80 34 100 22 120 22S160 34 162 66C150 52 136 48 120 48S90 52 78 66Z" fill="#26262c"/><path d="M92 40C104 30 128 28 148 38" stroke="#5a5a64" stroke-width="2" fill="none" opacity=".6"/>
+    <ellipse cx="78" cy="86" rx="5" ry="9" fill="#cfc9b8"/><ellipse cx="162" cy="86" rx="5" ry="9" fill="#cfc9b8"/>
+    <path d="M90 70Q102 64 112 70M128 70Q138 64 150 70" stroke="#3a3a42" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+    <ellipse cx="101" cy="78" rx="6.4" ry="4.4" fill="#fff"/><ellipse cx="139" cy="78" rx="6.4" ry="4.4" fill="#fff"/><circle cx="101" cy="78" r="3" fill="#161616"/><circle cx="139" cy="78" r="3" fill="#161616"/><circle cx="102.2" cy="76.8" r="1" fill="#fff"/><circle cx="140.2" cy="76.8" r="1" fill="#fff"/>
+    <path d="M120 82V98M114 100Q120 103 126 100" stroke="#a49e8e" stroke-width="1.6" fill="none"/>
+    <path d="M86 102Q120 142 154 102Q120 114 86 102Z" fill="#1a0c0c" stroke="#120808" stroke-width="1.4"/><path d="M90 104Q120 112 150 104Q120 120 90 104Z" fill="#f4f0e6"/>
+    <path d="M96 106v7M103 108v8M110 109v8M117 109.5v8M123 109.5v8M130 109v8M137 108v8M144 106v7" stroke="#8a857a" stroke-width=".8"/>
+    <g class="bb-near"><path d="M70 98Q120 160 170 98Q120 118 70 98Z" fill="#120606" stroke="#000" stroke-width="1.6"/><path d="M76 100Q120 124 164 100Q120 134 76 100Z" fill="#f4f0e6"/><path d="M84 103v10M92 107v11M100 110v11M108 112v11M116 113v11M124 113v11M132 112v11M140 110v11M148 107v11M156 103v10" stroke="#7a756a" stroke-width=".9"/>
+      <ellipse cx="101" cy="78" rx="8" ry="10.5" fill="#000"/><ellipse cx="139" cy="78" rx="8" ry="10.5" fill="#000"/></g>
+    <g filter="url(#b2${u})"><path d="M150 184C150 156 176 146 206 150L226 160L232 184Z" fill="#e0dacb"/><path d="M196 150L214 134L220 140L208 156M206 156L226 146L230 152L214 164" fill="#e6e0d2"/></g>
+    ${_nmFinish(u)}`,
+
+  keys: u => `${_nmDefs(u)}
+    <rect width="240" height="184" fill="#3a2a1e"/><g stroke="#2a1c12" stroke-width="1" opacity=".7">${Array.from({ length: 12 }, (_, i) => `<path d="M0 ${10 + i * 15}H240"/>`).join('')}</g>
+    ${Array.from({ length: 9 }, (_, i) => Array.from({ length: 11 }, (_, j) => `<circle cx="${12 + i * 28}" cy="${10 + j * 17}" r="1.5" fill="#1a110a"/>`).join('')).join('')}
+    <ellipse cx="46" cy="40" rx="110" ry="90" fill="url(#warm${u})" opacity=".55"/>
+    ${Array.from({ length: 40 }, (_, i) => { const c = i % 8, rw = Math.floor(i / 8), x = 24 + c * 27 + (rw % 2) * 2, y = 18 + rw * 32, hot = i === 39; const k = hot ? '#ffcf7a' : 'url(#brass' + u + ')';
+      return `<g transform="rotate(${((i * 37) % 9) - 4} ${x} ${y})">${hot ? `<circle cx="${x}" cy="${y + 12}" r="22" fill="#ffb347" opacity=".4" filter="url(#b5${u})"/>` : ''}<ellipse cx="${x + 1.6}" cy="${y + 2.4}" rx="4.6" ry="4.6" fill="#000" opacity=".35"/><circle cx="${x}" cy="${y}" r="4.4" fill="none" stroke="${k}" stroke-width="2.4"/><rect x="${x - 1.2}" y="${y + 4}" width="2.4" height="13" fill="${k}"/><rect x="${x + 1.2}" y="${y + 11}" width="3.4" height="2" fill="${k}"/><path d="M${x - 5} ${y + 16}h10l1 9h-12z" fill="${hot ? '#fff1c4' : '#e0cf9c'}"/><path d="M${x - 3} ${y + 19}h6M${x - 3} ${y + 22}h4" stroke="#7a6a3a" stroke-width=".8"/></g>`; }).join('')}
+    <g class="bb-near"><path d="M244 168L206 146" stroke="#07070a" stroke-width="22" stroke-linecap="round"/><path d="M208 146L196 140" stroke="#ece8dc" stroke-width="10" stroke-linecap="round"/><g fill="#ece8dc"><ellipse cx="190" cy="136" rx="9" ry="6"/><ellipse cx="198" cy="128" rx="3" ry="8" transform="rotate(20 198 128)"/><ellipse cx="204" cy="132" rx="3" ry="8" transform="rotate(40 204 132)"/></g></g>
+    ${_nmFinish(u)}`,
+
+  firstkey: u => `${_nmDefs(u)}
+    <rect width="240" height="184" fill="#09090c"/><rect y="124" width="240" height="60" fill="url(#wood${u})" opacity=".8"/>
+    <ellipse cx="108" cy="104" rx="104" ry="80" fill="url(#warm${u})" opacity=".6"/>
+    <path d="M244 70L170 94L166 124L244 140Z" fill="#050507"/><path d="M170 94L180 98" stroke="#2a2a32" stroke-width="2"/>
+    <ellipse cx="170" cy="112" rx="22" ry="16" fill="url(#skin${u})"/><g fill="#e6e1d4"><ellipse cx="148" cy="113" rx="19" ry="5.4" transform="rotate(-6 148 113)"/><ellipse cx="148" cy="100" rx="15" ry="4.8" transform="rotate(16 148 100)"/></g><path d="M134 116Q150 119 166 116M138 102Q150 104 160 108" stroke="#a9a392" stroke-width="1" fill="none" opacity=".6"/>
+    <path d="M112 106L38 108" stroke="#000" stroke-width="9" opacity=".35" transform="translate(3 6)"/>
+    <rect x="40" y="103" width="78" height="7" rx="2" fill="url(#brass${u})"/><path d="M44 104h70" stroke="#fff3c8" stroke-width="1" opacity=".6"/>
+    <path d="M44 110h8v13h-8zM58 110h8v8h-8zM70 110h6v10h-6z" fill="url(#brass${u})"/><g stroke="#6e5420" stroke-width="1"><path d="M88 103v7M96 103v7M104 103v7"/></g>
+    <circle cx="124" cy="106" r="15" fill="none" stroke="url(#brass${u})" stroke-width="7"/><circle cx="124" cy="106" r="15" fill="none" stroke="#fff3c8" stroke-width="1.2" opacity=".5" stroke-dasharray="20 80"/>
+    <path d="M122 120L108 150L134 158L142 126Z" fill="#e8dfc4"/><path d="M122 120L108 150" stroke="#b9ad8e" stroke-width="1.4"/><path d="M114 138l14 4M112 146l10 3" stroke="#c9bd9e" stroke-width="1" opacity=".7"/><path d="M118 118Q116 110 122 108" stroke="#8a7a52" stroke-width="1.2" fill="none"/>
+    <g class="bb-near"><circle cx="124" cy="106" r="8" fill="#050507"/><circle cx="121" cy="104" r="1.5" fill="#ece8dc"/><circle cx="127" cy="104" r="1.5" fill="#ece8dc"/><path d="M119 109Q124 114 129 109" stroke="#ece8dc" stroke-width="1.4" fill="none"/></g>
+    ${_nmFinish(u)}`,
+
+  gate: u => `${_nmDefs(u)}
+    <linearGradient id="sk${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#24222e"/><stop offset="1" stop-color="#5a5666"/></linearGradient>
+    <rect width="240" height="184" fill="url(#sk${u})"/><rect y="120" width="240" height="64" fill="#0c0c10"/>
+    <path d="M0 122H240" stroke="#6a6676" stroke-width="1.4" opacity=".6"/><path d="M90 126h60M100 136h40M108 148h24" stroke="#9a96aa" stroke-width="1.4" opacity=".2"/>
+    <ellipse cx="120" cy="70" rx="80" ry="70" fill="url(#warm${u})" opacity=".35"/>
+    ${_nmPale(120, 140, 1.3, { u, hat: true })}
+    <g class="bb-near"><g transform="translate(120 140) scale(1.3)"><ellipse cx="-2.7" cy="-77" rx="1.4" ry="2.3" fill="#000"/><ellipse cx="2.7" cy="-77" rx="1.4" ry="2.3" fill="#000"/><path d="M-5.6 -72Q0 -63 5.6 -72Q0 -69.8 -5.6 -72Z" fill="#fff" stroke="#000" stroke-width=".7"/></g></g>
+    <g fill="#c8d0dc" opacity=".16" filter="url(#b12${u})"><ellipse cx="60" cy="130" rx="70" ry="9"/><ellipse cx="190" cy="136" rx="60" ry="8"/></g>
+    <g stroke="#08080b" stroke-width="3.4">${Array.from({ length: 15 }, (_, i) => `<path d="M${8 + i * 16} 24V150"/>`).join('')}</g>
+    <g fill="#08080b">${Array.from({ length: 15 }, (_, i) => `<path d="M${8 + i * 16} 14l4 12h-8z"/>`).join('')}</g>
+    <path d="M0 40H240M0 130H240" stroke="#08080b" stroke-width="5"/><path d="M0 41H240" stroke="#3a3744" stroke-width="1" opacity=".6"/>
+    <g transform="translate(76 20)"><path d="M104 86Q120 100 136 86" stroke="#2a2a30" stroke-width="3" fill="none"/><rect x="113" y="92" width="14" height="16" rx="2" fill="#3a3a42"/><path d="M116 92V86a4 4 0 018 0v6" stroke="#6a6a74" stroke-width="2" fill="none"/></g>
+    ${_nmFinish(u)}`,
+
+  dawn: u => `${_nmDefs(u)}
+    <linearGradient id="sk${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e9b95a"/><stop offset=".55" stop-color="#f6dc8e"/><stop offset="1" stop-color="#c98a3a"/></linearGradient>
+    <linearGradient id="gd${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6b4a2a"/><stop offset="1" stop-color="#241810"/></linearGradient>
+    <clipPath id="pc${u}"><ellipse cx="120" cy="164" rx="52" ry="9"/></clipPath>
+    <rect width="240" height="184" fill="url(#sk${u})"/>
+    <g fill="#fff3c8" opacity=".22">${Array.from({ length: 9 }, (_, i) => `<path d="M120 100L${-40 + i * 36} 0H${-22 + i * 36}Z"/>`).join('')}</g>
+    <circle cx="120" cy="100" r="38" fill="#fff3c8" opacity=".5" filter="url(#b12${u})"/><circle cx="120" cy="100" r="15" fill="#fffbe8"/>
+    <rect y="110" width="240" height="74" fill="url(#gd${u})"/>
+    <path d="M0 112H240" stroke="#3a2812" stroke-width="2"/>
+    <g stroke="#2a1c0c" stroke-width="3.4"><path d="M6 62V122M24 62V122M42 62V122M60 62V122M180 62V122M198 62V122M216 62V122M234 62V122"/></g>
+    <path d="M60 62L78 106L66 122M180 62L162 106L174 122" stroke="#2a1c0c" stroke-width="3.4" fill="none"/>
+    <path d="M0 60H70M170 60H240" stroke="#2a1c0c" stroke-width="4"/>
+    <path d="M118 112L98 184H156L124 112Z" fill="#1a1006" opacity=".5"/><path d="M120 112L112 178H132Z" fill="#1a1006" opacity=".35"/>
+    <ellipse cx="120" cy="164" rx="52" ry="9" fill="#f0c870" opacity=".6"/>
+    <g class="bb-near">${_nmPale(120, 114, .95, { u, sil: true, smile: true })}</g>
+    <ellipse cx="120" cy="150" rx="19" ry="4.4" fill="#050507"/><path d="M110 150L111 134H129L130 150Z" fill="#050507"/><rect x="110.6" y="140" width="18.8" height="3" fill="#2b2b33"/>
+    ${_nmFinish(u)}`,
 };
 function _bbNmPhoto(id, caption, stamp) {
   const art = NM_PHOTO_ART[id] || NM_PHOTO_ART.desk;
   const wrap = document.createElement('div');
   wrap.className = 'bb-photo bb-ph-' + id;
-  wrap.innerHTML = `<div class="bb-photo-img"><svg viewBox="0 0 120 92" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${art()}</svg><span class="bb-photo-stamp"></span></div><div class="bb-photo-cap"></div>`;
+  wrap.innerHTML = `<div class="bb-photo-img"><svg viewBox="0 0 240 184" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${art('p' + (++_nmPhotoSeq))}</svg><span class="bb-photo-stamp"></span></div><div class="bb-photo-cap"></div>`;
   wrap.querySelector('.bb-photo-stamp').textContent = stamp || '';
   wrap.querySelector('.bb-photo-cap').textContent = caption || '';
   return wrap;
 }
+
 
 /** A faded snapshot of the great-uncle grinning beside the first car he ever sold. */
 function _bbPolaroid() {
@@ -12746,7 +12849,6 @@ function openBulletinBoard() {
   const nmode = isNightmare();
   const notes = nmode ? _bbNightmareNotes() : _bbNormalNotes();
   const found = notes.filter(x => x.kind !== 'locked').length;
-  const list = nmode ? _bbMessUp(notes) : notes;
   const tilts = [-2.6, 1.8, -1.2, 2.8, -2, 1.2, -3, 2.2];
 
   const ov = document.createElement('div');
@@ -12778,21 +12880,11 @@ function openBulletinBoard() {
   svg.setAttribute('aria-hidden', 'true');
   const grid = document.createElement('div');
   grid.className = 'bb-grid';
-  if (nmode) {
-    NM_GRAFFITI.slice(0, Math.min(NM_GRAFFITI.length, Math.floor(found / 3))).forEach(g => {
-      const d = document.createElement('div');
-      d.className = 'bb-graf';
-      d.textContent = g.t;
-      d.style.cssText = `top:${g.y}%;left:${g.x}%;--r:${g.r}deg;font-size:${g.s}rem`;
-      surface.appendChild(d);
-    });
-  }
-  list.forEach((nt, i) => {
+  notes.forEach((nt, i) => {
     const el = document.createElement('div');
     el.className = `bb-note bb-${nt.kind}`;
     el.style.setProperty('--tilt', tilts[i % tilts.length] + 'deg');
     el.style.setProperty('--drop', ((i * 17) % 5) * 7 + 'px');
-    if (nmode) _bbApplyMess(el, nt, i);
     const spot = document.createElement('span');
     spot.className = 'bb-pinspot';
     const lab = document.createElement('div');
@@ -12804,7 +12896,6 @@ function openBulletinBoard() {
     el.append(spot, lab);
     if (nt.kind === 'polaroid') el.appendChild(_bbPolaroid());
     if (nt.kind === 'nmphoto') el.appendChild(_bbNmPhoto(nt.photo, nt.text, nt.stamp)); else el.appendChild(txt);
-    if (nt.scrawl) { const sc = document.createElement('div'); sc.className = 'bb-scrawl'; sc.textContent = nt.scrawl; el.appendChild(sc); }
     grid.appendChild(el);
   });
   const pinLayer = document.createElement('div');
@@ -12822,43 +12913,31 @@ function openBulletinBoard() {
     pinLayer.innerHTML = '';
     const pts = [...grid.children].map(el => {
       const r = el.querySelector('.bb-pinspot').getBoundingClientRect();
-      return { x: r.left - sr.left + r.width / 2, y: r.top - sr.top + r.height / 2, locked: el.classList.contains('bb-locked'), scrap: el.classList.contains('bb-scrap') };
+      return { x: r.left - sr.left + r.width / 2, y: r.top - sr.top + r.height / 2, locked: el.classList.contains('bb-locked') };
     });
-    const link = (a, b, sagMul = 1, extra = '') => {
+    const link = (a, b) => {
       const dx = b.x - a.x, dy = b.y - a.y;
-      const sag = (16 + Math.hypot(dx, dy) * 0.07) * sagMul;
+      const sag = 16 + Math.hypot(dx, dy) * 0.07;
       const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2 + sag;
       const d = `M${a.x} ${a.y} Q${mx} ${my} ${b.x} ${b.y}`;
       const sh = document.createElementNS(svgNS, 'path');
       sh.setAttribute('d', d); sh.setAttribute('class', 'bb-string-shadow');
       sh.setAttribute('transform', 'translate(2 4)');
       const th = document.createElementNS(svgNS, 'path');
-      th.setAttribute('d', d); th.setAttribute('class', 'bb-string' + (extra ? ' ' + extra : ''));
+      th.setAttribute('d', d); th.setAttribute('class', 'bb-string');
       svg.append(sh, th);
     };
     // One string from each note to the next one in order, nothing else.
-    const live = pts.filter(p => !p.locked && !p.scrap);
-    for (let i = 0; i < live.length - 1; i++) link(live[i], live[i + 1], nmode ? 0.8 + _bbRand(i, 20) * 1.6 : 1);
-    if (nmode) {
-      // Tangled extras: strings that skip notes, and a few that go nowhere.
-      for (let i = 0; i < live.length - 3; i++) if (_bbRand(i, 21) < 0.32) link(live[i], live[i + 3], 1.9, 'thin');
-      live.forEach((p, i) => {
-        if (_bbRand(i, 22) >= 0.14) return;
-        const ex = p.x + (_bbRand(i, 23) - 0.5) * 120, ey = p.y + 50 + _bbRand(i, 24) * 50;
-        const d = `M${p.x} ${p.y} Q${(p.x + ex) / 2} ${ey + 30} ${ex} ${ey}`;
-        const dg = document.createElementNS(svgNS, 'path');
-        dg.setAttribute('d', d); dg.setAttribute('class', 'bb-string thin dangle');
-        svg.append(dg);
-      });
-    }
+    const live = pts.filter(p => !p.locked);
+    for (let i = 0; i < live.length - 1; i++) link(live[i], live[i + 1]);
     // Photos get their own pin but no string.
     grid.querySelectorAll('.bb-pinspot2').forEach(sp => {
       const r = sp.getBoundingClientRect();
       pts.push({ x: r.left - sr.left + r.width / 2, y: r.top - sr.top + r.height / 2 });
     });
-    pts.forEach((p, pi) => {
+    pts.forEach(p => {
       const pin = document.createElement('span');
-      pin.className = 'bb-pin' + (nmode ? (_bbRand(pi, 30) < 0.22 ? ' dark' : _bbRand(pi, 31) < 0.12 ? ' rust' : '') : '');
+      pin.className = 'bb-pin';
       pin.style.left = p.x + 'px';
       pin.style.top = p.y + 'px';
       pinLayer.appendChild(pin);
