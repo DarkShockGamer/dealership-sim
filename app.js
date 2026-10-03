@@ -695,7 +695,7 @@ const NIGHTMARE_DEFAULTS = {
   visitorsAccepted: 0, visitorsDeclined: 0, ashCount: 0, ashDue: 0, ashDay: 0,
   eventsSeen: 0, salesToday: 0, totalSales: 0, eyesClicked: 0, visitor: null,
   sleep: 100, sleepDuelsWon: 0, sleepDuelsLost: 0, duelCooldownUntil: 0,   // Sleep meter + Pale Man duels
-  loreIdx: 0, dawnOffered: 0, wokeUp: 0, fondEnding: 0,                     // v1.20.0 — story beats + endings
+  loreIdx: 0, dawnOffered: 0, wokeUp: 0, fondEnding: 0, depthNoted: 0,                     // v1.20.0 — story beats + endings
 };
 
 // ============================================================
@@ -2140,7 +2140,7 @@ function applyUpgrade(upg) {
 /** Daily lot rent/utilities after difficulty and Cost Efficiency Program. */
 function getLotOverhead() {
   const base     = OVERHEAD_BY_LEVEL[state.upgrades.garageLevel] ?? 300;
-  const diffMult = state.difficulty === 'nightmare' ? 2.0 : state.difficulty === 'hard' ? 1.5 : state.difficulty === 'easy' ? 0 : 1.0;
+  const diffMult = state.difficulty === 'nightmare' ? 2.0 * (1 + 0.3 * Math.min(nmDepth(), 2)) : state.difficulty === 'hard' ? 1.5 : state.difficulty === 'easy' ? 0 : 1.0;
   const cut      = clamp((state.upgrades.overheadReductions || 0) * OVERHEAD_REDUCTION_PER_LEVEL, 0, 0.6);
   return Math.max(0, Math.round(base * diffMult * (1 - cut)));
 }
@@ -3166,7 +3166,7 @@ function buildUsedOffer(entry, condition, forceCursed) {
 /** Nightmare: the curse rate starts low and creeps up as the nights go on. */
 function getNightmareCurseChance() {
   const night = Math.max(1, state.day || 1);
-  return clamp(0.04 + 0.012 * (night - 1), 0.04, NIGHTMARE_CURSE_CHANCE);
+  return clamp(0.04 + 0.012 * (night - 1), 0.04, getCurseCap());
 }
 
 function generateUsedMarket() {
@@ -3194,7 +3194,7 @@ function ensureNightmareStarterStock(offers) {
   let cursedSeen = 0;
   for (let i = 0; i < offers.length; i++) {
     if (!offers[i].cursed) continue;
-    if (++cursedSeen > 2) {
+    if (++cursedSeen > getMaxCursedListings()) {
       offers[i] = buildUsedOffer(pickCatalogEntryForUsed(), pickCondition(getUsedConditionWeights()), false);
     }
   }
@@ -3423,7 +3423,7 @@ function computeSaleChance(car) {
   const focusFactor = activeListings <= 2 ? 1.35 : activeListings <= 4 ? 1.15 : 1.0;
 
   // Nightmare: buyers are wary after dark, and cursed cars give them the creeps.
-  const nightmareFactor = isNightmare() ? (car.cursed ? 0.68 : 0.9) : 1;
+  const nightmareFactor = isNightmare() ? (car.cursed ? 0.68 - 0.1 * nmDepth1() : 0.9 - 0.12 * nmDepth1()) : 1;
   chance = chance * priceAtt * condFactor * categoryFactor * priceTierFactor * crashFactor
          * lotFactor * marketingFactor * repFactor
          * repBoostFactor * demandFactor * washBonus * titleFactor * photoStudioFactor * certifiedFactor
@@ -4060,7 +4060,7 @@ function processMarketVolatility() {
   // Nightmare is scary, not ruinous: its swings are only a little bigger than Normal and it recovers quickly,
   // so segment values stay in a workable band (never below ~88%) and cars remain sellable.
   const diffMultiplier = nightmare ? 1.2 : isHard ? 1.4 : 1.0;
-  const idxMin = nightmare ? NIGHTMARE_MARKET_MIN : 0.60;
+  const idxMin = nightmare ? getMarketFloor() : 0.60;
   const idxMax = nightmare ? NIGHTMARE_MARKET_MAX : 1.50;
   for (const seg of Object.keys(state.marketIndices)) {
     // Daily drift ±0–1.5% on Normal, ±0–2.1% on Hard, ±0–2.6% on Nightmare
@@ -12051,6 +12051,24 @@ const NIGHTMARE_HAUNT_CHANCE   = 0.12;    // per cursed car, per night
 const NIGHTMARE_ASH_CHANCE     = 0.25;    // the Pale Customer's money may not survive the night
 const DREAD_TIER_LABELS = ['Uneasy', 'Haunted', 'Terrified', 'On the Edge'];
 
+/**
+ * The night deepens. 0 until Night 20, 1.0 at Night 360, and it keeps climbing (capped at 2.5, around Night 870)
+ * so the nights after the dawn offer stay dangerous. Everything below scales off this one number.
+ */
+function nmDepth(day) { return clamp((((day === undefined ? (state && state.day) : day) || 1) - 20) / 340, 0, 2.5); }
+function nmDepth1() { return Math.min(nmDepth(), 1); }                                   // the part of the climb that tops out at Night 360
+function getNightBaseDrift()   { return 2 + Math.round(nmDepth() * 5); }                 // 2 early, 7 at Night 360
+function getSaleDreadRelief()  { return Math.max(2, 4 - nmDepth() * 1.5); }              // 4 early, 2.5 at Night 360, 2 later
+function getCandleCost()       { return Math.round(NIGHTMARE_CANDLE_COST * (1 + nmDepth() * 3) / 50) * 50; }   // $750 early, $3,000 at Night 360
+function getCurseCap()         { return NIGHTMARE_CURSE_CHANCE + 0.14 * Math.min(nmDepth(), 1.5); }          // 16% early, 30% at Night 360
+function getMaxCursedListings(){ return Math.min(4, 2 + Math.floor(nmDepth() * 1.5)); } // 2 early, 3 at Night 360
+function getHauntChance()      { return NIGHTMARE_HAUNT_CHANCE * (1 + nmDepth() * 0.8); }
+function getAshChance()        { return NIGHTMARE_ASH_CHANCE + 0.15 * nmDepth1(); }
+function getMarketFloor()      { return NIGHTMARE_MARKET_MIN - 0.06 * nmDepth1(); }
+function getSleepDrain()       { return Math.round(SLEEP_DRAIN_PER_MIN * (1 + 0.5 * Math.min(nmDepth(), 1.6)) * 10) / 10; }  // 10%/min early, 15 at Night 360
+function getReckoningRate()    { return 0.20 + 0.10 * nmDepth1(); }
+function getReckoningDread()   { return 55 + Math.round(10 * nmDepth1()); }
+
 /** Nightmare-only omens, mixed into the market-event pool. `dread` shifts the meter. */
 const NIGHTMARE_EVENTS = [
   { msg: '🌫️ A thick, wrong fog rolls over the lot. Buyers stay home.',          effects: { Economy: -0.04, Sedan: -0.05, SUV: -0.05, Truck: -0.04, Sports: -0.05, Luxury: -0.06 }, dread: 4 },
@@ -12195,12 +12213,12 @@ function computeNightlyDreadDrift() {
   const parts = [];
   let total = 0;
   const add = (label, v) => { if (v) { parts.push({ label, v }); total += v; } };
-  add('The night closes in', 2);
+  add('The night closes in', getNightBaseDrift());
   const cursedCount = state.garage.filter(c => c.cursed).length;
   add('Cursed cars on the lot', Math.min(8, cursedCount * (hasWard('wardLights') ? 1 : 2)));
   if (state.cash < 0) add('Empty tills', 2);
   if (state.loanBalance > 0 && (state.delinquencyLevel || 0) > 0) add('Overdue debts', 2);
-  add('Sales since last dusk', -Math.min(16, (n.salesToday || 0) * 4));
+  add('Sales since last dusk', -Math.round(Math.min(16, (n.salesToday || 0) * getSaleDreadRelief())));
   if (hasWard('wardSalt'))   add('Salt Lines', -1);
   if (hasWard('wardLights')) add('Floodlight Array', -1);
   if (hasWard('wardChapel')) add('Lot Chapel', -3);
@@ -12234,7 +12252,7 @@ function processNightmareNight() {
 
   // 3. Cursed cars act up.
   let hauntDread = 0;
-  const hauntChance = NIGHTMARE_HAUNT_CHANCE * (hasWard('wardSalt') ? 0.5 : 1);
+  const hauntChance = getHauntChance() * (hasWard('wardSalt') ? 0.5 : 1);
   for (const car of state.garage.filter(c => c.cursed)) {
     if (Math.random() < hauntChance) hauntDread += hauntCar(car).dread;
   }
@@ -12258,6 +12276,9 @@ function processNightmareNight() {
     addNote(randomFrom(nmWhisperPool()), 'whisper');
   }
 
+  // 5a. The night deepens: tell the player, so the rising pressure never feels like a bug.
+  maybeNoteDeepening();
+
   // 5b. The lot tells you things, a little at a time.
   processNightmareLore();
 
@@ -12269,6 +12290,26 @@ function processNightmareNight() {
 
   // 7. A stranger at the gate.
   maybeSpawnPaleCustomer();
+}
+
+const NIGHTMARE_DEEPEN_LINES = {
+  60:  'The nights are getting longer. The fog stays past noon now.',
+  120: 'Something has changed. The dark presses closer each dusk, and a candle burns down faster than it used to.',
+  180: 'The curses come easier now. The Pale Man has stopped pretending this is a game he might lose.',
+  240: 'You can no longer remember a night that did not feel like this one.',
+  300: 'The lot has learned your routines. It is no longer afraid of them.',
+  360: 'A full year of nights. The dark has never been this deep, and it is still deepening.',
+};
+function maybeNoteDeepening() {
+  const n = nm();
+  const day = state.day || 1;
+  const due = Object.keys(NIGHTMARE_DEEPEN_LINES).map(Number).concat(day > 360 ? [Math.floor(day / 120) * 120] : [])
+    .filter(d => day >= d && (n.depthNoted || 0) < d).pop();
+  if (!due) return;
+  n.depthNoted = due;
+  const line = NIGHTMARE_DEEPEN_LINES[due] || 'The night deepens again. Nothing here will ever get easier.';
+  addNote('🌑 ' + line, 'whisper');
+  showToast('🌑 The night deepens.', 'warning', 'whisper');
 }
 
 /** Something happens to a cursed car in the night. Returns { dread }. */
@@ -12335,7 +12376,7 @@ function triggerReckoning() {
   if (n.reckonings >= NIGHTMARE_MAX_RECKONINGS) { nightmareConsumed(); return; }
 
   const chapel = hasWard('wardChapel');
-  const loss = clamp(Math.round(Math.max(0, state.cash) * (chapel ? 0.10 : 0.20)), 2000, chapel ? 100000 : 200000);
+  const loss = clamp(Math.round(Math.max(0, state.cash) * (chapel ? getReckoningRate() / 2 : getReckoningRate())), 2000, chapel ? 100000 : 200000 * (1 + nmDepth1()));
   state.cash -= loss;
   let carLine = 'It took nothing else. This time.';
   if (!chapel) {
@@ -12348,7 +12389,7 @@ function triggerReckoning() {
   } else {
     carLine = 'The chapel bells rang. Your cars were spared.';
   }
-  n.dread = 55;
+  n.dread = getReckoningDread();
   n.lowestDread = Math.min(n.lowestDread ?? 100, n.dread);
   const left = NIGHTMARE_MAX_RECKONINGS - n.reckonings;
   addNote(`💀 THE RECKONING (${n.reckonings}/${NIGHTMARE_MAX_RECKONINGS}). −${formatCurrency(loss)}. ${carLine}`, 'error');
@@ -12357,7 +12398,7 @@ function triggerReckoning() {
     tone: 'nm-modal-red',
     html: `<p>The lights go out all at once.</p>
            <p>When they return, the till is lighter by <strong>${formatCurrency(loss)}</strong>. ${carLine}</p>
-           <p class="nm-modal-warn">${left === 1 ? 'The next Reckoning will be the last.' : `${left} Reckonings remain before the dark keeps you.`} Dread has settled at 55.</p>`,
+           <p class="nm-modal-warn">${left === 1 ? 'The next Reckoning will be the last.' : `${left} Reckonings remain before the dark keeps you.`} Dread has settled at ${getReckoningDread()}.</p>`,
     actions: [{ label: 'Keep going', cls: 'btn-primary' }],
   });
 }
@@ -12755,7 +12796,7 @@ function sleepTick() {
   if (document.hidden || _paleDuel || _tutorialStep >= 0) return;
 
   const n = nm();
-  n.sleep = Math.max(0, getSleep() - dt * SLEEP_DRAIN_PER_MIN / 60000);
+  n.sleep = Math.max(0, getSleep() - dt * getSleepDrain() / 60000);
   const s = n.sleep;
 
   SLEEP_WARNINGS.forEach(w => {
@@ -12805,7 +12846,7 @@ function updateSleepUi() {
       chip._nmPct = pct;
       chip.querySelector('.nm-sleep-mini i').style.width = pct + '%';
       chip.querySelector('.nm-sleep-pct').textContent = pct + '%';
-      chip.title = `Sleep ${pct}% — you haven't really slept since you signed. It drains ${SLEEP_DRAIN_PER_MIN}% a minute. At 0 you fall asleep for good. Click to play the Pale Man for +${SLEEP_WIN_GAIN}%.`;
+      chip.title = `Sleep ${pct}% — you haven't really slept since you signed. It drains ${getSleepDrain()}% a minute. At 0 you fall asleep for good. Click to play the Pale Man for +${SLEEP_WIN_GAIN}%.`;
       }
       chip.classList.toggle('sleep-low',  getSleep() <= 30);
       chip.classList.toggle('sleep-crit', getSleep() <= 10);
@@ -13183,8 +13224,9 @@ function lightCandle() {
   if (!isNightmare() || state.gameOver) return;
   const n = nm();
   if (n.candleDay === state.day) { showToast('One candle a night is all the dark allows.', 'warning'); return; }
-  if (state.cash < NIGHTMARE_CANDLE_COST) { showToast('Not enough cash for a candle.', 'error'); return; }
-  state.cash -= NIGHTMARE_CANDLE_COST;
+  const candleCost = getCandleCost();
+  if (state.cash < candleCost) { showToast('Not enough cash for a candle.', 'error'); return; }
+  state.cash -= candleCost;
   n.candleDay = state.day;
   n.candlesLit = (n.candlesLit || 0) + 1;
   const eased = -changeDread(-NIGHTMARE_CANDLE_RELIEF);
@@ -13299,7 +13341,7 @@ function acceptPaleCustomer() {
   n.visitorsAccepted = (n.visitorsAccepted || 0) + 1;
   n.visitor = null;
   changeDread(18);
-  const ash = Math.random() < NIGHTMARE_ASH_CHANCE;
+  const ash = Math.random() < getAshChance();
   if (ash) { n.ashDue = v.offer; n.ashDay = state.day + 1; }
   addNote(`🚪 You sold the ${v.carLabel} to the Pale Customer for ${formatCurrency(v.offer)}. Your hand is still cold. The Pale Man tips an imaginary hat.`, 'warning');
   runAchievementChecks();
@@ -13382,7 +13424,7 @@ function renderNightmarePanel() {
             <div class="nm-sleep-fill" style="width:${Math.ceil(getSleep())}%"></div>
             <span class="nm-sleep-num">Sleep ${Math.ceil(getSleep())}%</span>
           </div>
-          <div class="stat-row"><span>Sleep drain</span><strong class="text-red">−${SLEEP_DRAIN_PER_MIN}% / minute</strong></div>
+          <div class="stat-row"><span>Sleep drain</span><strong class="text-red">−${getSleepDrain()}% / minute</strong></div>
           <div class="nm-actions">
             <button class="btn btn-primary nm-sleep-btn" onclick="openPaleDuel()" ${paleCooldownLeft() > 0 ? 'disabled' : ''} title="Best of three. Win to sleep (+${SLEEP_WIN_GAIN}%). Lose and you gain nothing, and he makes you wait ${PALE_LOSS_COOLDOWN_SEC}s.">${sleepBtnLabel()}</button>
           </div>
@@ -13392,21 +13434,22 @@ function renderNightmarePanel() {
           <div class="stat-row"><span>Tonight's drift</span><strong class="${driftCls}">${drift.total > 0 ? '+' : ''}${drift.total} Dread</strong></div>
           <div class="nm-drift">${driftRows}</div>
           <div class="nm-actions">
-            <button class="btn btn-primary" onclick="lightCandle()" ${candleUsed || state.cash < NIGHTMARE_CANDLE_COST ? 'disabled' : ''}
-              title="One per night. Costs ${formatCurrency(NIGHTMARE_CANDLE_COST)}.">🕯️ ${candleUsed ? 'Candle lit tonight' : `Light a Candle · −${NIGHTMARE_CANDLE_RELIEF} Dread · ${formatCurrency(NIGHTMARE_CANDLE_COST)}`}</button>
+            <button class="btn btn-primary" onclick="lightCandle()" ${candleUsed || state.cash < getCandleCost() ? 'disabled' : ''}
+              title="One per night. Costs ${formatCurrency(getCandleCost())}.">🕯️ ${candleUsed ? 'Candle lit tonight' : `Light a Candle · −${NIGHTMARE_CANDLE_RELIEF} Dread · ${formatCurrency(getCandleCost())}`}</button>
           </div>
           ${ashHtml}
           ${state.day >= 2 ? `<div class="nm-actions"><button class="btn btn-secondary" onclick="openOfficeBoard()" title="The pegboard of keys behind the desk.">🗝️ Office board</button></div>` : ''}
         </div>
         <ul class="nm-rules">
-          <li><strong>Sell cars</strong> to keep the dark back (−4 Dread each, up to −16 a night).</li>
+          <li><strong>Sell cars</strong> to keep the dark back (−${Math.round(getSaleDreadRelief() * 10) / 10} Dread each, up to −16 a night).${nmDepth() > 0 ? ' <em>The longer you stay, the less each sale helps.</em>' : ''}</li>
           <li>At <strong>100 Dread</strong> the dark collects: cash, your best car, and a step closer to the end.</li>
           <li><strong>Cursed cars</strong> sell cheap — inspect first. Exorcise them, or sell them fast.</li>
-          <li><strong>Sleep</strong> drains ${SLEEP_DRAIN_PER_MIN}% every minute. You haven't really slept since you signed. At <strong>0</strong> you pass out and the run is over.</li>
+          <li><strong>Sleep</strong> drains ${getSleepDrain()}% every minute. You haven't really slept since you signed. At <strong>0</strong> you pass out and the run is over.</li>
           <li>Beat the <strong>Pale Man</strong> at rock-paper-scissors (best of three) to sleep: +${SLEEP_WIN_GAIN}%. Lose and you gain nothing, and he makes you wait ${PALE_LOSS_COOLDOWN_SEC}s. He is only toying with you.</li>
           <li>The <strong>Pale Customer</strong> is the Pale Man in disguise. He pays far too much. Money can burn.</li>
           <li>Buy <strong>Wards</strong> in Upgrades to push the night back for good.</li>
-          <li>Overhead ×2, staff pay +25%, buyers pickier, bankruptcy is permanent.</li>
+          <li>Overhead ×${(2 * (1 + 0.3 * Math.min(nmDepth(), 2))).toFixed(1)}, staff pay +25%, buyers pickier, bankruptcy is permanent.</li>
+          ${nmDepth() > 0 ? `<li><strong>The night deepens</strong> as the nights pass: more Dread each dusk, more curses, pricier candles, faster sleep drain, harder Reckonings.</li>` : ''}
         </ul>
       </div>
       ${visitorHtml}
