@@ -323,8 +323,13 @@
 .slot-icon {
   font-size: 2.6rem;
   line-height: 1;
+  color: #9fd0ff;
+  --mi-a: #4d8bff;
   filter: drop-shadow(0 0 12px rgba(77, 139, 255, .45));
 }
+.slot-icon .mi { width: 1.25em; height: 1.25em; display: block; }
+.slot-icon-empty { opacity: .55; color: #8fbfff; filter: none; }
+.slot-icon-empty .mi { width: 1.1em; height: 1.1em; }
 
 /* Slot name / title */
 .slot-name {
@@ -354,8 +359,17 @@
   border-radius: 7px;
   border: 1px solid rgba(100, 150, 240, .18);
 }
-.slot-stat-row span:first-child { color: rgba(160, 200, 255, .7); }
+.slot-stat-row span:first-child { color: rgba(160, 200, 255, .7); display: inline-flex; align-items: center; gap: 7px; }
+.slot-stat-row span:first-child .mi { --mi-a: #6fb0ff; color: #8fc4ff; width: 1.3em; height: 1.3em; vertical-align: 0; }
 .slot-stat-row span:last-child  { font-weight: 700; color: #d0e8ff; }
+
+/* Difficulty badge inside the stats list */
+.slot-diff { display: inline-flex; align-items: center; gap: 6px; }
+.slot-stat-row .slot-diff .mi { width: 1.3em; height: 1.3em; vertical-align: 0; }
+.slot-diff-easy      { color: #8ff0b4; --mi-a: #3ddc84; }
+.slot-diff-normal    { color: #bfe0ff; --mi-a: #6fb0ff; }
+.slot-diff-hard      { color: #ffc27a; --mi-a: #ff9a2e; }
+.slot-diff-nightmare { color: #ff9aa6; --mi-a: #ff4d63; }
 
 /* CTA text for empty slots */
 .slot-cta {
@@ -375,6 +389,10 @@
   border: 1px solid rgba(255, 100, 110, .3);
   border-radius: 7px;
   color: rgba(255, 160, 168, .8);
+  --mi-a: #ff6b78;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: .72rem;
   font-weight: 700;
   letter-spacing: 1px;
@@ -548,9 +566,13 @@
 
 .credits-icon {
   font-size: 1.3rem;
+  line-height: 0;
+  color: #ffe2a3;
+  --mi-a: #ffc94d;
   filter: drop-shadow(0 0 10px rgba(255, 205, 100, .4));
   margin-bottom: 2px;
 }
+.credits-icon .mi-credit { width: 2.1em; height: 2.1em; }
 
 .credits-role {
   font-family: var(--font-display, 'Space Grotesk', sans-serif);
@@ -1008,4 +1030,30 @@
   padding: 14px 16px;
   text-align: left;
   scrollbar-width: thin;
+}
+
+
+/* ── Custom menu icons (SVG sprite in index.html) ────────── */
+.mi {
+  width: 1em;
+  height: 1em;
+  flex: none;
+  vertical-align: -0.14em;
+  overflow: visible;
+}
+.menu-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+.menu-btn .mi { width: 1.45em; height: 1.45em; vertical-align: 0; }
+.menu-btn-play     { --mi-a: #bfe0ff; }
+.menu-btn-load     { --mi-a: #6fb0ff; color: #dcecff; }
+.menu-btn-settings { --mi-a: #7fa8ff; }
+.menu-btn-credits  { --mi-a: #ffc94d; }
+.menu-btn-credits .mi { color: #ffe2a3; }
+.slot-delete-btn .mi { width: 1.2em; height: 1.2em; vertical-align: 0; }
+@media (max-width: 600px) {
+  .slot-icon .mi { width: 1.2em; height: 1.2em; }
 }
