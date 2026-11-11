@@ -16,7 +16,7 @@ export const PATCH_NOTES = [
     version: '1.21.7',
     date: 'November 2026',
     notes: [
-      { type: 'feature', text: "New custom icons replace the emoji on the title screen, the save/load slots and the Credits page. Play, Load, Settings and Credits each get their own icon; save slots now show a car, plus matching icons for Money, Days, Cars, Difficulty and Delete, and each difficulty has its own badge (leaf for Easy, steering wheel for Normal, flame for Hard, skull for Nightmare). The four credit roles each have their own icon too. They are lightweight vector icons with no filters or animation, so they won't add any lag." },
+      { type: 'feature', text: "New custom icons replace the emoji on the title screen, the save/load slots and the Credits page. They are full-colour illustrated icons: Play, Load, Settings and Credits each get their own badge on the title screen, save slots show a car with colour icons for Money, Days, Cars, Difficulty and Delete, and each difficulty has its own pill badge (leaf for Easy, steering wheel for Normal, flame for Hard, skull for Nightmare). The four credit roles (megaphone, film reel, pencil, magnifying glass) sit in gold medallions. They are lightweight vector icons with no filters or animation, so they won't add any lag." },
     ],
   },
   {
