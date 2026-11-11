@@ -144,107 +144,134 @@
        ══════════════════════════════════════════════════════ -->
   <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
     <defs>
-      <!-- Title screen -->
-      <symbol id="mi-play" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M10 5.6v12.8a1 1 0 0 0 1.5.9l9.4-6.4a1 1 0 0 0 0-1.7l-9.4-6.4a1 1 0 0 0-1.5.9z" style="fill:var(--mi-a,currentColor)" fill-opacity=".3"/>
-        <path d="M2.5 9h4.2M1.5 12h5.2M2.5 15h4.2"/>
-      </symbol>
-      <symbol id="mi-load" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4.2l2.1 2.3h8.7A1.5 1.5 0 0 1 21 9.8v8.7a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z" style="fill:var(--mi-a,currentColor)" fill-opacity=".25"/>
-        <path d="M12 11.6v5M9.7 14.5l2.3 2.3 2.3-2.3"/>
-      </symbol>
-      <symbol id="mi-tune" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M3.5 7h8.5M18 7h2.5M3.5 12h2.5M12 12h8.5M3.5 17h9.5M19 17h1.5"/>
-        <circle cx="15" cy="7" r="2.4" style="fill:var(--mi-a,currentColor)" fill-opacity=".35"/>
-        <circle cx="9" cy="12" r="2.4" style="fill:var(--mi-a,currentColor)" fill-opacity=".35"/>
-        <circle cx="16" cy="17" r="2.4" style="fill:var(--mi-a,currentColor)" fill-opacity=".35"/>
-      </symbol>
-      <symbol id="mi-clapper" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3.5" y="10.5" width="17" height="9.5" rx="1.8" style="fill:var(--mi-a,currentColor)" fill-opacity=".22"/>
-        <path d="M3.6 7.2l15.8-3.4.8 3.6L4.4 10.8z" style="fill:var(--mi-a,currentColor)" fill-opacity=".3"/>
-        <path d="M8.4 6.2l1.9 3.4M13.2 5.2l1.9 3.4"/>
-        <path d="M8 15h8"/>
-      </symbol>
+      <linearGradient id="mg-white" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#bcd6ff"/></linearGradient>
+      <linearGradient id="mg-amber" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd778"/><stop offset="1" stop-color="#f09a1c"/></linearGradient>
+      <linearGradient id="mg-amber-d" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e9a03a"/><stop offset="1" stop-color="#b8690c"/></linearGradient>
+      <linearGradient id="mg-gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff2bd"/><stop offset="1" stop-color="#f2b032"/></linearGradient>
+      <linearGradient id="mg-green" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#86f2ae"/><stop offset="1" stop-color="#1fae62"/></linearGradient>
+      <linearGradient id="mg-red" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff8f98"/><stop offset="1" stop-color="#e0384c"/></linearGradient>
+      <linearGradient id="mg-slate" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#46587a"/><stop offset="1" stop-color="#1b2740"/></linearGradient>
+      <linearGradient id="mg-car" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6db4ff"/><stop offset="1" stop-color="#2557c9"/></linearGradient>
+      <linearGradient id="mg-steel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e4eefb"/><stop offset="1" stop-color="#8aa6c9"/></linearGradient>
+      <linearGradient id="mg-flame" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffcf48"/><stop offset="1" stop-color="#ff4d1f"/></linearGradient>
+      <linearGradient id="mg-bone" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#bfcbe0"/></linearGradient>
+      <linearGradient id="mg-dial" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a3d63"/><stop offset="1" stop-color="#0f1a30"/></linearGradient>
+      <linearGradient id="mg-arc" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#3fe08a"/><stop offset=".55" stop-color="#ffcf48"/><stop offset="1" stop-color="#ff4d63"/></linearGradient>
+      <linearGradient id="mg-glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e3f4ff" stop-opacity=".95"/><stop offset="1" stop-color="#8cc8ff" stop-opacity=".55"/></linearGradient>
 
-      <!-- Save / load slots -->
-      <symbol id="mi-car" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M3 16.5v-3.6c0-.7.5-1.3 1.2-1.5l2.4-.7 2-3.2A2 2 0 0 1 10.3 6.6h3.9a2 2 0 0 1 1.7.9l2 3.2 2.3.6c.7.2 1.3.8 1.3 1.6v3.6z" style="fill:var(--mi-a,currentColor)" fill-opacity=".22" stroke="none"/>
-        <path d="M4.7 16.5H3.5a.5.5 0 0 1-.5-.5v-3.1c0-.7.5-1.3 1.2-1.5l2.4-.7 2-3.2A2 2 0 0 1 10.3 6.6h3.9a2 2 0 0 1 1.7.9l2 3.2 2.3.6c.7.2 1.3.8 1.3 1.6V16a.5.5 0 0 1-.5.5h-1.2M9.3 16.5h5.4"/>
-        <path d="M8.7 11l1.5-3h4l2.2 3z"/>
-        <circle cx="7" cy="16.7" r="2.3" style="fill:var(--mi-a,currentColor)" fill-opacity=".4"/>
-        <circle cx="17" cy="16.7" r="2.3" style="fill:var(--mi-a,currentColor)" fill-opacity=".4"/>
+      <!-- ── Title screen ── -->
+      <symbol id="mi-play" viewBox="0 0 32 32">
+        <path d="M12.5 6.4v19.2a1.3 1.3 0 0 0 2 1.1l14.6-9.6a1.3 1.3 0 0 0 0-2.2L14.5 5.3a1.3 1.3 0 0 0-2 1.1z" fill="url(#mg-white)"/>
+        <path d="M2.5 11.5h6M1 16h7.5M2.5 20.5h6" stroke="#fff" stroke-width="2.4" stroke-linecap="round" opacity=".75"/>
       </symbol>
-      <symbol id="mi-cash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="2.5" y="6" width="19" height="12" rx="2" style="fill:var(--mi-a,currentColor)" fill-opacity=".22"/>
-        <circle cx="12" cy="12" r="2.8"/>
-        <path d="M6 9.6h.01M18 14.4h.01"/>
+      <symbol id="mi-load" viewBox="0 0 32 32">
+        <path d="M3 9.5A2.5 2.5 0 0 1 5.5 7h6.2l2.6 3H26.5A2.5 2.5 0 0 1 29 12.5v12a2.5 2.5 0 0 1-2.5 2.5h-21A2.5 2.5 0 0 1 3 24.5z" fill="url(#mg-amber-d)"/>
+        <path d="M3 15a2.5 2.5 0 0 1 2.5-2.5h21A2.5 2.5 0 0 1 29 15v9.5a2.5 2.5 0 0 1-2.5 2.5h-21A2.5 2.5 0 0 1 3 24.5z" fill="url(#mg-amber)"/>
+        <path d="M16 15.8v6.6M12.8 19.5l3.2 3.2 3.2-3.2" stroke="#7a4605" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
       </symbol>
-      <symbol id="mi-days" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3.5" y="5" width="17" height="15.5" rx="2.2" style="fill:var(--mi-a,currentColor)" fill-opacity=".22"/>
-        <path d="M3.5 10h17M8 3v4M16 3v4"/>
-        <path d="M8 14h.01M12 14h.01M16 14h.01M8 17.2h.01M12 17.2h.01"/>
+      <symbol id="mi-tune" viewBox="0 0 32 32">
+        <path d="M5 9h22M5 16h22M5 23h22" stroke="#fff" stroke-width="2.4" stroke-linecap="round" opacity=".4"/>
+        <circle cx="21" cy="9" r="3.6" fill="url(#mg-white)" stroke="#5aa8ff" stroke-width="1.6"/>
+        <circle cx="11" cy="16" r="3.6" fill="url(#mg-white)" stroke="#5ad0ff" stroke-width="1.6"/>
+        <circle cx="19" cy="23" r="3.6" fill="url(#mg-white)" stroke="#8a7bff" stroke-width="1.6"/>
       </symbol>
-      <symbol id="mi-gauge" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M3.8 17.5a9 9 0 1 1 16.4 0z" style="fill:var(--mi-a,currentColor)" fill-opacity=".22"/>
-        <path d="M12 14.5l3.6-4.6"/>
-        <path d="M12 6.2v1.3M6.4 8.8l.9.9M17.6 8.8l-.9.9"/>
-        <circle cx="12" cy="14.5" r="1.3" style="fill:var(--mi-a,currentColor)"/>
-      </symbol>
-      <symbol id="mi-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M6.5 7l.8 12a1.6 1.6 0 0 0 1.6 1.5h6.2a1.6 1.6 0 0 0 1.6-1.5l.8-12z" style="fill:var(--mi-a,currentColor)" fill-opacity=".22"/>
-        <path d="M4 7h16M9.2 7V4.5h5.6V7M10 11v6M14 11v6"/>
-      </symbol>
-      <symbol id="mi-newslot" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="9.2" stroke-dasharray="3.2 3.2"/>
-        <path d="M12 7.8v8.4M7.8 12h8.4"/>
-      </symbol>
-
-      <!-- Difficulty badges -->
-      <symbol id="mi-leaf" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M5 19c0-8.5 4.5-13.5 14.5-14.5C19.5 14 15 19 7 19.5z" style="fill:var(--mi-a,currentColor)" fill-opacity=".3"/>
-        <path d="M4.5 20l8-8"/>
-      </symbol>
-      <symbol id="mi-wheel" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="9" style="fill:var(--mi-a,currentColor)" fill-opacity=".18"/>
-        <circle cx="12" cy="12" r="2.2" style="fill:var(--mi-a,currentColor)" fill-opacity=".5"/>
-        <path d="M3.2 11.2l6.7.8M20.8 11.2l-6.7.8M12 14.2V21"/>
-      </symbol>
-      <symbol id="mi-flame" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12.5 2.8c.9 3.4 5.5 5.9 5.5 11a6 6 0 0 1-12 0c0-2.3 1-3.9 2.3-5.2.1 1.7.8 2.7 1.8 3.3-.2-3.5.4-6.6 2.4-9.1z" style="fill:var(--mi-a,currentColor)" fill-opacity=".3"/>
-        <path d="M12 21.8c-1.7 0-2.9-1.2-2.9-2.8 0-1.4 1.1-2.2 1.9-3.3.8 1.1 1.9 1.9 1.9 3.3 0 1.6-.3 2.8-.9 2.8z" transform="translate(0 -1.3)"/>
-      </symbol>
-      <symbol id="mi-skull" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 3c-4.1 0-7.2 2.8-7.2 6.5 0 2.2 1 3.9 2.7 5v3a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1v-3c1.7-1.1 2.7-2.8 2.7-5C19.2 5.8 16.1 3 12 3z" style="fill:var(--mi-a,currentColor)" fill-opacity=".22"/>
-        <circle cx="9.1" cy="10.4" r="1.6" style="fill:var(--mi-a,currentColor)"/>
-        <circle cx="14.9" cy="10.4" r="1.6" style="fill:var(--mi-a,currentColor)"/>
-        <path d="M12 12.8l-.9 1.9h1.8zM10.2 18.5v2.2M12 18.5v2.2M13.8 18.5v2.2"/>
-      </symbol>
-
-      <!-- Credits -->
-      <symbol id="mi-megaphone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <g transform="translate(-1.2 0)">
-          <path d="M3 9.6v4.8h3.2l8.3 4.4V5.2L6.2 9.6z" style="fill:var(--mi-a,currentColor)" fill-opacity=".28"/>
-          <path d="M6.6 14.4l1.1 4.6h2.6l-.9-4"/>
-          <path d="M17.6 9.2a4 4 0 0 1 0 5.6M20 6.8a8.5 8.5 0 0 1 0 10.4"/>
+      <symbol id="mi-clapper" viewBox="0 0 32 32">
+        <rect x="4" y="13" width="24" height="15" rx="2.6" fill="url(#mg-slate)"/>
+        <path d="M8.5 19.5h11M8.5 23.5h7" stroke="#fff" stroke-width="1.8" stroke-linecap="round" opacity=".45"/>
+        <circle cx="23.5" cy="21.5" r="1.8" fill="#ffd36b"/>
+        <g transform="rotate(-11 5 12.5)">
+          <rect x="4" y="6" width="24" height="6.5" rx="1.8" fill="#f4f8ff"/>
+          <path d="M9 6h4.5l-3.5 6.5H5.5zM18.5 6H23l-3.5 6.5H15zM26.5 6H28v6.5h-5z" fill="#27344f"/>
         </g>
       </symbol>
-      <symbol id="mi-reel" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="9.2" style="fill:var(--mi-a,currentColor)" fill-opacity=".18"/>
-        <circle cx="12" cy="12" r="1.6" style="fill:var(--mi-a,currentColor)"/>
-        <circle cx="12" cy="7.1" r="1.5"/>
-        <circle cx="16.7" cy="10.5" r="1.5"/>
-        <circle cx="14.9" cy="16" r="1.5"/>
-        <circle cx="9.1" cy="16" r="1.5"/>
-        <circle cx="7.3" cy="10.5" r="1.5"/>
+
+      <!-- ── Save / load ── -->
+      <symbol id="mi-car" viewBox="0 0 32 32">
+        <path d="M2 21.5v-4.7c0-1.1.7-2 1.8-2.2l4.4-.9 3.8-4.6c.5-.6 1.2-.9 2-.9h6.2c.8 0 1.5.3 2 .9l3.3 4 3.7.8c1 .2 1.8 1.1 1.8 2.2v4.4a1.5 1.5 0 0 1-1.5 1.5H3.5A1.5 1.5 0 0 1 2 21.5z" fill="url(#mg-car)"/>
+        <path d="M11.6 14.2l2.8-3.6c.3-.4.7-.5 1.1-.5h5c.4 0 .8.2 1.1.5l2.9 3.6z" fill="#d6ecff"/>
+        <path d="M17.6 10.1v4.1" stroke="#2557c9" stroke-width="1.2"/>
+        <path d="M4.5 17.6h23" stroke="#fff" stroke-width="1" opacity=".35" stroke-linecap="round"/>
+        <rect x="28.2" y="16.6" width="2.6" height="2.2" rx=".8" fill="#ffe68a"/>
+        <rect x="1.3" y="16.8" width="1.6" height="2" rx=".6" fill="#ff5d6c"/>
+        <circle cx="8.8" cy="22.6" r="3.7" fill="#101a2a"/><circle cx="8.8" cy="22.6" r="2" fill="url(#mg-steel)"/><circle cx="8.8" cy="22.6" r=".7" fill="#101a2a"/>
+        <circle cx="23.2" cy="22.6" r="3.7" fill="#101a2a"/><circle cx="23.2" cy="22.6" r="2" fill="url(#mg-steel)"/><circle cx="23.2" cy="22.6" r=".7" fill="#101a2a"/>
       </symbol>
-      <symbol id="mi-pencil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M4 17.5L15.8 5.7a2.1 2.1 0 0 1 3 0l.5.5a2.1 2.1 0 0 1 0 3L7.5 21 3.5 21.5z" style="fill:var(--mi-a,currentColor)" fill-opacity=".28"/>
-        <path d="M14 7.5l3.5 3.5M10.5 21H21"/>
+      <symbol id="mi-cash" viewBox="0 0 32 32">
+        <rect x="2.5" y="7.5" width="27" height="17" rx="3" fill="url(#mg-green)"/>
+        <rect x="5" y="10" width="22" height="12" rx="1.8" fill="none" stroke="#fff" stroke-width="1" opacity=".45"/>
+        <circle cx="16" cy="16" r="4.8" fill="#f3fff7"/>
+        <text x="16" y="19.4" text-anchor="middle" font-size="9" font-weight="800" font-family="Arial,Helvetica,sans-serif" fill="#128a4b">$</text>
       </symbol>
-      <symbol id="mi-inspect" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="10.5" cy="10.5" r="6.8" style="fill:var(--mi-a,currentColor)" fill-opacity=".22"/>
-        <path d="M15.5 15.5L21 21"/>
-        <path d="M7.6 10.7l2.1 2.1 3.8-4"/>
+      <symbol id="mi-days" viewBox="0 0 32 32">
+        <rect x="4.5" y="6" width="23" height="21.5" rx="3.2" fill="#f4f8ff"/>
+        <path d="M4.5 9.2A3.2 3.2 0 0 1 7.7 6h16.6a3.2 3.2 0 0 1 3.2 3.2V13h-23z" fill="url(#mg-red)"/>
+        <path d="M10.5 3.5v5M21.5 3.5v5" stroke="#46587a" stroke-width="2.4" stroke-linecap="round"/>
+        <g fill="#5b86c9"><rect x="8.5" y="15.5" width="3.4" height="3.2" rx=".8"/><rect x="14.3" y="15.5" width="3.4" height="3.2" rx=".8"/><rect x="20.1" y="15.5" width="3.4" height="3.2" rx=".8"/><rect x="8.5" y="21" width="3.4" height="3.2" rx=".8"/><rect x="14.3" y="21" width="3.4" height="3.2" rx=".8" fill="#e0384c"/></g>
+      </symbol>
+      <symbol id="mi-gauge" viewBox="0 0 32 32">
+        <circle cx="16" cy="16" r="13" fill="url(#mg-dial)" stroke="#8fb4e6" stroke-width="1.6"/>
+        <path d="M8 22.4a10 10 0 1 1 16 0" fill="none" stroke="url(#mg-arc)" stroke-width="2.6" stroke-linecap="round"/>
+        <path d="M16 17.5l5.2-6.2" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>
+        <circle cx="16" cy="17.5" r="2.3" fill="#ff5a4a" stroke="#fff" stroke-width="1"/>
+      </symbol>
+      <symbol id="mi-trash" viewBox="0 0 32 32">
+        <path d="M8.5 11.5h15l-1.2 13.8a2.5 2.5 0 0 1-2.5 2.2h-7.6a2.5 2.5 0 0 1-2.5-2.2z" fill="url(#mg-red)"/>
+        <rect x="6" y="7.5" width="20" height="3.4" rx="1.7" fill="#ffc2c8"/>
+        <path d="M12.5 7.5V6a1.5 1.5 0 0 1 1.5-1.5h4A1.5 1.5 0 0 1 19.5 6v1.5" fill="none" stroke="#ffc2c8" stroke-width="2"/>
+        <path d="M13.2 14.5v9M18.8 14.5v9" stroke="#fff" stroke-width="1.8" stroke-linecap="round" opacity=".6"/>
+      </symbol>
+      <symbol id="mi-newslot" viewBox="0 0 32 32">
+        <circle cx="16" cy="16" r="12.5" fill="rgba(143,191,255,.08)" stroke="#8fbfff" stroke-width="1.8" stroke-dasharray="4 3.6"/>
+        <path d="M16 10.5v11M10.5 16h11" stroke="#8fbfff" stroke-width="2.6" stroke-linecap="round"/>
+      </symbol>
+
+      <!-- ── Difficulty ── -->
+      <symbol id="mi-leaf" viewBox="0 0 32 32">
+        <path d="M5.5 26.5C4.5 14 12 6 27 5.5 27.5 19 19 27.5 5.5 26.5z" fill="url(#mg-green)"/>
+        <path d="M6 26.5L20 12M14 19.5l.2-5M17.5 16l4.5.5" stroke="#0f6b3a" stroke-width="1.6" stroke-linecap="round" opacity=".7" fill="none"/>
+      </symbol>
+      <symbol id="mi-wheel" viewBox="0 0 32 32">
+        <circle cx="16" cy="16" r="11.5" fill="none" stroke="url(#mg-steel)" stroke-width="3.4"/>
+        <path d="M5 15.2l7.8 1.6M27 15.2l-7.8 1.6M16 19.8V27.5" stroke="#bcd3ee" stroke-width="3.2" stroke-linecap="round"/>
+        <circle cx="16" cy="16.5" r="3.8" fill="#5ea8ff" stroke="#fff" stroke-width="1.4"/>
+      </symbol>
+      <symbol id="mi-flame" viewBox="0 0 32 32">
+        <path d="M16.5 2.5c1 5.8 9 9.2 9 18a9.5 9.5 0 0 1-19 0c0-4.3 2-7 4.3-9.2.3 2.9 1.6 4.5 3.2 5.3C13 12 13.8 7 16.5 2.5z" fill="url(#mg-flame)"/>
+        <path d="M16 29.5a5.2 5.2 0 0 1-5.2-5.2c0-3.1 2.6-4.7 3.7-7.2 1.5 1.5 2.6 2.6 3.3 4.3.9-.6 1.3-1.6 1.4-2.6 1.6 1.7 2.2 3.7 2.2 5.5a5.2 5.2 0 0 1-5.4 5.2z" fill="#ffe58a"/>
+      </symbol>
+      <symbol id="mi-skull" viewBox="0 0 32 32">
+        <path d="M16 3c-6.1 0-10.6 4.2-10.6 9.7 0 3.2 1.5 5.7 4 7.3v3.7a1.6 1.6 0 0 0 1.6 1.6h10a1.6 1.6 0 0 0 1.6-1.6V20c2.5-1.6 4-4.1 4-7.3C26.6 7.2 22.1 3 16 3z" fill="url(#mg-bone)"/>
+        <ellipse cx="11.6" cy="13.5" rx="3" ry="3.4" fill="#2a0f1a"/><ellipse cx="20.4" cy="13.5" rx="3" ry="3.4" fill="#2a0f1a"/>
+        <circle cx="11.6" cy="14" r="1.1" fill="#ff4d63"/><circle cx="20.4" cy="14" r="1.1" fill="#ff4d63"/>
+        <path d="M16 18l-1.7 3.2h3.4z" fill="#2a0f1a"/>
+        <path d="M12.6 25.4v3M16 25.4v3M19.4 25.4v3" stroke="#8a94a8" stroke-width="1.5" stroke-linecap="round"/>
+      </symbol>
+
+      <!-- ── Credits ── -->
+      <symbol id="mi-megaphone" viewBox="0 0 32 32">
+        <path d="M4 12.5v7h5l12 6.5V6L9 12.5z" fill="url(#mg-gold)"/>
+        <path d="M9.5 19.5l1.6 6.5h3.6l-1.3-5.2z" fill="#c98a1a"/>
+        <path d="M24.5 12a5.5 5.5 0 0 1 0 8M27.6 8.5a10 10 0 0 1 0 15" fill="none" stroke="#ffd36b" stroke-width="2.2" stroke-linecap="round"/>
+      </symbol>
+      <symbol id="mi-reel" viewBox="0 0 32 32">
+        <circle cx="16" cy="16" r="13" fill="url(#mg-gold)"/>
+        <g fill="#2b2210"><circle cx="16" cy="8.7" r="2.7"/><circle cx="22.9" cy="13.7" r="2.7"/><circle cx="20.3" cy="21.9" r="2.7"/><circle cx="11.7" cy="21.9" r="2.7"/><circle cx="9.1" cy="13.7" r="2.7"/></g>
+        <circle cx="16" cy="16" r="2.6" fill="#2b2210"/><circle cx="16" cy="16" r="1" fill="#f2b032"/>
+      </symbol>
+      <symbol id="mi-pencil" viewBox="0 0 32 32">
+        <g transform="rotate(42 16 16)">
+          <rect x="12.5" y="1.5" width="7" height="4" rx="1.6" fill="#ff9aa8"/>
+          <rect x="12.5" y="5.5" width="7" height="3" fill="#cfd6e0"/>
+          <rect x="12.5" y="8.5" width="7" height="13" fill="url(#mg-amber)"/>
+          <path d="M16 8.5v13" stroke="#fff" stroke-width="1.2" opacity=".4"/>
+          <path d="M12.5 21.5h7L16 29.5z" fill="#f3d1a0"/>
+          <path d="M15 27.4l1 2.1 1-2.1z" fill="#2b2210"/>
+        </g>
+      </symbol>
+      <symbol id="mi-inspect" viewBox="0 0 32 32">
+        <path d="M21.5 21.5l7 7" stroke="#c98a1a" stroke-width="4.6" stroke-linecap="round"/>
+        <circle cx="14" cy="14" r="9" fill="url(#mg-glass)" stroke="url(#mg-gold)" stroke-width="3.2"/>
+        <path d="M9.6 14.2l3.2 3.2 5.6-6" fill="none" stroke="#2fd47e" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
       </symbol>
     </defs>
   </svg>
