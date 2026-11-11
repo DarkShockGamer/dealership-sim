@@ -12,7 +12,7 @@ import { PATCH_NOTES } from './data/patchNotes.js';
 // ============================================================
 // GAME VERSION & PATCH NOTES
 // ============================================================
-const GAME_VERSION = '1.21.6';
+const GAME_VERSION = '1.21.7';
 
 // Full change log lives in data/patchNotes.js (newest entry first).
 
@@ -10705,6 +10705,11 @@ function diffPickerCancel() {
   if (box) box.classList.remove('is-nightmare');
 }
 
+/** Custom menu icon from the SVG sprite in index.html (#mi-<name>). */
+function menuIcon(name, cls = '') {
+  return `<svg class="mi ${cls}" aria-hidden="true"><use href="#mi-${name}"/></svg>`;
+}
+
 /** Re-render the three save-slot cards into #save-slot-grid. */
 function renderSaveSlots() {
   const grid    = document.getElementById('save-slot-grid');
@@ -10723,20 +10728,23 @@ function renderSaveSlots() {
       : `Save Slot ${slot}: Empty — start new game`);
 
     if (summary) {
-      const diffLabel = summary.difficulty === 'nightmare' ? '💀 Nightmare' : summary.difficulty === 'hard' ? '💪 Hard' : summary.difficulty === 'easy' ? '😎 Easy' : '🎮 Normal';
+      const diffKey   = ['nightmare', 'hard', 'easy'].includes(summary.difficulty) ? summary.difficulty : 'normal';
+      const diffIcon  = { nightmare: 'skull', hard: 'flame', easy: 'leaf', normal: 'wheel' }[diffKey];
+      const diffName  = { nightmare: 'Nightmare', hard: 'Hard', easy: 'Easy', normal: 'Normal' }[diffKey];
+      const diffLabel = `<span class="slot-diff slot-diff-${diffKey}">${menuIcon(diffIcon)}${diffName}</span>`;
       card.innerHTML = `
         ${isLast ? '<span class="slot-last-badge">Last Played</span>' : ''}
         <div class="slot-label">Save Slot ${slot}</div>
-        <div class="slot-icon">🚗</div>
+        <div class="slot-icon">${menuIcon('car')}</div>
         <div class="slot-name">Day ${summary.day}</div>
         <div class="slot-stats">
-          <div class="slot-stat-row"><span>💰 Money</span><span>${fmtSlotMoney(summary.money)}</span></div>
-          <div class="slot-stat-row"><span>📅 Days</span><span>${summary.day}</span></div>
-          <div class="slot-stat-row"><span>🚘 Cars</span><span>${summary.cars}</span></div>
-          <div class="slot-stat-row"><span>⚙️ Difficulty</span><span>${diffLabel}</span></div>
+          <div class="slot-stat-row"><span>${menuIcon('cash')}Money</span><span>${fmtSlotMoney(summary.money)}</span></div>
+          <div class="slot-stat-row"><span>${menuIcon('days')}Days</span><span>${summary.day}</span></div>
+          <div class="slot-stat-row"><span>${menuIcon('car')}Cars</span><span>${summary.cars}</span></div>
+          <div class="slot-stat-row"><span>${menuIcon('gauge')}Difficulty</span><span>${diffLabel}</span></div>
         </div>
         <button class="slot-delete-btn" aria-label="Delete Save Slot ${slot}"
-          onclick="event.stopPropagation(); window._confirmDeleteSlot(${slot})">🗑 Delete</button>
+          onclick="event.stopPropagation(); window._confirmDeleteSlot(${slot})">${menuIcon('trash')}Delete</button>
       `;
       const activateExisting = () => { playSfx('start'); launchGame(slot, false); };
       card.addEventListener('click', activateExisting);
@@ -10744,7 +10752,7 @@ function renderSaveSlots() {
     } else {
       card.innerHTML = `
         <div class="slot-label">Save Slot ${slot}</div>
-        <div class="slot-icon" style="font-size:2.8rem;opacity:.55;">＋</div>
+        <div class="slot-icon slot-icon-empty">${menuIcon('newslot')}</div>
         <div class="slot-name" style="opacity:.6;">Empty</div>
         <div class="slot-cta">Create Save</div>
       `;
